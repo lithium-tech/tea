@@ -1,0 +1,99 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "definitions": {
+        "s3": {
+            "type": "object",
+            "properties": {
+                "access_key": { "type": "string" },
+                "secret_key": { "type": "string" },
+                "endpoint_override": { "type": "string" },
+                "scheme": { "type": "string", "enum": ["http", "https"] },
+                "connect_timeout_ms": { "type": "integer", "minimum": 0 },
+                "request_timeout_ms": { "type": "integer", "minimum": 0 }
+            },
+            "required": ["access_key", "secret_key", "endpoint_override", "scheme", "connect_timeout_ms", "request_timeout_ms"]
+        },
+        "catalog": {
+            "type": "object",
+            "properties": {
+                "type": { "type": "string", "enum": ["hms", "rest"] },
+                "hms": { "type": "string" },
+                "rest": { "type": "string" }
+            },
+            "required": ["type", "hms", "rest"]
+        },
+        "teapot": {
+            "type": "object",
+            "properties": {
+                "location": { "type": "string" },
+                "timeout_ms": { "type": "integer", "minimum": 0 }
+            },
+            "required": ["location", "timeout_ms"]
+        },
+        "limits": {
+            "type": "object",
+            "properties": {
+                "equality_delete_max_rows": { "type": "integer", "minimum": 0 },
+                "parquet_buffer_size": { "type": "integer", "minimum": 0 },
+                "equality_delete_max_mb_size": { "type": "integer", "minimum": 0 },
+                "grpc_max_message_size": { "type": "integer", "minimum": 0 }
+            },
+            "required": ["equality_delete_max_rows", "parquet_buffer_size", "equality_delete_max_mb_size", "grpc_max_message_size"]
+        },
+        "features": {
+            "type": "object",
+            "properties": {
+                "enable_row_group_filters": { "type": "boolean" },
+                "row_filters_version": { "type": "integer", "minimum": 0 },
+                "use_specialized_deletes": { "type": "boolean" },
+                "use_custom_heap_form_tuple": { "type": "boolean" },
+                "ext_table_filter_walker_for_projection": { "type": "boolean" }
+            },
+            "required": ["enable_row_group_filters", "row_filters_version", "use_specialized_deletes", "use_custom_heap_form_tuple", "ext_table_filter_walker_for_projection"]
+        },
+        "experimental_features": {
+            "type": "object",
+            "properties": {
+                "use_helper_thread": { "type": "boolean" },
+                "prefetch": { "type": "boolean" }
+            },
+            "required": ["use_helper_thread", "prefetch"]
+        },
+        "debug": {
+            "type": "object",
+            "properties": {
+                "test_stats": { "type": "boolean" },
+                "test_gandiva_filter": { "type": "boolean" },
+                "intermediate_logs_period_seconds": { "type": "integer", "minimum": 0 }
+            },
+            "required": ["test_stats", "test_gandiva_filter", "intermediate_logs_period_seconds"]
+        },
+        "json": {
+            "type": "object",
+            "properties": {
+                "substitute_unicode_if_json_type": { "type": "boolean" }
+            },
+            "required": ["substitute_unicode_if_json_type"]
+        },
+        "samovar": {
+            "type": "object",
+            "properties": {
+                "use_samovar": { "type": "boolean" },
+                "backoff_type": { "type": "string", "enum": ["exp", "linear", "none"] },
+                "exponentail_backoff_sleep_coef": { "type": "number", "minimum": 0 },
+                "exponentail_backoff_limit": { "type": "integer", "minimum": 0 },
+                "limit_retries": { "type": "integer", "minimum": 0 },
+                "samovar": { "type": "string", "format": "hostname" },
+                "split_type": { "type": "string", "enum": ["offsets", "ranges", "hash"] },
+                "ttl": { "type": "integer", "minimum": 0 }
+            },
+            "required": [
+                "use_samovar",
+                "backoff_type",
+                "limit_retries",
+                "samovar",
+                "split_type"
+            ]
+        }
+    }
+}

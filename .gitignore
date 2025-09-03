@@ -1,0 +1,7 @@
+/cmake-build-*
+/build
+.idea
+.cache
+compile_commands.json
+/.vscode/
+/out/

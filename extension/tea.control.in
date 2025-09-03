@@ -1,0 +1,7 @@
+directory = 'extension'
+default_version = '@TEA_VERSION@'
+comment = 'T External Accessor'
+module_pathname = '$libdir/tea-@TEA_VERSION@'
+superuser = true
+relocatable = false
+schema = public

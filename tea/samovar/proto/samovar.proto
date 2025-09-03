@@ -1,0 +1,56 @@
+syntax = "proto3";
+
+import "teapot/teapot.proto";
+
+package tea.samovar.samovar;
+
+message Segment {
+  int64 offset = 1;
+  int64 length = 2;
+}
+
+enum ContentType {
+  kData = 0;
+  kPositionDeletes = 1;
+  kEqualityDeletes = 2;
+}
+
+message ManifestEntry {
+  oneof file {
+    string file_path = 1;
+    int32 file_index = 2;
+  }
+  ContentType content_type = 3;
+  repeated int32 equality_deletes_fields_ids = 4;
+}
+
+message DataEntry {
+  repeated Segment segments = 1;
+  ManifestEntry entry = 2;
+}
+
+message Layer {
+  repeated DataEntry data_entries = 1;
+  repeated ManifestEntry positional_delete_entries = 2;
+  repeated ManifestEntry equality_delete_entries = 3;
+}
+
+message Partition { repeated Layer layers = 1; }
+
+message ScanMetadata {
+  repeated Partition partitions = 1;
+  teapot.Schema schema = 2;
+}
+
+message AnnotatedDataEntry {
+  DataEntry data_entry = 1;
+  int32 layer_id = 2;
+  int32 partition_id = 3;
+
+  optional int64 gp_segment_executed = 4;
+}
+
+message FileList {
+  repeated string filenames = 1;
+  string compressed_representation = 2;
+}

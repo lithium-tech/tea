@@ -1,0 +1,123 @@
+syntax = "proto3";
+
+import "google/protobuf/duration.proto";
+
+package stats_state;
+
+service StatsState {
+  rpc SetGandivaFilter(GandivaFilterRequest) returns (Response) {}
+  rpc SetPotentialRowGroupFilter(GandivaFilterRequest) returns (Response) {}
+  rpc SetStats(StatsRequest) returns (Response) {}
+}
+
+message ScanId {
+  int32 segment_id = 1;
+}
+
+message EqualityDeleteStats {
+  int64 files_read = 1;
+  int64 rows_read = 2;
+  int64 max_rows_materialized = 3;
+}
+
+message PositionalDeleteStats {
+  int64 files_read = 1;
+  int64 rows_read = 2;
+  int64 rows_ignored = 3;
+}
+
+message DataStats {
+  int64 data_files_read = 1;
+  int64 row_groups_read = 2;
+  int64 row_groups_skipped_filter = 3;
+
+  int64 rows_read = 4;
+  int64 rows_skipped_positional_delete = 5;
+  int64 rows_skipped_equality_delete = 6;
+  int64 rows_skipped_filter = 7;
+  int64 rows_skipped_prefilter = 8;
+}
+
+message S3Stats {
+  int64 s3_requests = 1;
+  int64 bytes_read_from_s3 = 2;
+  int64 retry_count = 3;
+}
+
+message Durations {
+  google.protobuf.Duration total = 1;
+
+  google.protobuf.Duration plan = 2;
+  google.protobuf.Duration iceberg_plan_fs = 11;
+
+  google.protobuf.Duration fetch = 3;
+  google.protobuf.Duration filter_build = 4;
+  google.protobuf.Duration filter_apply = 5;
+  google.protobuf.Duration convert = 6;
+  google.protobuf.Duration read = 7;
+  google.protobuf.Duration heap_form_tuple = 8;
+  google.protobuf.Duration positional = 9;
+  google.protobuf.Duration equality = 10;
+
+}
+
+message ProjectionStats {
+  int32 columns_read = 1;
+  int32 columns_for_greenplum = 2;
+  int32 columns_equality_delete = 3;
+  int32 columns_only_for_equality_delete = 4;
+}
+
+message SamovarStats {
+  int32 samovar_initial_tasks_count = 1;
+  int32 samovar_splitted_tasks_count = 2;
+  int32 samovar_fetched_tasks_count = 3;
+
+  google.protobuf.Duration samovar_total_response_duration_ticks = 5;
+  int64 samovar_requests_count = 6;
+  int64 samovar_errors_count = 7;
+}
+
+message IcebergStats {
+  int64 bytes_read = 1;
+  int64 requests = 2;
+  int64 files_read = 3;
+}
+
+message HmsStats {
+  int64 connections_established = 1;
+}
+
+message ExecutionStats {
+  EqualityDeleteStats equality_delete = 1;
+  PositionalDeleteStats positional_delete = 2;
+  DataStats data = 3;
+  S3Stats s3 = 4;
+
+  Durations durations = 5;
+
+  ProjectionStats projection = 6; 
+
+  SamovarStats samovar = 7;
+  IcebergStats iceberg = 8;
+  HmsStats hms = 9;
+}
+
+message StatsRequest {
+  ScanId scan_id = 1;
+  ExecutionStats stats = 2;
+}
+
+message GandivaFilterRequest {
+  ScanId id = 1;
+  string gandiva_filter = 2;
+}
+
+message Response {
+  Status status = 1;
+}
+
+enum Status {
+  OK = 0;
+  FAILED = 1;
+}

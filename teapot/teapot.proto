@@ -1,0 +1,103 @@
+syntax = "proto3";
+
+package teapot;
+
+option java_multiple_files = true;
+option java_package = "ru.x.lakehouse.teapot.grpc";
+
+service Teapot {
+  rpc GetMetadata(MetadataRequest) returns (MetadataResponse) {}
+  rpc DeleteMetadata(MetadataRequest) returns (MetadataResponse) {}
+}
+
+message MetadataRequest {
+  string session_id = 1;
+
+  int32 segment_id = 2;
+  int32 segment_count = 3;
+
+  string table_id = 4;
+
+  string iceberg_expression_json = 5;
+}
+
+message MetadataResponse {
+  oneof response {
+    MetadataResponseResult result = 1;
+    TeapotResponseError error = 2;
+  }
+}
+
+message MetadataResponseResult {
+  repeated Fragment fragments = 1;
+  reserved 2;
+  Schema schema = 3;
+}
+
+message Schema {
+  repeated Field fields = 1;
+}
+
+message Field {
+  int32 id = 1;
+  string name = 2;
+  FieldType type = 3;
+  bool repeated = 4;
+  int32 precision = 5;
+  int32 scale = 6;
+}
+
+message Fragment {
+  string path = 1;
+  int64 position = 2;
+  int64 length = 3;
+  repeated PositionalDelete positional_deletes = 4;
+  repeated EqualityDelete equality_deletes = 5;
+}
+
+message PositionalDelete {
+  string path = 1;
+}
+
+message EqualityDelete {
+  string path = 1;
+  repeated int32 delete_field_ids = 2;
+}
+
+message TeapotResponseError {
+  ErrorCode error_code = 1;
+  string error_message = 2;
+  repeated ErrorDetail error_details = 3;
+}
+
+message ErrorDetail {
+  string name = 1;
+  string value = 2;
+}
+
+enum ErrorCode {
+  UNDEFINED = 0;
+  TABLE_NOT_FOUND = 1;
+  SEGMENT_CONNECTED_TIMEOUT = 2;
+  SEGMENT_DUPLICATED_CONNECTION = 3;
+  ICEBERG_RESPONSE_TIMEOUT = 4;
+  CONTEXT_ALREADY_DROPPED = 5;
+}
+
+// https://iceberg.apache.org/javadoc/master/org/apache/iceberg/types/Type.TypeID.html
+enum FieldType {
+  TYPE_UNDEFINED = 0;
+  TYPE_BOOLEAN = 1;
+  TYPE_INTEGER = 2;
+  TYPE_LONG = 3;
+  TYPE_FLOAT = 4;
+  TYPE_DOUBLE = 5;
+  TYPE_DATE = 6;
+  TYPE_TIME = 7;
+  TYPE_TIMESTAMP = 8;
+  TYPE_STRING = 9;
+  TYPE_UUID = 10;
+  TYPE_BINARY = 11;
+  TYPE_DECIMAL = 12;
+  TYPE_TIMESTAMPTZ = 13;
+}

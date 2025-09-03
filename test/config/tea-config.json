@@ -1,0 +1,179 @@
+{
+    "profile-to-tables-path": "s3://warehouse/profile-to-tables.json",
+    "common": {
+        "s3": {
+            "access_key": "minioadmin",
+            "secret_key": "minioadmin",
+            "endpoint_override": "127.0.0.1:9000",
+            "scheme": "http",
+            "connect_timeout_ms": 1000,
+            "request_timeout_ms": 3000
+        },
+        "catalog": {
+            "type" : "hms",
+            "hms": "iamincorrecthost:9090,127.0.0.1:9090",
+            "rest": "127.0.0.1:19120"
+        },
+        "teapot": {
+            "location": "localhost:50002",
+            "timeout_ms": 5000
+        },
+        "limits": {
+            "equality_delete_max_rows": 1000000,
+            "parquet_buffer_size": 1048576,
+            "equality_delete_max_mb_size": 1000000,
+            "grpc_max_message_size": 16777216,
+            "max_cpu_threads": 2
+        },
+        "features": {
+            "enable_row_group_filters": true,
+            "row_filters_version": 5,
+            "use_specialized_deletes": true,
+            "use_custom_heap_form_tuple": true,
+            "ext_table_filter_walker_for_projection": true,
+            "optimize_deletes_in_teapot_response": true,
+            "use_avro_projection_minimum_columns": 2
+        },
+        "experimental_features": {
+            "use_helper_thread": true,
+            "prefetch": true,
+            "read_in_multiple_threads": true
+        },
+        "debug": {
+            "test_stats": true,
+            "test_gandiva_filter": true,
+            "intermediate_logs_period_seconds": 5
+        },
+        "json": {
+            "substitute_unicode_if_json_type": true
+        },
+        "samovar": {
+            "ttl_seconds": 4000
+        }
+    },
+    "profiles": {
+        "iceberg_table": {
+            "metadata_access": {
+                "default_schema": "iceberg"
+            }
+        },
+        "rg_filter": {
+            "features": {
+                "enable_row_group_filters": true
+            }
+        },
+        "no_rg_filter": {
+            "features": {
+                "enable_row_group_filters": false
+            }
+        },
+        "postfilter_gp": {
+            "features": {
+                "enable_row_group_filters": true
+            }
+        },
+        "samovar": {
+            "samovar": {
+                "use_samovar": true,
+                "backoff_type": "exp",
+                "exponential_backoff_sleep_coef": 2.5,
+                "exponential_backoff_limit_ms": 5000,
+                "limit_retries": 50,
+                "samovar": "iamincorrecthost:6379,0.0.0.0:6379",
+                "split_type": "offsets"
+            }
+        },
+        "iceberg_samovar": {
+            "samovar": {
+                "use_samovar": true,
+                "backoff_type": "exp",
+                "exponential_backoff_sleep_coef": 2.5,
+                "exponential_backoff_limit_ms": 5000,
+                "limit_retries": 50,
+                "samovar": "iamincorrecthost:6379,0.0.0.0:6379",
+                "split_type": "offsets"
+            },
+            "metadata_access": {
+                "default_schema": "iceberg"
+            }
+        },
+        "broken_samovar": {
+            "samovar": {
+                "use_samovar": true,
+                "backoff_type": "exp",
+                "exponential_backoff_sleep_coef": 2.5,
+                "exponential_backoff_limit_ms": 5000,
+                "limit_retries": 50,
+                "samovar": "iamincorrecthost:6379",
+                "split_type": "offsets"
+            }
+        },
+        "samovar_0": {
+            "samovar": {
+                "use_samovar": true,
+                "backoff_type": "exp",
+                "exponential_backoff_sleep_coef": 2.5,
+                "exponential_backoff_limit_ms": 5000,
+                "limit_retries": 50,
+                "samovar": "iamincorrecthost:6379,0.0.0.0:6379",
+                "split_type": "offsets",
+                "work_segments": "0"
+            }
+        },
+        "samovar_1": {
+            "samovar": {
+                "use_samovar": true,
+                "backoff_type": "exp",
+                "exponential_backoff_sleep_coef": 2.5,
+                "exponential_backoff_limit_ms": 5000,
+                "limit_retries": 50,
+                "samovar": "iamincorrecthost:6379,0.0.0.0:6379",
+                "split_type": "offsets",
+                "work_segments": "1"
+            }
+        },
+        "samovar_0_1": {
+            "samovar": {
+                "use_samovar": true,
+                "backoff_type": "exp",
+                "exponential_backoff_sleep_coef": 2.5,
+                "exponential_backoff_limit_ms": 5000,
+                "limit_retries": 50,
+                "samovar": "iamincorrecthost:6379,0.0.0.0:6379",
+                "split_type": "offsets",
+                "work_segments": "0,1"
+            }
+        },
+        "lateprocess_samovar": {
+            "samovar": {
+                "use_samovar": true,
+                "backoff_type": "exp",
+                "exponential_backoff_sleep_coef": 2.5,
+                "exponential_backoff_limit_ms": 5000,
+                "limit_retries": 220,
+                "samovar": "iamincorrecthost:6379,0.0.0.0:6379",
+                "split_type": "offsets",
+                "wait_before_processing": true,
+                "time_before_processing_ms": 10000
+            }
+        },
+        "nessie": {
+            "catalog": {
+                "type": "rest",
+                "rest": "127.0.0.1:19120"
+            }
+        },
+        "broken_hms": {
+            "catalog": {
+                "type": "hms",
+                "hms": "iamincorrecthost:9090",
+                "default_schema": "iceberg"
+            }
+        },
+        "broken_s3": {
+            "s3": {
+                "endpoint_override": "iamincorrecthost:9000"
+            }
+        }
+    }
+}

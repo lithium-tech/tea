@@ -1,0 +1,21 @@
+#!/bin/bash
+
+# Skip options
+while (("$#")); do
+	case $1 in
+	-*)
+		shift
+		shift || break
+		;;
+	*)
+		break
+		;;
+	esac
+done
+
+# Skip hostname
+shift
+
+bash -c "$*"
+
+exit $?

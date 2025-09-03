@@ -1,0 +1,14 @@
+{
+    "profile-to-tables": {
+        "iceberg_samovar": [
+            "a",
+            "test-tmp-db.overrided_table",
+            "c"
+        ],
+        "teapot": [
+            "q",
+            "w",
+            "e"
+        ]
+    }
+}

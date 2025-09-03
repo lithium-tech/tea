@@ -1,0 +1,10 @@
+{
+  global:
+    pg_*;
+    Pg_*;
+    _PG_*;
+    tea*;
+    llvm_orc_*;
+  local:
+    *;
+};

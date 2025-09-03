@@ -1,0 +1,2 @@
+CREATE USER testuser WITH SUPERUSER PASSWORD 'testuser';
+GRANT ALL PRIVILEGES ON DATABASE datalake_dev TO testuser;
