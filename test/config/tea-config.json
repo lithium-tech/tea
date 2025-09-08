@@ -10,7 +10,7 @@
             "request_timeout_ms": 3000
         },
         "catalog": {
-            "type" : "hms",
+            "type": "hms",
             "hms": "iamincorrecthost:9090,127.0.0.1:9090",
             "rest": "127.0.0.1:19120"
         },
@@ -53,6 +53,11 @@
     },
     "profiles": {
         "iceberg_table": {
+            "metadata_access": {
+                "default_schema": "iceberg"
+            }
+        },
+        "tea_iceberg_get_metrics": {
             "metadata_access": {
                 "default_schema": "iceberg"
             }

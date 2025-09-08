@@ -67,6 +67,14 @@ struct SimpleLocation : public LocationBase {
   std::string table_name;
 };
 
+struct SpecialLocation {
+  explicit SpecialLocation(const std::string& name) : name(name) {}
+
+  std::string ToString() const { return "tea://special://" + name; }
+
+  std::string name;
+};
+
 struct Location {
   template <typename SomeLocation>
   explicit Location(const SomeLocation& other_location) : location(other_location) {}
@@ -77,7 +85,7 @@ struct Location {
     return std::visit([](auto&& arg) { return arg.ToString(); }, location);
   }
 
-  std::variant<TeapotLocation, IcebergLocation, SimpleLocation> location;
+  std::variant<TeapotLocation, IcebergLocation, SimpleLocation, SpecialLocation> location;
 };
 
 }  // namespace tea

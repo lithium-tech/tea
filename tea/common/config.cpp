@@ -654,6 +654,8 @@ TableConfig ConfigSource::GetTableConfig(std::string_view url, const std::string
     table_config.source = IcebergTable{TableId::FromString(components.location)};
   } else if (schema == "special" && components.location == "empty") {
     table_config.source = EmptyTable{};
+  } else if (schema == "special" && components.location == "iceberg_tables_metrics") {
+    table_config.source = IcebergMetricsTable{};
   } else if (schema == "file" || schema == "s3") {
     table_config.source =
         FileTable{.url = absl::StrCat(components.schema, "://", components.location, components.path)};

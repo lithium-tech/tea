@@ -1,5 +1,6 @@
 #pragma once
 
+#include <map>
 #include <memory>
 #include <string>
 
@@ -30,6 +31,9 @@ class Estimator {
   static arrow::Result<RelationSize> GetRelationSizeFromDataFiles(
       const iceberg::ice_tea::ScanMetadata &metadata, std::shared_ptr<iceberg::IFileSystemProvider> fs_provider,
       ReaderProperties props);
+
+  static std::map<std::string, int64_t> GetTotalMetricsFromIceberg(
+      const Config &config, TableId table_id, std::shared_ptr<iceberg::IFileSystemProvider> fs_provider);
 };
 
 }  // namespace tea::meta

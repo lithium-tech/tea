@@ -76,13 +76,16 @@ bg_id=$!
 
 tar -C "$GPHOME" --strip-components=1 -xzf "${upgrade_package_path}"
 
-psql -c "ALTER EXTENSION tea UPDATE TO '${upgrade_package_version}';"
-psql -c "SELECT * FROM lineitem LIMIT 1;"
+psql -c "ALTER EXTENSION tea UPDATE TO '${upgrade_package_version}';" >&2
+psql -c "SELECT * FROM lineitem LIMIT 1;" >&2
+
+psql -c "SELECT tea_external_table_location('public', 'lineitem');" >&2
+psql -c "SELECT * FROM tea_iceberg_get_metrics('tea://gperov.test');" >&2
+psql -c "SELECT * FROM iceberg_tables_metrics WHERE location = 'tea://gperov.test';" >&2
 
 # Wait for the background query
 wait $bg_id
 
 # Downgrade to base version
-psql -c "ALTER EXTENSION tea UPDATE TO '${base_package_version}';"
-
-psql -c "SELECT * FROM lineitem LIMIT 1;"
+psql -c "ALTER EXTENSION tea UPDATE TO '${base_package_version}';" >&2
+psql -c "SELECT * FROM lineitem LIMIT 1;" >&2

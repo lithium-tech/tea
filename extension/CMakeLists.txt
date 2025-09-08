@@ -9,6 +9,13 @@ if(TEA_BUILD_STATS)
   file(READ tea_stats_update.sql TEA_STATS_UPDATE_SCRIPT)
 endif()
 
+file(READ tea_reltuples_create.sql TEA_METRICS_CREATE_SCRIPT)
+if(pg_version_major EQUAL 8)
+  file(READ tea_reltuples_drop_gp5.sql TEA_METRICS_DROP_SCRIPT)
+else()
+  file(READ tea_reltuples_drop_gp6.sql TEA_METRICS_DROP_SCRIPT)
+endif()
+
 set(EXT_FILES)
 macro(install_template TEMPLATE_FILE DEST_FILE)
   set(DEST_PATH ${CMAKE_CURRENT_BINARY_DIR}/${DEST_FILE})
@@ -21,8 +28,9 @@ install_template(tea_secondary.control.in tea--${TEA_VERSION}.control)
 
 install_template(tea_install.sql.in tea--${TEA_VERSION}.sql)
 foreach(TEA_BASE_VERSION ${TEA_BASE_VERSIONS})
+# TODO(gmusya): change downgrade script after releasing 1.71.0
   install_template(tea_upgrade.sql.in tea--${TEA_BASE_VERSION}--${TEA_VERSION}.sql)
-  install_template(tea_upgrade.sql.in tea--${TEA_VERSION}--${TEA_BASE_VERSION}.sql)
+  install_template(tea_downgrade.sql.in tea--${TEA_VERSION}--${TEA_BASE_VERSION}.sql)
 endforeach()
 
 install(
