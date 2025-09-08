@@ -8,7 +8,7 @@ cmake_minimum_required(VERSION 3.25)
 project(tea)
 
 # Base versions of Tea to generate upgrade and downgrade scripts
-set(TEA_BASE_VERSIONS 1.63.0 1.63.1 1.63.2 1.63.3 1.63.4 1.63.5 1.63.6 1.64.0 1.64.1 1.65.0 1.65.1 1.66.0 1.67.0 1.68.0 1.69.0)
+set(TEA_BASE_VERSIONS 1.63.0 1.63.1 1.63.2 1.63.3 1.63.4 1.63.5 1.63.6 1.64.0 1.64.1 1.65.0 1.65.1 1.66.0 1.67.0 1.68.0 1.69.0 1.70.0)
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 

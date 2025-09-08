@@ -1,3 +1,8 @@
+### Tea release 1.71.0, 2025-09-08
+
+#### Improvements
+* Implement UDF to get primitive metrics from Iceberg tables
+
 ### Tea release 1.70.0, 2025-08-25
 
 #### Improvements
