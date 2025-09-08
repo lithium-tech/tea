@@ -1,11 +1,16 @@
 #include "tea/metadata/estimator.h"
 
+#include <arrow/filesystem/filesystem.h>
 #include <iceberg/manifest_entry.h>
+#include <iceberg/result.h>
+#include <iceberg/snapshot.h>
+#include <iceberg/table_metadata.h>
 #include <iceberg/tea_scan.h>
 
 #include <algorithm>
 #include <map>
 #include <memory>
+#include <stdexcept>
 #include <utility>
 #include <vector>
 
@@ -203,7 +208,46 @@ class TableStatsAggregator {
   std::map<int, int> field_id_to_column_index_;
 };
 
+std::shared_ptr<iceberg::Snapshot> GetCurrentSnapshot(std::shared_ptr<iceberg::TableMetadataV2> metadata) {
+  iceberg::Ensure(metadata->current_snapshot_id.has_value(),
+                  std::string(__PRETTY_FUNCTION__) + ": failed to get current snapshot_id");
+  int64_t current_snapshot_id = metadata->current_snapshot_id.value();
+
+  for (const auto& snapshot : metadata->snapshots) {
+    if (snapshot->snapshot_id == current_snapshot_id) {
+      return snapshot;
+    }
+  }
+
+  throw std::runtime_error(std::string(__PRETTY_FUNCTION__) + ": failed to get current snapshot");
+}
+
+std::map<std::string, int64_t> GetTotalMetricFromSnapshot(std::shared_ptr<iceberg::Snapshot> snapshot) {
+  std::map<std::string, int64_t> result;
+  for (const auto& [key, value] : snapshot->summary) {
+    if (key.starts_with("total-")) {
+      result[key] = std::stoll(value);
+    }
+  }
+  return result;
+}
+
 }  // namespace
+
+std::map<std::string, int64_t> Estimator::GetTotalMetricsFromIceberg(
+    const Config& config, TableId table_id, std::shared_ptr<iceberg::IFileSystemProvider> fs_provider) {
+  std::string metadata_location = access::GetIcebergTableLocation(config, table_id);
+
+  std::shared_ptr<arrow::fs::FileSystem> fs = iceberg::ValueSafe(fs_provider->GetFileSystem(metadata_location));
+  std::string data = iceberg::ValueSafe(iceberg::ice_tea::ReadFile(fs, metadata_location));
+  std::shared_ptr<iceberg::TableMetadataV2> table_metadata = iceberg::ice_tea::ReadTableMetadataV2(data);
+  if (!table_metadata) {
+    throw std::runtime_error("GetReltuplesFromIceberg: failed to parse metadata " + metadata_location);
+  }
+
+  std::shared_ptr<iceberg::Snapshot> snapshot = GetCurrentSnapshot(table_metadata);
+  return GetTotalMetricFromSnapshot(snapshot);
+}
 
 arrow::Result<RelationSize> Estimator::GetRelationSizeFromIceberg(
     const Config& config, TableId table_id, std::shared_ptr<iceberg::IFileSystemProvider> fs_provider) {

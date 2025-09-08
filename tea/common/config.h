@@ -221,9 +221,13 @@ struct EmptyTable {
   auto operator<=>(const EmptyTable&) const = default;
 };
 
-enum TableType { kEmpty, kTeapot, kIceberg, kFile };
+struct IcebergMetricsTable {
+  auto operator<=>(const IcebergMetricsTable&) const = default;
+};
+
+enum TableType { kEmpty, kTeapot, kIceberg, kFile, kTotalMetrics };
 // TODO(hvintus): replace with proper interface
-using TableSource = std::variant<EmptyTable, TeapotTable, IcebergTable, FileTable>;
+using TableSource = std::variant<EmptyTable, TeapotTable, IcebergTable, FileTable, IcebergMetricsTable>;
 
 struct TableConfig {
   TableSource source;

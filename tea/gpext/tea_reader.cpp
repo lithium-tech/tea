@@ -1,5 +1,16 @@
 #include "tea/gpext/tea_reader.h"
 
+#include <arrow/array/array_base.h>
+#include <arrow/array/builder_binary.h>
+#include <arrow/record_batch.h>
+#include <arrow/type.h>
+#include <arrow/type_fwd.h>
+#include <iceberg/common/error.h>
+#include <iceberg/common/selection_vector.h>
+#include <iceberg/filter/representation/function.h>
+#include <iceberg/filter/representation/node.h>
+#include <iceberg/filter/representation/value.h>
+#include <iceberg/result.h>
 #include <iceberg/schema.h>
 
 #include <algorithm>
@@ -7,6 +18,7 @@
 #include <map>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <utility>
 #include <variant>
@@ -51,6 +63,7 @@ extern "C" {
 
 #include "cdb/cdbvars.h"
 #include "mb/pg_wchar.h"
+#include "utils/builtins.h"
 }
 
 namespace tea {
@@ -337,6 +350,9 @@ void LogSourceType(const tea::TableSource &source) {
     TEA_LOG("File table: " + file_table->url);
   } else if (auto *special_table = std::get_if<tea::EmptyTable>(&source); special_table != nullptr) {
     TEA_LOG("Empty table");
+  } else if (auto *total_metrics_table = std::get_if<tea::IcebergMetricsTable>(&source);
+             total_metrics_table != nullptr) {
+    TEA_LOG("Total metrics table");
   } else {
     TEA_LOG("Unknown table type");
   }
@@ -546,6 +562,107 @@ static iceberg::ice_tea::ScanMetadata GetAllMetadata(TeaContextPtr tea_ctx, cons
 
 using ResultType = arrow::Result<std::pair<tea::meta::PlannedMeta, tea::PlannerStats>>;
 
+inline std::string GetLocation(TeaContextPtr tea_ctx, const ExternalScanParams *params) {
+  iceberg::filter::NodePtr filter =
+      iceberg::filter::StringToFilter(params->filter.all_extracted ? params->filter.all_extracted : "");
+  iceberg::Ensure(filter != nullptr, "IcebergMetricsTable: filter must be 'location = <location>'");
+  iceberg::Ensure(filter->node_type == iceberg::filter::NodeType::kFunction,
+                  "IcebergMetricsTable: filter must be 'location = <location>'");
+  auto function_filter = std::static_pointer_cast<iceberg::filter::FunctionNode>(filter);
+
+  iceberg::Ensure(function_filter->function_signature.function_id == iceberg::filter::FunctionID::kEqual,
+                  "IcebergMetricsTable: filter must be 'location = <location>'");
+  iceberg::Ensure(function_filter->arguments.size() == 2,
+                  "IcebergMetricsTable: filter must be 'location = <location>'");
+
+  {
+    auto lhs_argument = function_filter->arguments.at(0);
+    iceberg::Ensure(lhs_argument->node_type == iceberg::filter::NodeType::kVariable,
+                    "IcebergMetricsTable: filter must be 'location = <location>'");
+    auto lhs_value = std::static_pointer_cast<iceberg::filter::VariableNode>(lhs_argument);
+    iceberg::Ensure(lhs_value->column_name == "location",
+                    "IcebergMetricsTable: filter must be 'location = <location>'");
+  }
+  tea::TableId table_id;
+  {
+    auto rhs_argument = function_filter->arguments.at(1);
+    iceberg::Ensure(rhs_argument->node_type == iceberg::filter::NodeType::kConst,
+                    "IcebergMetricsTable: filter must be 'location = <location>'");
+
+    auto rhs_value = std::static_pointer_cast<iceberg::filter::ConstNode>(rhs_argument);
+    iceberg::Ensure(rhs_value->value.GetValueType() == iceberg::filter::ValueType::kString,
+                    "IcebergMetricsTable: filter must be 'location = <location>'");
+
+    return rhs_value->value.GetValue<iceberg::filter::ValueType::kString>();
+  }
+}
+
+inline tea::TableId GetTableId(std::string location) {
+  iceberg::Ensure(location.starts_with("tea://"), "IcebergMetricsTable: location must start with 'tea://'");
+
+  const auto nested_url = location.substr(std::string("tea://").size());
+  const auto components = iceberg::SplitUrl(nested_url);
+
+  return tea::TableId::FromString(components.location);
+}
+
+void TeaContextPrepareTotalMetricsTable(TeaContextPtr tea_ctx, const ExternalScanParams *params) {
+  if (params->segment_id != 0) {
+    return;
+  }
+  std::string location = GetLocation(tea_ctx, params);
+  tea::TableId table_id = GetTableId(location);
+  TEA_LOG("IcebergMetricsTable: table id is " + table_id.ToString());
+
+  arrow::FieldVector fields;
+  std::vector<std::shared_ptr<arrow::Array>> arrays;
+
+  {
+    arrow::StringBuilder builder;
+    iceberg::Ensure(builder.Append(location));
+    std::shared_ptr<arrow::Array> array = iceberg::ValueSafe(builder.Finish());
+
+    fields.emplace_back(std::make_shared<arrow::Field>("location", arrow::utf8()));
+    arrays.emplace_back(array);
+  }
+
+  constexpr std::array<std::string_view, 6> kFields = {"total-records",          "total-data-files",
+                                                       "total-files-size",       "total-equality-deletes",
+                                                       "total-position-deletes", "total-delete-files"};
+
+  auto metrics = tea::meta::Estimator::GetTotalMetricsFromIceberg(get::Config(tea_ctx), table_id,
+                                                                  get::FileSystemProvider(tea_ctx));
+
+  for (std::string_view field : kFields) {
+    std::string str_field = std::string(field);
+    arrow::Int64Builder builder;
+    auto iter = metrics.find(str_field);
+    if (iter != metrics.end()) {
+      iceberg::Ensure(builder.Append(iter->second));
+      TEA_LOG(std::string(field) + ", " + std::to_string(iter->second));
+    } else {
+      iceberg::Ensure(builder.AppendNull());
+      TEA_LOG(std::string(field) + ", null");
+    }
+
+    std::shared_ptr<arrow::Array> array = iceberg::ValueSafe(builder.Finish());
+
+    std::replace(str_field.begin(), str_field.end(), '-', '_');
+
+    fields.emplace_back(std::make_shared<arrow::Field>(str_field, arrow::int64()));
+    arrays.emplace_back(array);
+  }
+
+  auto schema = std::make_shared<arrow::Schema>(fields);
+
+  auto batch = arrow::RecordBatch::Make(schema, 1, arrays);
+
+  auto converter = get::Converter(tea_ctx);
+  auto iceberg_batch = iceberg::BatchWithSelectionVector(batch, iceberg::SelectionVector<int32_t>(1));
+
+  iceberg::Ensure(converter->Prepare(std::move(iceberg_batch)));
+}
+
 // invoked on segment
 void TeaContextPlanExternal(TeaContextPtr tea_ctx, const ExternalScanParams *params) {
   TEA_INVOKE_IN_HELPER_THREAD(ERROR, [=] {
@@ -558,6 +675,11 @@ void TeaContextPlanExternal(TeaContextPtr tea_ctx, const ExternalScanParams *par
     tea::Reader::SerializedFilter filter;
     filter.extracted = params->filter.all_extracted ? params->filter.all_extracted : "";
     filter.row = params->filter.row ? params->filter.row : "";
+
+    if (std::holds_alternative<tea::IcebergMetricsTable>(get::Source(tea_ctx))) {
+      TeaContextPrepareTotalMetricsTable(tea_ctx, params);
+      return;
+    }
 
     auto make_samovar_queue_name = [&]() {
       return tea::samovar::MakeSessionIdentifier(get::Source(tea_ctx), get::SamovarConfig(tea_ctx).cluster_id,
@@ -637,6 +759,10 @@ void TeaContextPrepareTuple(TeaContextPtr tea_ctx, bool *has_row) {
 
   // cold path, may create new threads
   TEA_INVOKE(ERROR, [=] {
+    if (std::holds_alternative<tea::IcebergMetricsTable>(get::Source(tea_ctx))) {
+      return;
+    }
+
     // reader may return batch where all rows are filtered, so we need check batches in loop
     while (true) {
       auto batch_getter = get::BatchGetter(tea_ctx);
@@ -780,6 +906,10 @@ void TeaContextGetScanMetadata(const TeaContextPtr tea_ctx, const char *session_
 void TeaContextLogStats(const TeaContextPtr tea_ctx, const char *event) {
   TEA_INVOKE_IN_HELPER_THREAD(
       ERROR, ([tea_ctx, event] {
+        if (std::holds_alternative<tea::IcebergMetricsTable>(get::Source(tea_ctx))) {
+          return;
+        }
+
         if (!tea_ctx->ext_stats.is_logged) {
           tea_ctx->ext_stats.is_logged = true;
           auto reader = get::Reader(tea_ctx);
