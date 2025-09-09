@@ -1,6 +1,6 @@
-DROP FUNCTION tea_external_table_location(schemaname text, tablename text);
+DROP FUNCTION IF EXISTS tea_external_table_location(schemaname text, tablename text);
 
-DROP FUNCTION tea_iceberg_get_metrics(
+DROP FUNCTION IF EXISTS tea_iceberg_get_metrics(
   IN location text,
   OUT total_records int8,
   OUT total_data_files int8,

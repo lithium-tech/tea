@@ -14,6 +14,7 @@ namespace {
 
 class MetricsTest : public TeaTest {};
 
+#if PG_VERSION_MAJOR >= 9
 TEST_F(MetricsTest, Simple) {
   ASSIGN_OR_FAIL(auto result,
                  pq::TableScanQuery("iceberg_tables_metrics").SetWhere("location = 'tea://gperov.test'").Run(*conn_));
@@ -61,10 +62,7 @@ TEST_F(MetricsTest, SpecialTable) {
       << maybe_result.status().message();
 }
 
-TEST_F(OtherEngineGeneratedTable, Metrics) {
-  CreateTable("gperov", "test",
-              std::vector<GreenplumColumnInfo>{GreenplumColumnInfo{.name = "a", .type = "int8"},
-                                               GreenplumColumnInfo{.name = "b", .type = "int8"}});
+TEST_F(MetricsTest, Metrics) {
   ASSIGN_OR_FAIL(auto result, pq::TableScanQuery("tea_iceberg_get_metrics('tea://gperov.test')").Run(*conn_));
 
   auto expected = pq::ScanResult({"total_records", "total_data_files", "total_files_size", "total_equality_deletes",
@@ -73,7 +71,7 @@ TEST_F(OtherEngineGeneratedTable, Metrics) {
   EXPECT_EQ(result, expected);
 }
 
-TEST_F(OtherEngineGeneratedTable, ExternalTableUdf) {
+TEST_F(MetricsTest, ExternalTableUdf) {
   auto ice_loc = SimpleLocation("gperov", "test", Options{});
   auto loc = Location(std::move(ice_loc));
   auto query =
@@ -88,10 +86,7 @@ TEST_F(OtherEngineGeneratedTable, ExternalTableUdf) {
   EXPECT_EQ(result, expected);
 }
 
-TEST_F(OtherEngineGeneratedTable, NonExistingTable) {
-  CreateTable("gperov", "test",
-              std::vector<GreenplumColumnInfo>{GreenplumColumnInfo{.name = "a", .type = "int8"},
-                                               GreenplumColumnInfo{.name = "b", .type = "int8"}});
+TEST_F(MetricsTest, NonExistingTable) {
   auto maybe_result = pq::TableScanQuery("tea_iceberg_get_metrics('tea://i_am_bad.table')").Run(*conn_);
   ASSERT_FALSE(maybe_result.ok());
 
@@ -100,10 +95,7 @@ TEST_F(OtherEngineGeneratedTable, NonExistingTable) {
       << maybe_result.status().message();
 }
 
-TEST_F(OtherEngineGeneratedTable, InvalidLocation) {
-  CreateTable("gperov", "test",
-              std::vector<GreenplumColumnInfo>{GreenplumColumnInfo{.name = "a", .type = "int8"},
-                                               GreenplumColumnInfo{.name = "b", .type = "int8"}});
+TEST_F(MetricsTest, InvalidLocation) {
   auto maybe_result = pq::TableScanQuery("tea_iceberg_get_metrics('i-am-not-a-location')").Run(*conn_);
   ASSERT_FALSE(maybe_result.ok());
 
@@ -112,10 +104,7 @@ TEST_F(OtherEngineGeneratedTable, InvalidLocation) {
       << maybe_result.status().message();
 }
 
-TEST_F(OtherEngineGeneratedTable, InvalidArguments) {
-  CreateTable("gperov", "test",
-              std::vector<GreenplumColumnInfo>{GreenplumColumnInfo{.name = "a", .type = "int8"},
-                                               GreenplumColumnInfo{.name = "b", .type = "int8"}});
+TEST_F(MetricsTest, InvalidArguments) {
   auto maybe_result = pq::TableScanQuery("tea_iceberg_get_metrics(23)").Run(*conn_);
   ASSERT_FALSE(maybe_result.ok());
 
@@ -124,10 +113,7 @@ TEST_F(OtherEngineGeneratedTable, InvalidArguments) {
       << maybe_result.status().message();
 }
 
-TEST_F(OtherEngineGeneratedTable, NullArgument) {
-  CreateTable("gperov", "test",
-              std::vector<GreenplumColumnInfo>{GreenplumColumnInfo{.name = "a", .type = "int8"},
-                                               GreenplumColumnInfo{.name = "b", .type = "int8"}});
+TEST_F(MetricsTest, NullArgument) {
   auto maybe_result = pq::TableScanQuery("tea_iceberg_get_metrics(null)").Run(*conn_);
   ASSERT_FALSE(maybe_result.ok());
 
@@ -135,6 +121,7 @@ TEST_F(OtherEngineGeneratedTable, NullArgument) {
               std::string::npos)
       << maybe_result.status().message();
 }
+#endif
 
 #ifdef TEA_BUILD_STATS
 // PROJECT_DIR/test/iceberg/gen/gperov_test.py
