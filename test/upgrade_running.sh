@@ -10,8 +10,8 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
-if [[ $# -ne 6 ]]; then
-  echo "Usage: $0 gp_home base_package_path base_package_version upgrade_package_path upgrade_package_version" >&2
+if [[ $# -ne 7 ]]; then
+  echo "Usage: $0 gp_home base_package_path base_package_version upgrade_package_path upgrade_package_version gp_version" >&2
   exit 1
 fi
 GPHOME="$1"
@@ -20,6 +20,7 @@ base_package_version="$3"
 upgrade_package_path="$4"
 upgrade_package_version="$5"
 tpch_dir="$6"
+gp_version="$7"
 
 src_root="$(cd "$(dirname -- "${BASH_SOURCE[0]}")"/.. && pwd)"
 export PGDATABASE=tea_ci
@@ -79,13 +80,27 @@ tar -C "$GPHOME" --strip-components=1 -xzf "${upgrade_package_path}"
 psql -c "ALTER EXTENSION tea UPDATE TO '${upgrade_package_version}';" >&2
 psql -c "SELECT * FROM lineitem LIMIT 1;" >&2
 
-psql -c "SELECT tea_external_table_location('public', 'lineitem');" >&2
-psql -c "SELECT * FROM tea_iceberg_get_metrics('tea://gperov.test');" >&2
-psql -c "SELECT * FROM iceberg_tables_metrics WHERE location = 'tea://gperov.test';" >&2
+if [[ $gp_version -eq 6 ]]; then
+  psql -c "SELECT tea_external_table_location('public', 'lineitem');" >&2
+  psql -c "SELECT * FROM tea_iceberg_get_metrics('tea://gperov.test');" >&2
+  psql -c "SELECT * FROM iceberg_tables_metrics WHERE location = 'tea://gperov.test';" >&2
+fi
 
 # Wait for the background query
 wait $bg_id
 
 # Downgrade to base version
 psql -c "ALTER EXTENSION tea UPDATE TO '${base_package_version}';" >&2
+psql -c "SELECT * FROM lineitem LIMIT 1;" >&2
+
+# Upgrade back
+psql -c "ALTER EXTENSION tea UPDATE TO '${upgrade_package_version}';" >&2
+psql -c "SELECT * FROM lineitem LIMIT 1;" >&2
+
+# Downgrade to base version (2)
+psql -c "ALTER EXTENSION tea UPDATE TO '${base_package_version}';" >&2
+psql -c "SELECT * FROM lineitem LIMIT 1;" >&2
+
+# Upgrade back (2)
+psql -c "ALTER EXTENSION tea UPDATE TO '${upgrade_package_version}';" >&2
 psql -c "SELECT * FROM lineitem LIMIT 1;" >&2

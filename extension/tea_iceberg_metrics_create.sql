@@ -1,3 +1,4 @@
+-- GP does not support `IF NOT EXISTS` for external tables, so we must ensure that we drop table on downgrade`
 CREATE EXTERNAL TABLE iceberg_tables_metrics(
   location text,
   total_records int8,
@@ -10,7 +11,7 @@ CREATE EXTERNAL TABLE iceberg_tables_metrics(
 FORMAT 'custom' (formatter = tea_import)
 ENCODING 'UTF8';
 
-CREATE FUNCTION tea_iceberg_get_metrics(
+CREATE OR REPLACE FUNCTION tea_iceberg_get_metrics(
   IN location text,
   OUT total_records int8,
   OUT total_data_files int8,
@@ -20,7 +21,6 @@ CREATE FUNCTION tea_iceberg_get_metrics(
   OUT total_delete_files int8
 ) RETURNS record
     LANGUAGE 'plpgsql'
-    SECURITY DEFINER
     VOLATILE
   AS
 $BODY$
@@ -33,7 +33,7 @@ BEGIN
 END;
 $BODY$;
 
-CREATE FUNCTION tea_external_table_location(schemaname text, tablename text)
+CREATE OR REPLACE FUNCTION tea_external_table_location(schemaname text, tablename text)
   RETURNS text
 AS
 $$
