@@ -69,7 +69,6 @@ void ExponentialBackoff::Wait() {
 
   current_waiting_time_ms_ = std::min(static_cast<int64_t>(waiting_limit_->count()),
                                       static_cast<int64_t>(current_waiting_time_ms_ * sleep_coef_));
-  TEA_LOG("Incorrect waiting, sleep for " + std::to_string(current_waiting_time_ms_));
   sleep_process(std::chrono::milliseconds(current_waiting_time_ms_));
 }
 
