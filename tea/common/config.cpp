@@ -613,9 +613,7 @@ Config ConfigSource::GetConfig(std::string_view profile) {
   }
   Config config;
   LoadEnvDefaults(&config);
-  if (auto status = config.FromJsonFile(*json_config_path, result_file_schema_path, profile); status.ok()) {
-    TEA_LOG("Json config is valid");
-  } else {
+  if (auto status = config.FromJsonFile(*json_config_path, result_file_schema_path, profile); !status.ok()) {
     TEA_LOG("Incorrect json config " + status.message());
     throw arrow::Status::ExecutionError("Incorrect configuration file ", *json_config_path);
   }

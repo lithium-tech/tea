@@ -688,10 +688,11 @@ void TeaContextPlanExternal(TeaContextPtr tea_ctx, const ExternalScanParams *par
     };
 
     const bool from_samovar = get::SamovarConfig(tea_ctx).turn_on_samovar;
-    const auto target_coordinator =
-        tea::samovar::GetCoordinator(get::SessionId(tea_ctx), get::Source(tea_ctx), params->segment_count);
-    const bool is_coordinator = params->segment_id == target_coordinator;
     if (from_samovar) {
+      const auto target_coordinator =
+          tea::samovar::GetCoordinator(get::SessionId(tea_ctx), get::Source(tea_ctx), params->segment_count);
+      const bool is_coordinator = params->segment_id == target_coordinator;
+
       TEA_LOG("Samovar coordinator for query is " + std::to_string(target_coordinator));
       if (is_coordinator) {
         TEA_LOG("I am samovar coordinator");
