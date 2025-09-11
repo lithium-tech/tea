@@ -16,8 +16,9 @@ class MetricsTest : public TeaTest {};
 
 #if PG_VERSION_MAJOR >= 9
 TEST_F(MetricsTest, Simple) {
-  ASSIGN_OR_FAIL(auto result,
-                 pq::TableScanQuery("iceberg_tables_metrics").SetWhere("location = 'tea://gperov.test'").Run(*conn_));
+  ASSIGN_OR_FAIL(
+      auto result,
+      pq::TableScanQuery("tea.iceberg_tables_metrics").SetWhere("location = 'tea://gperov.test'").Run(*conn_));
 
   auto expected = pq::ScanResult({"location", "total_records", "total_data_files", "total_files_size",
                                   "total_equality_deletes", "total_position_deletes", "total_delete_files"},
@@ -26,7 +27,7 @@ TEST_F(MetricsTest, Simple) {
 }
 
 TEST_F(MetricsTest, WithProfile) {
-  ASSIGN_OR_FAIL(auto result, pq::TableScanQuery("iceberg_tables_metrics")
+  ASSIGN_OR_FAIL(auto result, pq::TableScanQuery("tea.iceberg_tables_metrics")
                                   .SetWhere("location = 'tea://gperov.test?profile=samovar'")
                                   .Run(*conn_));
 
@@ -37,7 +38,7 @@ TEST_F(MetricsTest, WithProfile) {
 }
 
 TEST_F(MetricsTest, WithAccessType) {
-  ASSIGN_OR_FAIL(auto result, pq::TableScanQuery("iceberg_tables_metrics")
+  ASSIGN_OR_FAIL(auto result, pq::TableScanQuery("tea.iceberg_tables_metrics")
                                   .SetWhere("location = 'tea://iceberg://gperov.test?profile=samovar'")
                                   .Run(*conn_));
 
@@ -50,8 +51,8 @@ TEST_F(MetricsTest, WithAccessType) {
 
 TEST_F(MetricsTest, SpecialTable) {
   auto maybe_result =
-      pq::TableScanQuery("iceberg_tables_metrics")
-          .SetWhere("location = 'tea://special://iceberg_tables_metrics?profile=tea_iceberg_get_metrics'")
+      pq::TableScanQuery("tea.iceberg_tables_metrics")
+          .SetWhere("location = 'tea://special://iceberg_tables_metrics?profile=tea.iceberg_get_metrics'")
           .Run(*conn_);
 
   ASSERT_FALSE(maybe_result.ok());
@@ -63,7 +64,7 @@ TEST_F(MetricsTest, SpecialTable) {
 }
 
 TEST_F(MetricsTest, Metrics) {
-  ASSIGN_OR_FAIL(auto result, pq::TableScanQuery("tea_iceberg_get_metrics('tea://gperov.test')").Run(*conn_));
+  ASSIGN_OR_FAIL(auto result, pq::TableScanQuery("tea.iceberg_get_metrics('tea://gperov.test')").Run(*conn_));
 
   auto expected = pq::ScanResult({"total_records", "total_data_files", "total_files_size", "total_equality_deletes",
                                   "total_position_deletes", "total_delete_files"},
@@ -80,14 +81,14 @@ TEST_F(MetricsTest, ExternalTableUdf) {
                                    kDefaultTableName, loc);
   ASSIGN_OR_FAIL(auto defer, query.Run(*conn_));
 
-  ASSIGN_OR_FAIL(auto result, pq::TableScanQuery("tea_external_table_location('public', 'test_table')").Run(*conn_));
+  ASSIGN_OR_FAIL(auto result, pq::TableScanQuery("tea.external_table_location('public', 'test_table')").Run(*conn_));
 
   auto expected = pq::ScanResult({"tea_external_table_location"}, {{"tea://gperov.test"}});
   EXPECT_EQ(result, expected);
 }
 
 TEST_F(MetricsTest, NonExistingTable) {
-  auto maybe_result = pq::TableScanQuery("tea_iceberg_get_metrics('tea://i_am_bad.table')").Run(*conn_);
+  auto maybe_result = pq::TableScanQuery("tea.iceberg_get_metrics('tea://i_am_bad.table')").Run(*conn_);
   ASSERT_FALSE(maybe_result.ok());
 
   ASSERT_TRUE(maybe_result.status().message().find("NoSuchObjectException(message=no db 'i_am_bad'") !=
@@ -96,7 +97,7 @@ TEST_F(MetricsTest, NonExistingTable) {
 }
 
 TEST_F(MetricsTest, InvalidLocation) {
-  auto maybe_result = pq::TableScanQuery("tea_iceberg_get_metrics('i-am-not-a-location')").Run(*conn_);
+  auto maybe_result = pq::TableScanQuery("tea.iceberg_get_metrics('i-am-not-a-location')").Run(*conn_);
   ASSERT_FALSE(maybe_result.ok());
 
   ASSERT_TRUE(maybe_result.status().message().find("IcebergMetricsTable: location must start with 'tea://'") !=
@@ -105,19 +106,19 @@ TEST_F(MetricsTest, InvalidLocation) {
 }
 
 TEST_F(MetricsTest, InvalidArguments) {
-  auto maybe_result = pq::TableScanQuery("tea_iceberg_get_metrics(23)").Run(*conn_);
+  auto maybe_result = pq::TableScanQuery("tea.iceberg_get_metrics(23)").Run(*conn_);
   ASSERT_FALSE(maybe_result.ok());
 
-  ASSERT_TRUE(maybe_result.status().message().find("function tea_iceberg_get_metrics(integer) does not exist") !=
+  ASSERT_TRUE(maybe_result.status().message().find("function tea.iceberg_get_metrics(integer) does not exist") !=
               std::string::npos)
       << maybe_result.status().message();
 }
 
 TEST_F(MetricsTest, NullArgument) {
-  auto maybe_result = pq::TableScanQuery("tea_iceberg_get_metrics(null)").Run(*conn_);
+  auto maybe_result = pq::TableScanQuery("tea.iceberg_get_metrics(null)").Run(*conn_);
   ASSERT_FALSE(maybe_result.ok());
 
-  ASSERT_TRUE(maybe_result.status().message().find("tea_iceberg_get_metrics: location must be not null") !=
+  ASSERT_TRUE(maybe_result.status().message().find("iceberg_get_metrics: location must be not null") !=
               std::string::npos)
       << maybe_result.status().message();
 }
