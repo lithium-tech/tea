@@ -48,5 +48,6 @@ std::string FormatStats(std::string_view event_type, std::string_view session_id
                         std::string_view version, DurationTicks duration_ticks, double ticks_per_second,
                         const PlannerStats&, const ReaderStats& reader_stats, const S3Stats& s3_stats,
                         const ExtStats& ext_stats, const iceberg::PositionalDeleteStats& positional_delete_stats,
-                        const iceberg::EqualityDeleteStats& equality_delete_stats);
+                        const iceberg::EqualityDeleteStats& equality_delete_stats, DurationTicks prefetch_duration,
+                        DurationTicks wait_duration);
 }  // namespace tea
