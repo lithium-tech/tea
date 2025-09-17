@@ -36,6 +36,19 @@ TEST_F(FilterTestLikeOperator, StartsWith) {
                                             "string) 'abc%', (const string) '\\'))"}));
 }
 
+TEST_F(FilterTestLikeOperator, EmptyLine) {
+  std::string str1 = "\n\n\ni am abc_def_ghi.jkl by the way\n\n\n\n";
+  std::string str2 = "\t\t\ti am abc_def_ghi.jkl by the way\t\t\t\t";
+  std::string str3 = "i am abc_def_ghi.jkl by the way";
+  auto column1 = MakeStringColumn("col1", 1, std::vector<std::string*>{nullptr, &str1, &str2, &str3});
+  PrepareData({column1}, {GreenplumColumnInfo{.name = "col1", .type = "text"}});
+  ProcessWithFilter("col1", "col1 like '%abc_def_ghi.jkl%'",
+                    ExpectedValues()
+                        .SetSelectResult(pq::ScanResult({"col1"}, {{str1}, {str2}, {str3}}))
+                        .SetGandivaFilters({"bool like((string) col1, (const string) '%abc_def_ghi.jkl%', "
+                                            "(const string) '\\')"}));
+}
+
 TEST_F(FilterTestLikeOperator, NoFilter) {
   std::string str1 = "";
   std::string str2 = "ab";
