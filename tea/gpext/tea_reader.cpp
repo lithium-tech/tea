@@ -55,6 +55,7 @@
 #include "tea/table/filter_convert.h"
 #include "tea/table/shared_state.h"
 #include "tea/util/measure.h"
+#include "tea/util/multishot_timer.h"
 #include "tea/util/signal_blocker.h"
 #include "tea/util/thread_pool.h"
 
@@ -159,7 +160,13 @@ class BatchGetter {
     }
   }
 
+  std::optional<DurationTicks> GetWaitDuration() { return waiting_timer_.GetTotalDuration(); }
+
+  std::optional<DurationTicks> GetFetchDuration() { return prefetching_timer_.GetTotalDuration(); }
+
  private:
+  OneThreadMultishotTimer waiting_timer_;
+  OneThreadMultishotTimer prefetching_timer_;
   const Policy policy_;
 
   using TaskResult = arrow::Result<std::optional<iceberg::BatchWithSelectionVector>>;
@@ -167,12 +174,21 @@ class BatchGetter {
   std::optional<std::future<TaskResult>> task_;
 
   void FetchBatch(tea::Reader &reader) {
-    task_ = tea::thread_pool->Submit([&reader] { return reader.GetNextBatch(); });
+    task_ = tea::thread_pool->Submit(
+        [&reader,
+         timer = &this->prefetching_timer_]() -> arrow::Result<std::optional<iceberg::BatchWithSelectionVector>> {
+          timer->Resume();
+          auto result = reader.GetNextBatch();
+          timer->Suspend();
+          return result;
+        });
   }
 
   TaskResult GetBatch() {
+    waiting_timer_.Resume();
     auto result = (*std::move(task_)).get();
     task_.reset();
+    waiting_timer_.Suspend();
     return result;
   }
 };
@@ -928,9 +944,12 @@ void TeaContextLogStats(const TeaContextPtr tea_ctx, const char *event) {
           const auto scan_identifier = get::ScanIdentifier(tea_ctx);
           const std::string version = TEA_VERSION;
 
+          auto wait_duration = get::BatchGetter(tea_ctx)->GetWaitDuration().value_or(0);
+          auto prefetch_duration = get::BatchGetter(tea_ctx)->GetFetchDuration().value_or(0);
+
           tea::Log(tea::FormatStats(event ? event : "", session_id, scan_identifier, version, ticks_passed,
                                     ticks_per_second, get::PlannerStats(tea_ctx), reader_stats, s3_stats,
-                                    tea_ctx->ext_stats, pos_del_stats, eq_del_stats));
+                                    tea_ctx->ext_stats, pos_del_stats, eq_del_stats, wait_duration, prefetch_duration));
           if (get::Config(tea_ctx).debug.test_stats) {
             tea::debug::SendStats(ticks_passed, ticks_per_second, get::PlannerStats(tea_ctx), reader_stats, s3_stats,
                                   tea_ctx->ext_stats, pos_del_stats, eq_del_stats, GpIdentity.segindex);

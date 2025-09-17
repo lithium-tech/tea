@@ -105,7 +105,8 @@ std::string FormatStats(std::string_view event_type, std::string_view session_id
                         std::string_view version, DurationTicks total_duration_ticks, double ticks_per_second,
                         const PlannerStats& planner_stats, const ReaderStats& reader_stats, const S3Stats& s3_stats,
                         const ExtStats& ext_stats, const iceberg::PositionalDeleteStats& positional_delete_stats,
-                        const iceberg::EqualityDeleteStats& equality_delete_stats) {
+                        const iceberg::EqualityDeleteStats& equality_delete_stats, DurationTicks prefetch_duration,
+                        DurationTicks wait_duration) {
   JsonStringBuffer buffer;
   JsonWriter writer(buffer);
   writer.StartObject();
@@ -116,6 +117,8 @@ std::string FormatStats(std::string_view event_type, std::string_view session_id
   WriteDouble(writer, "total_duration_seconds", ToSeconds(total_duration_ticks, ticks_per_second));
   WriteUInt64(writer, "total_files_read",
               reader_stats.data_files_read + positional_delete_stats.files_read + equality_delete_stats.files_read);
+  WriteDouble(writer, "wait_duration_seconds", ToSeconds(wait_duration, ticks_per_second));
+  WriteDouble(writer, "prefetch_duration_seconds", ToSeconds(prefetch_duration, ticks_per_second));
   WritePlannerStats(writer, planner_stats, ticks_per_second);
   WriteReaderStats(writer, reader_stats, ticks_per_second);
   WriteExtStats(writer, ext_stats, ticks_per_second);
