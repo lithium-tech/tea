@@ -6,9 +6,11 @@
 #include "gtest/gtest.h"
 #include "iceberg/test_utils/write.h"
 
+#include "tea/common/config.h"
 #include "tea/smoke_test/environment.h"
 #include "tea/smoke_test/fragment_info.h"
 #include "tea/smoke_test/pq.h"
+#include "tea/smoke_test/spark_generated_test_base.h"
 #include "tea/smoke_test/teapot_test_base.h"
 #include "tea/smoke_test/test_base.h"
 #include "tea/test_utils/common.h"
@@ -552,6 +554,41 @@ TEST_F(PositionalDeleteTeapotTest, HoleInFile) {
   pq::ScanResult expected_result({"col1"}, {{"2"}, {"3"}, {"8"}, {"9"}});
 
   EXPECT_EQ(result, expected_result);
+}
+
+TEST_F(TeaTest, DanglingDeletes) {
+  if (Environment::GetTableType() != TestTableType::kExternal || Environment::GetProfile() != "samovar") {
+    GTEST_SKIP();
+  }
+  auto ice_loc = IcebergLocation("test", "dangling_deletes", Options{.profile = Environment::GetProfile()});
+  auto loc = Location(std::move(ice_loc));
+
+  ASSIGN_OR_FAIL(auto defer, pq::CreateExternalTableQuery(
+                                 std::vector<GreenplumColumnInfo>{GreenplumColumnInfo{.name = "c1", .type = "int4"},
+                                                                  GreenplumColumnInfo{.name = "c2", .type = "int4"}},
+                                 kDefaultTableName, loc)
+                                 .Run(*conn_));
+
+  ASSIGN_OR_FAIL(pq::ScanResult result, pq::TableScanQuery(kDefaultTableName, "c1").Run(*conn_));
+  pq::ScanResult expected_result({"c1"}, {{"1"}, {"2"}, {"4"}, {"5"}, {"7"}, {"8"}, {"10"}, {"11"}, {"13"}, {"14"}});
+
+  EXPECT_EQ(result, expected_result);
+
+  auto stats = stats_state_->GetStats(true);
+
+  int64_t data_files = 0;
+  int64_t positional_files = 0;
+  int64_t dangling_positional_files = 0;
+
+  for (auto& stat : stats) {
+    data_files += stat.plan().data_files_planned();
+    positional_files += stat.plan().potisional_files_planned();
+    dangling_positional_files += stat.plan().dangling_positional_files();
+  }
+
+  EXPECT_EQ(data_files, 1);
+  EXPECT_EQ(positional_files, 0);
+  EXPECT_EQ(dangling_positional_files, 2);
 }
 
 }  // namespace

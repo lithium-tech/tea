@@ -45,7 +45,6 @@ void WriteReaderStats(JsonWriter& writer, const ReaderStats& stats, double ticks
               ToSeconds(stats.positional_delete_apply_duration, ticks_per_second));
   WriteDouble(writer, "equality_delete_apply_seconds",
               ToSeconds(stats.equality_delete_apply_duration, ticks_per_second));
-  WriteUInt64(writer, "data_files_planned", stats.data_files_planned);
   WriteUInt64(writer, "data_files_read", stats.data_files_read);
   WriteUInt64(writer, "row_groups_read", stats.row_groups_read);
   WriteUInt64(writer, "row_groups_skipped_filter", stats.row_groups_skipped_filter);
@@ -75,6 +74,10 @@ void WritePlannerStats(JsonWriter& writer, const PlannerStats& stats, double tic
   WriteUInt64(writer, "iceberg_files_read", stats.iceberg_files_read);
   WriteUInt64(writer, "iceberg_fs_requests", stats.iceberg_requests);
   WriteUInt64(writer, "catalog_connections_established", stats.catalog_connections_established);
+  WriteUInt64(writer, "data_files_planned", stats.data_files_planned);
+  WriteUInt64(writer, "positional_files_planned", stats.positional_files_planned);
+  WriteUInt64(writer, "equality_files_planned", stats.equality_files_planned);
+  WriteUInt64(writer, "dangling_positional_files", stats.dangling_positional_files);
 }
 
 void WritePositionalDeleteStats(JsonWriter& writer, const iceberg::PositionalDeleteStats& stats) {
