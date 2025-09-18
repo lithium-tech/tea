@@ -58,7 +58,13 @@ message Durations {
   google.protobuf.Duration heap_form_tuple = 8;
   google.protobuf.Duration positional = 9;
   google.protobuf.Duration equality = 10;
+}
 
+message PlanStats {
+  int64 data_files_planned = 1;
+  int64 potisional_files_planned = 2;
+  int64 equality_files_planned = 3;
+  int64 dangling_positional_files = 4;
 }
 
 message ProjectionStats {
@@ -101,6 +107,7 @@ message ExecutionStats {
   SamovarStats samovar = 7;
   IcebergStats iceberg = 8;
   HmsStats hms = 9;
+  PlanStats plan = 10;
 }
 
 message StatsRequest {

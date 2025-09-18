@@ -63,6 +63,12 @@ stats_state::StatsRequest StatsToProto(DurationTicks duration_ticks, double tick
   posdel_stats->set_rows_read(positional_delete_stats.rows_read);
   posdel_stats->set_rows_ignored(reader_stats.positional_delete_rows_ignored);
 
+  stats_state::PlanStats* plan_stats = execution_stats->mutable_plan();
+  plan_stats->set_data_files_planned(planner_stats.data_files_planned);
+  plan_stats->set_potisional_files_planned(planner_stats.positional_files_planned);
+  plan_stats->set_equality_files_planned(planner_stats.equality_files_planned);
+  plan_stats->set_dangling_positional_files(planner_stats.dangling_positional_files);
+
   stats_state::Durations* durations = execution_stats->mutable_durations();
   SetDuration(duration_ticks, ticks_per_second, durations->mutable_total());
   SetDuration(planner_stats.plan_duration, ticks_per_second, durations->mutable_plan());

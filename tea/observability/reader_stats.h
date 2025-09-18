@@ -17,7 +17,6 @@ namespace tea {
 
 // after updating stats update test/check_log_events.py
 struct ReaderStats {
-  int64_t data_files_planned = 0;
   int64_t data_files_read = 0;
   int64_t row_groups_read = 0;
   int64_t row_groups_skipped_filter = 0;

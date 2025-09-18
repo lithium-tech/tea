@@ -25,6 +25,7 @@
 #include "tea/metadata/entries_stream_config.h"
 #include "tea/observability/planner_stats.h"
 #include "tea/observability/tea_log.h"
+#include "tea/util/logger.h"
 #include "tea/util/measure.h"
 
 namespace tea::meta::access {
@@ -187,6 +188,16 @@ std::pair<iceberg::ice_tea::ScanMetadata, PlannerStats> FromIcebergWithLocation(
   auto metrics = std::make_shared<IcebergMetrics>(IcebergMetrics{});
   fs = std::make_shared<IcebergLoggingFileSystem>(fs, metrics);
 
+  auto logger = std::make_shared<Logger>();
+  logger->SetHandler("metrics:plan:data_files",
+                     [&](const Logger::Message& msg) { stats.data_files_planned += std::stoi(msg); });
+  logger->SetHandler("metrics:plan:positional_files",
+                     [&](const Logger::Message& msg) { stats.positional_files_planned += std::stoi(msg); });
+  logger->SetHandler("metrics:plan:equality_files",
+                     [&](const Logger::Message& msg) { stats.equality_files_planned += std::stoi(msg); });
+  logger->SetHandler("metrics:plan:dangling_positional_files",
+                     [&](const Logger::Message& msg) { stats.dangling_positional_files += std::stoi(msg); });
+
   auto result = [&]() -> arrow::Result<iceberg::ice_tea::ScanMetadata> {
     ARROW_ASSIGN_OR_RAISE(auto data, iceberg::ice_tea::ReadFile(fs, location));
     std::shared_ptr<iceberg::TableMetadataV2> table_metadata = iceberg::ice_tea::ReadTableMetadataV2(data);
@@ -214,7 +225,7 @@ std::pair<iceberg::ice_tea::ScanMetadata, PlannerStats> FromIcebergWithLocation(
           entries_stream, filter, table_metadata->GetCurrentSchema(), timestamp_to_timestamptz_shift_us);
     }
 
-    return iceberg::ice_tea::GetScanMetadata(*entries_stream, *table_metadata);
+    return iceberg::ice_tea::GetScanMetadata(*entries_stream, *table_metadata, logger);
   }();
 
   if (result.ok()) {
