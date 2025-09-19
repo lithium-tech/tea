@@ -1,3 +1,21 @@
+### Tea release 1.72.0, 2025-09-18
+
+#### Improvements
+* [Teapotless][Samovar] Skip dangling positional delete files
+
+#### Bug Fix
+* Fix LIKE function for strings with `\n` character
+
+### Tea release 1.71.2, 2025-09-11
+
+#### Improvements
+* Recreate UDF in tea schema
+
+### Tea release 1.71.1, 2025-09-09
+
+#### Improvements
+* Fix downgrade/upgrade on gp5
+
 ### Tea release 1.71.0, 2025-09-08
 
 #### Improvements
