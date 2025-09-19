@@ -25,8 +25,11 @@ install_template(tea.control.in tea.control)
 install_template(tea_secondary.control.in tea--${TEA_VERSION}.control)
 
 install_template(tea_install.sql.in tea--${TEA_VERSION}.sql)
+foreach(TEA_BASE_VERSION ${TEA_BASE_VERSIONS_WO_ICE_UDF})
+  install_template(tea_upgrade_from_old.sql.in tea--${TEA_BASE_VERSION}--${TEA_VERSION}.sql)
+  install_template(tea_downgrade_to_old.sql.in tea--${TEA_VERSION}--${TEA_BASE_VERSION}.sql)
+endforeach()
 foreach(TEA_BASE_VERSION ${TEA_BASE_VERSIONS})
-# TODO(gmusya): change downgrade script after releasing 1.71.0
   install_template(tea_upgrade.sql.in tea--${TEA_BASE_VERSION}--${TEA_VERSION}.sql)
   install_template(tea_downgrade.sql.in tea--${TEA_VERSION}--${TEA_BASE_VERSION}.sql)
 endforeach()
