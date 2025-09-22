@@ -53,12 +53,16 @@ jobs:
             python3-psutil \
             python3-yaml \
             zlib1g-dev
+
+      - name: Prepare directory for installation
+        run: |
+          mkdir -p $HOME/local
     
       - name: Build Greenplum 6
         run: |
           git clone https://github.com/greenplum-db/gpdb-archive.git
           cd gpdb-archive
           git submodule update --init
-          ./configure --with-perl --with-python --with-libxml --with-gssapi --prefix=/usr/local/gpdb
+          ./configure --with-perl --with-python --with-libxml --with-gssapi --prefix=$HOME/local/gpdb
           make -j8
           make -j8 install
