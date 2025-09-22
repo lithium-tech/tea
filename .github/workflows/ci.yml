@@ -1,0 +1,27 @@
+name: GP6 CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+    
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+    
+      - name: Build Greenplum 6
+        run: |
+          git clone https://github.com/greenplum-db/gpdb-archive.git
+          cd gpdb-archive
+          git submodule update --init
+          ./configure --with-perl --with-python --with-libxml --with-gssapi --prefix=/usr/local/gpdb
+          make -j8
+          make -j8 install
