@@ -67,22 +67,22 @@ jobs:
       #     make -j8
       #     make -j8 install
 
-      # - name: Build and install Arrow 15
-      #   run: |
-      #     git clone https://github.com/apache/arrow.git
-      #     cd arrow
-      #     git checkout maint-15.0.2
-      #     mkdir cpp/build
-      #     cd cpp/build
-      #     cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_INSTALL_PREFIX=$HOME/local \
-      #       -DARROW_BUILD_STATIC=ON -DARROW_BUILD_SHARED=OFF \
-      #       -DARROW_DEPENDENCY_SOURCE=BUNDLED -DARROW_NO_DEPRECTATED_API=ON \
-      #       -DARROW_LLVM_USE_SHARED=OFF -DARROW_FILESYSTEM=ON -DARROW_PARQUET=ON \
-      #       -DARROW_S3=ON -DARROW_WITH_SNAPPY=ON -DARROW_WITH_LZ4=ON -DARROW_WITH_ZLIB=ON -DARROW_WITH_ZSTD=ON \
-      #       -DARROW_IPC=ON -DARROW_CSV=ON -DARROW_WITH_RAPIDJSON=ON \
-      #       -DARROW_GANDIVA=ON -DARROW_COMPUTE=ON ..
-      #     make -j8
-      #     make -j8 install
+      - name: Build and install Arrow 15
+        run: |
+          git clone https://github.com/apache/arrow.git
+          cd arrow
+          git checkout maint-15.0.2
+          mkdir cpp/build
+          cd cpp/build
+          cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_INSTALL_PREFIX=$HOME/local \
+            -DARROW_BUILD_STATIC=ON -DARROW_BUILD_SHARED=OFF \
+            -DARROW_DEPENDENCY_SOURCE=BUNDLED -DARROW_NO_DEPRECTATED_API=ON \
+            -DARROW_LLVM_USE_SHARED=OFF -DARROW_FILESYSTEM=ON -DARROW_PARQUET=ON \
+            -DARROW_S3=ON -DARROW_WITH_SNAPPY=ON -DARROW_WITH_LZ4=ON -DARROW_WITH_ZLIB=ON -DARROW_WITH_ZSTD=ON \
+            -DARROW_IPC=ON -DARROW_CSV=ON -DARROW_WITH_RAPIDJSON=ON \
+            -DARROW_GANDIVA=ON -DARROW_COMPUTE=ON ..
+          make -j8
+          make -j8 install
 
       - name: Build and install gprc
         run: |
