@@ -101,9 +101,11 @@ jobs:
       #       -DgRPC_BUILD_GRPC_RUBY_PLUGIN=OFF ..
       #     make -j8
       #     make -j8 install
-        
+
       - name: Build Tea
         run: |
+          mkdir build
+          cd build
           cmake -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DTEA_DEPS_PATH=$HOME/local \
             -DGreenplum_ROOT=$HOME/local/gpdb ..
           ninja
