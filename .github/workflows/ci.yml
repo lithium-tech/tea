@@ -93,7 +93,6 @@ jobs:
           cd grpc
           git checkout v1.62.3
           git submodule update --init --single-branch --depth 1
-          mkdir build
           cd build
           cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_INSTALL_PREFIX=$HOME/local \
             -DgRPC_BUILD_SHARED_LIBS=OFF -DgRPC_BUILD_STATIC_LIBS=ON \
