@@ -22,6 +22,8 @@ jobs:
             curl \
             flex \
             llvm \
+            clang \
+            clang++ \
             inetutils-ping \
             krb5-kdc \
             krb5-admin-server \
