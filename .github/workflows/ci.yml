@@ -73,6 +73,7 @@ jobs:
           git clone https://github.com/apache/arrow.git
           cd arrow
           git checkout maint-15.0.2
+          git apply ../vendor/arrow/fix_c-ares_url.patch
           ./cpp/thirdparty/download_dependencies.sh ../build/arrow-thirdparty
           mkdir cpp/build
           cd cpp/build
