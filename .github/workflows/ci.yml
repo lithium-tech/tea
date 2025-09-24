@@ -58,20 +58,22 @@ jobs:
         run: |
           mkdir -p $HOME/local
 
-      - name: Build and install Greenplum 6
-        run: |
-          git clone https://github.com/greenplum-db/gpdb-archive.git
-          cd gpdb-archive
-          git submodule update --init
-          ./configure --with-perl --with-python --with-libxml --with-gssapi --prefix=$HOME/local/gpdb
-          make -j8
-          make -j8 install
+      # - name: Build and install Greenplum 6
+      #   run: |
+      #     git clone https://github.com/greenplum-db/gpdb-archive.git
+      #     cd gpdb-archive
+      #     git submodule update --init
+      #     ./configure --with-perl --with-python --with-libxml --with-gssapi --prefix=$HOME/local/gpdb
+      #     make -j8
+      #     make -j8 install
 
       - name: Build and install Arrow 15
         run: |
+          mkdir build
           git clone https://github.com/apache/arrow.git
           cd arrow
           git checkout maint-15.0.2
+          ./cpp/thirdparty/download_dependencies.sh ../build/arrow-thirdparty
           mkdir cpp/build
           cd cpp/build
           cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_INSTALL_PREFIX=$HOME/local \
