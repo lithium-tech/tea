@@ -22,7 +22,6 @@ jobs:
             curl \
             flex \
             llvm \
-            clang-17 \
             inetutils-ping \
             krb5-kdc \
             krb5-admin-server \
@@ -52,6 +51,7 @@ jobs:
             python3-psutil \
             python3-yaml \
             zlib1g-dev
+          wget -qO- https://apt.llvm.org/llvm.sh | bash -s -- 17
 
       - name: Prepare directory for installation
         run: |
