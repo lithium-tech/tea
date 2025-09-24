@@ -52,6 +52,8 @@ jobs:
             python3-yaml \
             zlib1g-dev
           wget -qO- https://apt.llvm.org/llvm.sh | sudo bash -s -- 17
+          which clang-17
+          which clang++-17
 
       - name: Prepare directory for installation
         run: |
