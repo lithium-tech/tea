@@ -107,6 +107,6 @@ jobs:
           mkdir build
           cd build
           cmake -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DTEA_DEPS_PATH=$HOME/local \
-            -DGreenplum_ROOT=$HOME/local/gpdb ..
+            -DGreenplum_ROOT=$HOME/local/gpdb -DCMAKE_PREFIX_PATH=$HOME/local ..
           ninja
           ninja install
