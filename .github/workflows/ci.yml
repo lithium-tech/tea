@@ -54,18 +54,18 @@ jobs:
             python3-yaml \
             zlib1g-dev
 
-      # - name: Prepare directory for installation
-      #   run: |
-      #     mkdir -p $HOME/local
+      - name: Prepare directory for installation
+        run: |
+          mkdir -p $HOME/local
 
-      # - name: Build and install Greenplum 6
-      #   run: |
-      #     git clone https://github.com/greenplum-db/gpdb-archive.git
-      #     cd gpdb-archive
-      #     git submodule update --init
-      #     ./configure --with-perl --with-python --with-libxml --with-gssapi --prefix=$HOME/local/gpdb
-      #     make -j8
-      #     make -j8 install
+      - name: Build and install Greenplum 6
+        run: |
+          git clone https://github.com/greenplum-db/gpdb-archive.git
+          cd gpdb-archive
+          git submodule update --init
+          ./configure --with-perl --with-python --with-libxml --with-gssapi --prefix=$HOME/local/gpdb
+          make -j8
+          make -j8 install
 
       - name: Build and install Arrow 15
         run: |
