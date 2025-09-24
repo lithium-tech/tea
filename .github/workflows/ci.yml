@@ -21,7 +21,7 @@ jobs:
             cmake \
             curl \
             flex \
-            llvm-17 \
+            llvm \
             inetutils-ping \
             krb5-kdc \
             krb5-admin-server \
