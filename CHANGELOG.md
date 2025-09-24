@@ -1,3 +1,10 @@
+### Tea release 1.72.2, 2025-09-23
+
+#### Improvements
+* Set the content type to 'application/gzip' when uploading the artifact
+
+### Tea release 1.72.1, 2025-09-22
+
 ### Tea release 1.72.0, 2025-09-18
 
 #### Improvements
