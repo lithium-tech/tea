@@ -67,6 +67,7 @@ jobs:
           ./configure --with-perl --with-python --with-libxml --with-gssapi --prefix=$HOME/local/gpdb
           make -j8
           make -j8 install
+          rm -rf gpdb-archive
 
       - name: Build and install Arrow 15
         run: |
@@ -87,6 +88,7 @@ jobs:
             -DARROW_GANDIVA=ON -DARROW_COMPUTE=ON ..
           make -j8
           make -j8 install
+          rm -rf arrow
 
       - name: Build and install gprc
         run: |
@@ -105,6 +107,7 @@ jobs:
             -DgRPC_BUILD_GRPC_RUBY_PLUGIN=OFF ..
           make -j8
           make -j8 install
+          rm -rf grpc
 
       - name: Build Tea
         run: |
