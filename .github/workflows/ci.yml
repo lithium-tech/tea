@@ -119,6 +119,6 @@ jobs:
           cd build
           cmake -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DTEA_DEPS_PATH=$HOME/local \
             -DGreenplum_ROOT=$HOME/local/gpdb -DCMAKE_PREFIX_PATH=$HOME/local \
-            -DCMAKE_C_COMPILER=clang-17 -DCMAKE_CXX_COMPILER=clang++-17 ..
+            -DCMAKE_C_COMPILER=clang-18 -DCMAKE_CXX_COMPILER=clang++-18 ..
           ninja
           ninja install
