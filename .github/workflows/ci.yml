@@ -70,8 +70,9 @@ jobs:
 
       - name: Build and install Greenplum 6
         run: |
-          git clone https://github.com/greenplum-db/gpdb-archive.git
+          git clone https://github.com/pivotal/gp-gpdb-dev.git
           cd gpdb-archive
+          git checkout 6.25.0
           git submodule update --init
           ./configure --with-perl --with-python --with-libxml --with-gssapi --prefix=$HOME/local/gpdb
           make -j8
