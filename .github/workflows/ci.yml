@@ -43,6 +43,8 @@ jobs:
             libxml2-dev \
             libyaml-dev \
             libzstd-dev \
+            libc++-18-dev \
+            libc++abi-18-dev \
             locales \
             net-tools \
             ninja-build \
