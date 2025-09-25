@@ -43,8 +43,6 @@ jobs:
             libxml2-dev \
             libyaml-dev \
             libzstd-dev \
-            libc++-18-dev \
-            libc++abi-18-dev \
             locales \
             net-tools \
             ninja-build \
@@ -59,6 +57,9 @@ jobs:
             python3-yaml \
             zlib1g-dev
           wget -qO- https://apt.llvm.org/llvm.sh | sudo bash -s -- 18
+          sudo apt-get update
+          sudo apt-get install -y clang-18
+          sudo apt-get install -y libc++-18-dev libc++abi-18-dev
           which clang-18
           which clang++-18
 
