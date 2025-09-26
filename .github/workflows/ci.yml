@@ -70,7 +70,7 @@ jobs:
 
       - name: Build and install Greenplum 6
         run: |
-          sudo ln -s python2 /usr/bin/python
+          sudo ln -s -f python2 /usr/bin/python
           sudo locale-gen "en_US.UTF-8"
 
           git clone https://github.com/arenadata/gpdb.git
