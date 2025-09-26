@@ -74,7 +74,7 @@ jobs:
           cd ygp
           git checkout YGP_6.27_STABLE
           git submodule update --init
-          ./configure --with-perl --with-python --with-libxml --with-gssapi --prefix=$HOME/local/gpdb
+          ./configure --with-perl --with-python --with-libxml --with-gssapi --prefix=$HOME/local/gpdb --without-mdblocales
           make -j8
           make -j8 install
           rm -rf ygp
