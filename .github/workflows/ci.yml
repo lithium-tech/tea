@@ -70,14 +70,14 @@ jobs:
 
       - name: Build and install Greenplum 6
         run: |
-          git clone https://github.com/yezzey-gp/ygp.git
-          cd ygp
-          git checkout YGP_6.27_STABLE
+          git clone https://github.com/arenadata/gpdb.git
+          cd gpdb
+          git checkout 6.29.1_arenadata68
           git submodule update --init
-          ./configure --with-perl --with-python --without-libxml --with-gssapi --prefix=$HOME/local/gpdb --without-mdblocales
+          ./configure --with-perl --with-python --with-libxml --with-gssapi --prefix=$HOME/local/gpdb
           make -j8
           make -j8 install
-          rm -rf ygp
+          rm -rf gpdb
 
       - name: Build and install Arrow 15
         run: |
