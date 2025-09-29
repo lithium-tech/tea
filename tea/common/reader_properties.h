@@ -18,6 +18,9 @@ class ReaderProperties {
   parquet::ArrowReaderProperties GetArrowReaderProperties() const {
     auto result = parquet::default_arrow_reader_properties();
     if (config_.has_value()) {
+      result.set_batch_size(config_->limits.arrow_buffer_rows);
+    }
+    if (config_.has_value()) {
       result.set_use_threads(config_->features.read_in_multiple_threads);
     }
     return result;

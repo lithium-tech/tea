@@ -68,6 +68,7 @@ struct Limits {
   uint64_t max_cpu_threads = 1;
   uint64_t max_io_threads = 1;
   uint64_t parquet_buffer_size = 1ull << 20;
+  uint64_t arrow_buffer_rows = 1ull << 16;
   uint64_t equality_delete_max_rows = 0;
   uint64_t equality_delete_max_mb_size = 1ull << 20;
   uint64_t metadata_cache_size = 0;
