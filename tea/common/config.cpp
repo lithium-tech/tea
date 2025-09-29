@@ -377,6 +377,7 @@ arrow::Status ReadValues(Source* src, Config* config, std::string_view section_p
   Get(src, section_prefix, "limits", "max_cpu_threads", &config->limits.max_cpu_threads);
   Get(src, section_prefix, "limits", "max_io_threads", &config->limits.max_io_threads);
   Get(src, section_prefix, "limits", "parquet_buffer_size", &config->limits.parquet_buffer_size);
+  Get(src, section_prefix, "limits", "arrow_buffer_rows", &config->limits.arrow_buffer_rows);
   Get(src, section_prefix, "limits", "equality_delete_max_rows", &config->limits.equality_delete_max_rows);
   Get(src, section_prefix, "limits", "equality_delete_max_mb_size", &config->limits.equality_delete_max_mb_size);
   Get(src, section_prefix, "limits", "metadata_cache_size", &config->limits.metadata_cache_size);
