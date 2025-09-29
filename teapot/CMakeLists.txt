@@ -33,21 +33,21 @@ if(ABSL_LOG_FLAGS_TYPE STREQUAL "STATIC_LIBRARY")
 endif()
 
 # teapot_mock_server
-add_executable(teapot_mock_server mock_server.cpp)
-target_include_directories(teapot_mock_server PUBLIC ${CMAKE_SOURCE_DIR})
-target_link_libraries(teapot_mock_server teapot_grpc_proto ${_GRPC_GRPCPP}
-                      Arrow::arrow_static Parquet::parquet_static
-                      ${_PROTOBUF_LIBPROTOBUF} absl::flags absl::flags_parse absl::log
-                      ${ABSL_WHOLE_ARCHIVE} ${CMAKE_DL_LIBS})
+# add_executable(teapot_mock_server mock_server.cpp)
+# target_include_directories(teapot_mock_server PUBLIC ${CMAKE_SOURCE_DIR})
+# target_link_libraries(teapot_mock_server teapot_grpc_proto ${_GRPC_GRPCPP}
+#                       Arrow::arrow_static Parquet::parquet_static
+#                       ${_PROTOBUF_LIBPROTOBUF} absl::flags absl::flags_parse absl::log
+#                       ${ABSL_WHOLE_ARCHIVE} ${CMAKE_DL_LIBS})
 
-add_executable(teapot_cli cli.cpp)
-target_include_directories(teapot_cli PUBLIC ${CMAKE_SOURCE_DIR})
-target_link_libraries(teapot_cli teapot_grpc_proto ${_GRPC_GRPCPP}
-                      ${_PROTOBUF_LIBPROTOBUF} absl::flags absl::flags_parse absl::log
-                      ${ABSL_WHOLE_ARCHIVE})
+# add_executable(teapot_cli cli.cpp)
+# target_include_directories(teapot_cli PUBLIC ${CMAKE_SOURCE_DIR})
+# target_link_libraries(teapot_cli teapot_grpc_proto ${_GRPC_GRPCPP}
+#                       ${_PROTOBUF_LIBPROTOBUF} absl::flags absl::flags_parse absl::log
+#                       ${ABSL_WHOLE_ARCHIVE})
 
-add_executable(compare_iceberg compare_iceberg.cpp)
-target_include_directories(compare_iceberg PUBLIC ${CMAKE_SOURCE_DIR})
-target_link_libraries(compare_iceberg teapot_grpc_proto ${_GRPC_GRPCPP}
-                      ${_PROTOBUF_LIBPROTOBUF} absl::flags absl::flags_parse absl::log samovar_network_layer samovar_client tea_metadata
-                      ${ABSL_WHOLE_ARCHIVE} ${CMAKE_DL_LIBS})
+# add_executable(compare_iceberg compare_iceberg.cpp)
+# target_include_directories(compare_iceberg PUBLIC ${CMAKE_SOURCE_DIR})
+# target_link_libraries(compare_iceberg teapot_grpc_proto ${_GRPC_GRPCPP}
+#                       ${_PROTOBUF_LIBPROTOBUF} absl::flags absl::flags_parse absl::log samovar_network_layer samovar_client tea_metadata
+#                       ${ABSL_WHOLE_ARCHIVE} ${CMAKE_DL_LIBS})
