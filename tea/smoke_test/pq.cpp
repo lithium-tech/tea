@@ -118,6 +118,29 @@ arrow::Result<ScanResult> Query::Run(PGconnWrapper& conn) {
   return PGResultToScanResult(select_result);
 }
 
+bool AsyncQuery::Run(PGconnWrapper& conn) {
+  if (!PQsendQuery(conn.Ptr(), query_.c_str())) {
+    PQfinish(conn.Ptr());
+    return false;
+  }
+
+  return true;
+}
+
+void AsyncQuery::CancelQuery(PGconnWrapper& conn) {
+  char errbuf[256];
+  PGcancel* cancel = PQgetCancel(conn.Ptr());
+
+  if (!cancel) {
+    throw std::runtime_error("Can not cancel query");
+  }
+
+  if (!PQcancel(cancel, errbuf, sizeof(errbuf))) {
+    throw std::runtime_error("Can not cancel query");
+  }
+  PQfreeCancel(cancel);
+}
+
 bool AsyncTableScanQuery::Run(PGconnWrapper& conn) {
   std::stringstream ss;
   ss << "SELECT ";

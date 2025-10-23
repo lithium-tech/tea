@@ -11,6 +11,7 @@
 
 #include "tea/common/config.h"
 #include "tea/metadata/planner.h"
+#include "tea/util/cancel.h"
 
 namespace tea::samovar {
 
@@ -23,11 +24,12 @@ int GetCoordinator(const std::string& session_id, const TableSource& table_sourc
 
 arrow::Result<PlannerStats> FillSamovar(const Config& config, iceberg::ice_tea::ScanMetadata&& meta, int segment_id,
                                         int segment_count, const std::string& queue_name,
-                                        const std::string& compressor_name);
+                                        const std::string& compressor_name, const CancelToken& cancel_token);
 
 arrow::Result<std::pair<meta::PlannedMeta, PlannerStats>> FromSamovar(const Config& config, int segment_id,
                                                                       int segment_count, const std::string& queue_name,
                                                                       const std::string& compressor_name,
-                                                                      SamovarRole role);
+                                                                      SamovarRole role,
+                                                                      const CancelToken& cancel_token);
 
 }  // namespace tea::samovar

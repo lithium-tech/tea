@@ -1,6 +1,7 @@
 #include "tea/metadata/access_iceberg.h"
 
 #include <arrow/filesystem/filesystem.h>
+#include <iceberg/manifest_entry.h>
 #include <iceberg/manifest_entry_stats_getter.h>
 #include <iceberg/table_metadata.h>
 
@@ -171,11 +172,30 @@ std::string GetIcebergTableLocation(const Config& config, TableId table_id) {
   return table->Location();
 }
 
+namespace {
+class CancellingStream : public iceberg::ice_tea::IcebergEntriesStream {
+ public:
+  CancellingStream(std::shared_ptr<iceberg::ice_tea::IcebergEntriesStream> stream, const CancelToken& cancel_token)
+      : stream_(stream), cancel_token_(cancel_token) {}
+
+  std::optional<iceberg::ManifestEntry> ReadNext() override {
+    if (cancel_token_.IsCancelled()) {
+      throw std::runtime_error(std::string(__PRETTY_FUNCTION__) + ": query is cancelled");
+    }
+    return stream_->ReadNext();
+  }
+
+ private:
+  std::shared_ptr<iceberg::ice_tea::IcebergEntriesStream> stream_;
+  const CancelToken& cancel_token_;
+};
+}  // namespace
+
 std::pair<iceberg::ice_tea::ScanMetadata, PlannerStats> FromIcebergWithLocation(
     iceberg::filter::NodePtr filter, std::shared_ptr<iceberg::IFileSystemProvider> fs_provider,
     const std::string& location, int64_t timestamp_to_timestamptz_shift_us,
     std::function<bool(iceberg::Schema& schema)> use_avro_reader_schema,
-    iceberg::filter::NodePtr partition_pruning_filter) {
+    iceberg::filter::NodePtr partition_pruning_filter, const CancelToken& cancel_token) {
   PlannerStats stats;
   std::optional<ScopedTimerTicks> timer = ScopedTimerTicks(stats.plan_duration);
 
@@ -220,6 +240,7 @@ std::pair<iceberg::ice_tea::ScanMetadata, PlannerStats> FromIcebergWithLocation(
     std::shared_ptr<iceberg::ice_tea::IcebergEntriesStream> entries_stream = iceberg::ice_tea::AllEntriesStream::Make(
         fs, table_metadata, use_reader_schema, partition_pruning_stats_filter,
         filter ? MakeScanDeserializerConfigWithFilter() : MakeFullScanDeserializerConfig());
+    entries_stream = std::make_shared<CancellingStream>(entries_stream, cancel_token);
     if (filter) {
       entries_stream = std::make_shared<FilteringEntriesStream>(
           entries_stream, filter, table_metadata->GetCurrentSchema(), timestamp_to_timestamptz_shift_us);
@@ -245,7 +266,7 @@ std::pair<iceberg::ice_tea::ScanMetadata, PlannerStats> FromIcebergWithLocation(
 std::pair<iceberg::ice_tea::ScanMetadata, PlannerStats> FromIceberg(
     const Config& config, TableId table_id, iceberg::filter::NodePtr filter,
     std::shared_ptr<iceberg::IFileSystemProvider> fs_provider, int64_t timestamp_to_timestamptz_shift_us,
-    iceberg::filter::NodePtr partition_pruning_filter) {
+    iceberg::filter::NodePtr partition_pruning_filter, const CancelToken& cancel_token) {
   PlannerStats stats;
   std::string table_metadata_location;
   {
@@ -259,7 +280,7 @@ std::pair<iceberg::ice_tea::ScanMetadata, PlannerStats> FromIceberg(
       [&](const iceberg::Schema& schema) {
         return schema.Columns().size() >= config.features.use_avro_projection_minimum_columns;
       },
-      partition_pruning_filter);
+      partition_pruning_filter, cancel_token);
   stats.Combine(fs_stats);
   return {meta, stats};
 }

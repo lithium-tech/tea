@@ -375,7 +375,12 @@ class IcebergMetadataWriter : public IMetadataWriter {
     return Location(std::move(loc));
   }
 
-  ~IcebergMetadataWriter() { hms_client_->DropTable("test-tmp-db", table_name_); }
+  ~IcebergMetadataWriter() {
+    try {
+      hms_client_->DropTable("test-tmp-db", table_name_);
+    } catch (...) {
+    }
+  }
 
  private:
   iceberg::ScopedTempDir metadata_directory_;

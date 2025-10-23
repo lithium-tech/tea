@@ -136,16 +136,19 @@ int main(int argc, char **argv) {
       tea::TimerClock clock;
 
       std::cerr << "Getting metadata" << std::endl;
+      tea::CancelToken cancel_token;
+
       if (!real_location) {
-        auto iceberg_result = tea::meta::access::FromIceberg(
-            config, tea::TableId{.db_name = hms_db, .table_name = hms_table}, nullptr, fs_provider, 0, nullptr);
+        auto iceberg_result =
+            tea::meta::access::FromIceberg(config, tea::TableId{.db_name = hms_db, .table_name = hms_table}, nullptr,
+                                           fs_provider, 0, nullptr, cancel_token);
 
         iceberg_meta = std::move(iceberg_result.first);
         stats = std::move(iceberg_result.second);
       } else {
         auto iceberg_result = tea::meta::access::FromIcebergWithLocation(
             nullptr, fs_provider, *real_location, 0,
-            [&](const iceberg::Schema &schema) { return use_avro_reader_schema; }, nullptr);
+            [&](const iceberg::Schema &schema) { return use_avro_reader_schema; }, nullptr, cancel_token);
 
         iceberg_meta = std::move(iceberg_result.first);
         stats = std::move(iceberg_result.second);
@@ -157,7 +160,7 @@ int main(int argc, char **argv) {
 
       std::cerr << "Filling samovar" << std::endl;
       auto maybe_stats = tea::samovar::FillSamovar(config, std::move(iceberg_meta), absl::GetFlag(FLAGS_segment_id),
-                                                   absl::GetFlag(FLAGS_segment_count), queue_name, "");
+                                                   absl::GetFlag(FLAGS_segment_count), queue_name, "", cancel_token);
       if (!maybe_stats.ok()) {
         std::cerr << "Failed to fill samovar: " << maybe_stats.status().message() << std::endl;
       }

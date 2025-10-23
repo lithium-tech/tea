@@ -10,19 +10,20 @@
 
 #include "tea/common/config.h"
 #include "tea/observability/planner_stats.h"
+#include "tea/util/cancel.h"
 
 namespace tea::meta::access {
 
 std::pair<iceberg::ice_tea::ScanMetadata, PlannerStats> FromIceberg(
     const Config& config, TableId table_id, iceberg::filter::NodePtr filter,
     std::shared_ptr<iceberg::IFileSystemProvider> fs_provider, int64_t timestamp_to_timestamptz_shift_us,
-    iceberg::filter::NodePtr partition_pruning_filter);
+    iceberg::filter::NodePtr partition_pruning_filter, const CancelToken& cancel_token);
 
 std::pair<iceberg::ice_tea::ScanMetadata, PlannerStats> FromIcebergWithLocation(
     iceberg::filter::NodePtr filter, std::shared_ptr<iceberg::IFileSystemProvider> fs_provider,
     const std::string& location, int64_t timestamp_to_timestamptz_shift_us,
     std::function<bool(iceberg::Schema& schema)> use_avro_reader_schema,
-    iceberg::filter::NodePtr partition_pruning_filter);
+    iceberg::filter::NodePtr partition_pruning_filter, const CancelToken& cancel_token);
 
 std::string GetIcebergTableLocation(const Config& config, TableId table_id);
 
