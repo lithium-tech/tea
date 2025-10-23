@@ -162,16 +162,18 @@ int main(int argc, char** argv) {
   iceberg::ice_tea::ScanMetadata iceberg_meta;
   tea::PlannerStats stats;
 
+  tea::CancelToken cancel_token;
   if (!real_location) {
-    auto iceberg_result = tea::meta::access::FromIceberg(
-        config, tea::TableId{.db_name = hms_db, .table_name = hms_table}, nullptr, fs_provider, 0, nullptr);
+    auto iceberg_result =
+        tea::meta::access::FromIceberg(config, tea::TableId{.db_name = hms_db, .table_name = hms_table}, nullptr,
+                                       fs_provider, 0, nullptr, cancel_token);
 
     iceberg_meta = std::move(iceberg_result.first);
     stats = std::move(iceberg_result.second);
   } else {
     auto iceberg_result = tea::meta::access::FromIcebergWithLocation(
         nullptr, fs_provider, *real_location, 0, [&](const iceberg::Schema& schema) { return use_avro_reader_schema; },
-        nullptr);
+        nullptr, cancel_token);
 
     iceberg_meta = std::move(iceberg_result.first);
     stats = std::move(iceberg_result.second);

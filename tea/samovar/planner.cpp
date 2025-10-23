@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <thread>
 #include <utility>
@@ -33,10 +34,32 @@ namespace tea::samovar {
 
 namespace {
 
+class CancellingBackoff : public IBackoff {
+ public:
+  CancellingBackoff(std::shared_ptr<IBackoff> backoff, const CancelToken& cancel_token)
+      : backoff_(backoff), cancel_token_(cancel_token) {}
+
+  void Wait() override {
+    if (cancel_token_.IsCancelled()) {
+      throw std::runtime_error(std::string(__PRETTY_FUNCTION__) + ": query is cancelled");
+    }
+
+    backoff_->Wait();
+  }
+
+  void OnSuccess() override { backoff_->OnSuccess(); }
+
+ private:
+  std::shared_ptr<IBackoff> backoff_;
+  const CancelToken& cancel_token_;
+};
+
 std::shared_ptr<ISamovarDataClient> MakeSamovarDataClient(const Config& config, const std::string& queue_name,
                                                           int segment_id, int segment_count,
-                                                          const std::string& compressor_name, SamovarRole role) {
+                                                          const std::string& compressor_name, SamovarRole role,
+                                                          const CancelToken& cancel_token) {
   auto backoff = CreateBackoff(config.samovar_config, std::make_shared<StageLogger>());
+  backoff = std::make_shared<CancellingBackoff>(backoff, cancel_token);
 
   std::shared_ptr<ISamovarClient> samovar_client = std::make_shared<SamovarRedisClient>(
       config.samovar_config.endpoints, backoff, config.samovar_config.request_timeout,
@@ -65,7 +88,7 @@ std::shared_ptr<ISamovarDataClient> MakeSamovarDataClient(const Config& config, 
 
 arrow::Result<PlannerStats> FillSamovar(const Config& config, iceberg::ice_tea::ScanMetadata&& meta, int segment_id,
                                         int segment_count, const std::string& queue_name,
-                                        const std::string& compressor_name) {
+                                        const std::string& compressor_name, const CancelToken& cancel_token) {
   TEA_LOG("Filling queue " + queue_name);
   PlannerStats stats;
   std::optional<ScopedTimerTicks> timer = ScopedTimerTicks(stats.plan_duration);
@@ -75,8 +98,8 @@ arrow::Result<PlannerStats> FillSamovar(const Config& config, iceberg::ice_tea::
     }
   }
 
-  auto samovar_data_client =
-      MakeSamovarDataClient(config, queue_name, segment_id, segment_count, compressor_name, SamovarRole::kCoordinator);
+  auto samovar_data_client = MakeSamovarDataClient(config, queue_name, segment_id, segment_count, compressor_name,
+                                                   SamovarRole::kCoordinator, cancel_token);
 
   ARROW_ASSIGN_OR_RAISE(auto split_result, SplitPartitions(meta.partitions, config));
 
@@ -110,8 +133,9 @@ namespace {
 class SamovarMetadataScheduler final : public meta::IMetadataScheduler {
  public:
   SamovarMetadataScheduler(const Config& config, int segment_id, int segment_count, const std::string& queue_name,
-                           const std::string& compressor_name, SamovarRole role) {
-    samovar_data_client_ = MakeSamovarDataClient(config, queue_name, segment_id, segment_count, compressor_name, role);
+                           const std::string& compressor_name, SamovarRole role, const CancelToken& cancel_token) {
+    samovar_data_client_ =
+        MakeSamovarDataClient(config, queue_name, segment_id, segment_count, compressor_name, role, cancel_token);
   }
 
   std::vector<iceberg::AnnotatedDataPath> GetNextMetadata(size_t num_data_files) override {
@@ -180,13 +204,14 @@ int GetCoordinator(const std::string& session_id, const TableSource& table_sourc
 arrow::Result<std::pair<meta::PlannedMeta, PlannerStats>> FromSamovar(const Config& config, int segment_id,
                                                                       int segment_count, const std::string& queue_name,
                                                                       const std::string& compressor_name,
-                                                                      SamovarRole role) {
+                                                                      SamovarRole role,
+                                                                      const CancelToken& cancel_token) {
   if (config.samovar_config.wait_before_processing) {
     std::this_thread::sleep_for(config.samovar_config.time_before_processing_ms);
   }
 
-  auto sched =
-      std::make_shared<SamovarMetadataScheduler>(config, segment_id, segment_count, queue_name, compressor_name, role);
+  auto sched = std::make_shared<SamovarMetadataScheduler>(config, segment_id, segment_count, queue_name,
+                                                          compressor_name, role, cancel_token);
   auto meta = meta::PlannedMeta(std::make_shared<meta::AnnotatedDataEntryStream>(sched), sched->GetPlannedMetadata());
 
   PlannerStats stats;

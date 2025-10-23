@@ -14,7 +14,10 @@
 #include <iceberg/schema.h>
 
 #include <algorithm>
+#include <atomic>
+#include <chrono>
 #include <cstddef>
+#include <future>
 #include <map>
 #include <memory>
 #include <string>
@@ -54,6 +57,7 @@
 #include "tea/table/converter.h"
 #include "tea/table/filter_convert.h"
 #include "tea/table/shared_state.h"
+#include "tea/util/cancel.h"
 #include "tea/util/measure.h"
 #include "tea/util/multishot_timer.h"
 #include "tea/util/signal_blocker.h"
@@ -64,6 +68,7 @@ extern "C" {
 
 #include "cdb/cdbvars.h"
 #include "mb/pg_wchar.h"
+#include "miscadmin.h"
 #include "utils/builtins.h"
 }
 
@@ -208,6 +213,8 @@ struct InternalContext {
   int32_t scan_identifier = 0;
   std::string session_id = "";
 
+  CancelToken cancel_token;
+
   ~InternalContext() {
     // get::BatchGetter with prefetch policy depends on get::Reader
     batch_getter.reset();
@@ -273,6 +280,21 @@ arrow::Result<std::string> ReadFile(std::shared_ptr<iceberg::IFileSystemProvider
     }                                                         \
   } while (0)
 
+#define TEA_INVOKE_IN_HELPER_THREAD_WITH_INTERRUPTS(log_level, fn)                   \
+  do {                                                                               \
+    tea::is_call_successful = true;                                                  \
+    if (tea::thread_pool) {                                                          \
+      std::future<void> task = tea::thread_pool->Submit([&]() { tea::Invoke(fn); }); \
+      WaitTaskWithInterrupts(task, get::CancelToken(tea_ctx));                       \
+    } else {                                                                         \
+      tea::Invoke(fn);                                                               \
+    }                                                                                \
+    tea::PrintLogs();                                                                \
+    if (!tea::is_call_successful) {                                                  \
+      elog((log_level), "Tea error: %s", tea::error_message);                        \
+    }                                                                                \
+  } while (0)
+
 namespace get {
 
 auto ContextPtr(const TeaContextPtr context) { return static_cast<tea::InternalContext *>(context->ctx); }
@@ -292,8 +314,19 @@ const tea::TableConfig &TableConfig(const TeaContextPtr context) { return Contex
 const tea::Config &Config(const TeaContextPtr context) { return TableConfig(context).config; }
 const tea::SamovarConfig &SamovarConfig(const TeaContextPtr context) { return Config(context).samovar_config; }
 const tea::TableSource &Source(const TeaContextPtr context) { return Context(context).table_config.source; }
-
+tea::CancelToken &CancelToken(const TeaContextPtr context) { return Context(context).cancel_token; }
 }  // namespace get
+
+void WaitTaskWithInterrupts(std::future<void> &task, tea::CancelToken &cancel_token) {
+  constexpr std::chrono::milliseconds kPollInterval{100};
+  while (task.wait_for(kPollInterval) == std::future_status::timeout) {
+    if (InterruptPending && (ProcDiePending || QueryCancelPending)) {
+      cancel_token.Cancel();
+      break;
+    }
+  }
+  task.get();
+}
 
 std::shared_ptr<iceberg::IFileSystemProvider> MakeFileSystemProvider(const tea::Config &config) {
   iceberg::S3FileSystemGetter::Config s3_input_cfg;
@@ -497,9 +530,10 @@ void TeaContextPlanForeign(TeaContextPtr tea_ctx, const ForeignScanParams *param
     auto maybe_plan_meta = [&]() {
       bool from_samovar = get::SamovarConfig(tea_ctx).turn_on_samovar;
       if (from_samovar) {
-        return tea::samovar::FromSamovar(
-            get::Config(tea_ctx), params->segment_id, params->segment_count, meta_message.scan_metadata_identifier,
-            get::SamovarConfig(tea_ctx).compressor_name, tea::samovar::SamovarRole::kFollower);
+        return tea::samovar::FromSamovar(get::Config(tea_ctx), params->segment_id, params->segment_count,
+                                         meta_message.scan_metadata_identifier,
+                                         get::SamovarConfig(tea_ctx).compressor_name,
+                                         tea::samovar::SamovarRole::kFollower, get::CancelToken(tea_ctx));
       } else {
         tea::ScanMetadataMessage meta = std::move(meta_message);
         meta.scan_metadata =
@@ -531,12 +565,13 @@ static iceberg::ice_tea::ScanMetadata GetMetaFromTeapot(TeaContextPtr tea_ctx, c
 }
 
 static iceberg::ice_tea::ScanMetadata GetMetaFromIceberg(TeaContextPtr tea_ctx, const tea::TableConfig &table_config,
-                                                         const std::string &extracted_filter) {
+                                                         const std::string &extracted_filter,
+                                                         const tea::CancelToken &cancel_token) {
   auto filter = iceberg::filter::StringToFilter(extracted_filter);
   auto res_with_stats = tea::meta::access::FromIceberg(
       table_config.config, std::get<tea::IcebergTable>(table_config.source).table_id, filter,
       get::FileSystemProvider(tea_ctx), tea::TimestampToTimestamptzShiftUs(),
-      table_config.config.features.use_iceberg_metadata_partition_pruning ? filter : nullptr);
+      table_config.config.features.use_iceberg_metadata_partition_pruning ? filter : nullptr, cancel_token);
   get::PlannerStats(tea_ctx).Combine(res_with_stats.second);
   return std::move(res_with_stats.first);
 }
@@ -567,11 +602,11 @@ static iceberg::ice_tea::ScanMetadata GetMetadataForSegment(TeaContextPtr tea_ct
 }
 
 static iceberg::ice_tea::ScanMetadata GetAllMetadata(TeaContextPtr tea_ctx, const tea::TableConfig &table_config,
-                                                     const std::string &session_id,
-                                                     const std::string &extracted_filter) {
+                                                     const std::string &session_id, const std::string &extracted_filter,
+                                                     const tea::CancelToken &cancel_token) {
   auto access_type = TableTypeFromSource(get::Source(tea_ctx));
   if (access_type == tea::TableType::kIceberg) {
-    return GetMetaFromIceberg(tea_ctx, table_config, extracted_filter);
+    return GetMetaFromIceberg(tea_ctx, table_config, extracted_filter, cancel_token);
   }
   return GetMetadataForSegment(tea_ctx, table_config, 0, 1, session_id, extracted_filter);
 }
@@ -681,7 +716,7 @@ void TeaContextPrepareTotalMetricsTable(TeaContextPtr tea_ctx, const ExternalSca
 
 // invoked on segment
 void TeaContextPlanExternal(TeaContextPtr tea_ctx, const ExternalScanParams *params) {
-  TEA_INVOKE_IN_HELPER_THREAD(ERROR, [=] {
+  TEA_INVOKE_IN_HELPER_THREAD_WITH_INTERRUPTS(ERROR, [=] {
     get::SessionId(tea_ctx) = params->session_id;
 
     auto reader = get::Reader(tea_ctx);
@@ -712,12 +747,12 @@ void TeaContextPlanExternal(TeaContextPtr tea_ctx, const ExternalScanParams *par
       TEA_LOG("Samovar coordinator for query is " + std::to_string(target_coordinator));
       if (is_coordinator) {
         TEA_LOG("I am samovar coordinator");
-        iceberg::ice_tea::ScanMetadata all_meta =
-            GetAllMetadata(tea_ctx, get::TableConfig(tea_ctx), get::SessionId(tea_ctx), filter.extracted);
+        iceberg::ice_tea::ScanMetadata all_meta = GetAllMetadata(
+            tea_ctx, get::TableConfig(tea_ctx), get::SessionId(tea_ctx), filter.extracted, get::CancelToken(tea_ctx));
 
-        auto maybe_stats = tea::samovar::FillSamovar(get::Config(tea_ctx), std::move(all_meta), params->segment_id,
-                                                     params->segment_count, make_samovar_queue_name(),
-                                                     get::SamovarConfig(tea_ctx).compressor_name);
+        auto maybe_stats = tea::samovar::FillSamovar(
+            get::Config(tea_ctx), std::move(all_meta), params->segment_id, params->segment_count,
+            make_samovar_queue_name(), get::SamovarConfig(tea_ctx).compressor_name, get::CancelToken(tea_ctx));
         TEA_RETURN_ARROW_NOT_OK(maybe_stats);
         get::PlannerStats(tea_ctx).Combine(maybe_stats.MoveValueUnsafe());
       }
@@ -727,7 +762,7 @@ void TeaContextPlanExternal(TeaContextPtr tea_ctx, const ExternalScanParams *par
       if (from_samovar) {
         return tea::samovar::FromSamovar(get::Config(tea_ctx), params->segment_id, params->segment_count,
                                          make_samovar_queue_name(), get::SamovarConfig(tea_ctx).compressor_name,
-                                         tea::samovar::SamovarRole::kFollower);
+                                         tea::samovar::SamovarRole::kFollower, get::CancelToken(tea_ctx));
       } else {
         auto meta_for_me = GetMetadataForSegment(tea_ctx, get::TableConfig(tea_ctx), params->segment_id,
                                                  params->segment_count, get::SessionId(tea_ctx), filter.extracted);
@@ -751,7 +786,8 @@ void TeaContextPlanAnalyze(TeaContextPtr tea_ctx, const AnalyzeParams *params) {
     reader->SetColumns(params->projection.columns, params->projection.columns + params->projection.ncolumns);
     get::Converter(tea_ctx)->SetColumnInfo(reader->columns());
 
-    auto all_meta = GetAllMetadata(tea_ctx, get::TableConfig(tea_ctx), get::SessionId(tea_ctx), "");
+    auto all_meta =
+        GetAllMetadata(tea_ctx, get::TableConfig(tea_ctx), get::SessionId(tea_ctx), "", get::CancelToken(tea_ctx));
 
     auto maybe_plan_meta = tea::meta::FromIcebergMetadata(std::move(all_meta));
     TEA_RETURN_ARROW_NOT_OK(maybe_plan_meta.status());
@@ -833,7 +869,7 @@ void TeaContextGetRelationSize(TeaContextPtr tea_ctx, const char *session_id, co
             get::Config(tea_ctx), std::get<tea::IcebergTable>(get::Source(tea_ctx)).table_id,
             get::FileSystemProvider(tea_ctx));
       } else {
-        auto meta = GetAllMetadata(tea_ctx, get::TableConfig(tea_ctx), session_id, "");
+        auto meta = GetAllMetadata(tea_ctx, get::TableConfig(tea_ctx), session_id, "", get::CancelToken(tea_ctx));
         return tea::meta::Estimator::GetRelationSizeFromDataFiles(meta, fs_provider, reader_properties);
       }
     }();
@@ -891,8 +927,8 @@ void TeaContextGetScanMetadata(const TeaContextPtr tea_ctx, const char *session_
                                char **metadata, int segment_count) {
   TEA_INVOKE_IN_HELPER_THREAD(
       ERROR, ([tea_ctx, session_id, &metadata, file_filter, segment_count] {
-        iceberg::ice_tea::ScanMetadata all_meta =
-            GetAllMetadata(tea_ctx, get::TableConfig(tea_ctx), session_id, file_filter ? file_filter : "");
+        iceberg::ice_tea::ScanMetadata all_meta = GetAllMetadata(
+            tea_ctx, get::TableConfig(tea_ctx), session_id, file_filter ? file_filter : "", get::CancelToken(tea_ctx));
         std::string serialized_meta;
         if (get::SamovarConfig(tea_ctx).turn_on_samovar) {
           iceberg::UuidGenerator gen;
@@ -902,8 +938,9 @@ void TeaContextGetScanMetadata(const TeaContextPtr tea_ctx, const char *session_
 
           std::shared_ptr<iceberg::Schema> schema = all_meta.schema;
 
-          auto stats = tea::samovar::FillSamovar(get::Config(tea_ctx), std::move(all_meta), 0, segment_count,
-                                                 queue_name, get::SamovarConfig(tea_ctx).compressor_name);
+          auto stats =
+              tea::samovar::FillSamovar(get::Config(tea_ctx), std::move(all_meta), 0, segment_count, queue_name,
+                                        get::SamovarConfig(tea_ctx).compressor_name, get::CancelToken(tea_ctx));
           TEA_RETURN_ARROW_NOT_OK(stats);
           get::PlannerStats(tea_ctx).Combine(stats.ValueUnsafe());
 

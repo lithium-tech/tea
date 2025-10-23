@@ -138,6 +138,18 @@ class Query {
   std::string query_;
 };
 
+class AsyncQuery {
+ public:
+  explicit AsyncQuery(const std::string& query) : query_(query) {}
+
+  bool Run(PGconnWrapper& conn);
+
+  void CancelQuery(PGconnWrapper& conn);
+
+ private:
+  std::string query_;
+};
+
 class AsyncTableScanQuery {
  public:
   explicit AsyncTableScanQuery(const std::string& table_name) : table_name_(table_name), retrieved_exprs_({"*"}) {}
