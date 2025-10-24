@@ -21,6 +21,7 @@
 #include "tea/samovar/samovar_data_client.h"
 #include "tea/samovar/single_queue_client.h"
 #include "tea/samovar/utils.h"
+#include "tea/util/cancel.h"
 #include "teapot/teapot.pb.h"
 
 namespace tea::samovar {
@@ -194,12 +195,13 @@ TEST(RedisClient, MultiThreading) {
 
   std::mt19937 generator(seed);
   std::uniform_int_distribution<int> distribution(0, 100000);
+  CancelToken cancel_token;
 
   for (size_t test_iter = 0; test_iter < num_tests; ++test_iter) {
     std::vector<std::thread> workers;
     for (size_t i = 0; i < num_segments; ++i) {
-      auto task_worker = [segment_id = i, num_fragments, test_iter]() {
-        auto backoff = std::make_shared<LinearBackoff>(30, std::chrono::seconds(1), nullptr);
+      auto task_worker = [segment_id = i, num_fragments, test_iter, &cancel_token]() {
+        auto backoff = std::make_shared<LinearBackoff>(30, std::chrono::seconds(1), cancel_token, nullptr);
         auto batch_size_scheduler = std::make_shared<ConstantBatchSizeScheduler>(1);
         auto redis_client = std::make_shared<SamovarRedisClient>(
             std::vector<Endpoint>{Endpoint{.host = "0.0.0.0", .port = kDefaultPort}}, backoff,
@@ -346,9 +348,12 @@ TEST(RedisClient, FailServer) {
       }
     };
 
+    CancelToken cancel_token;
+
     for (size_t i = 0; i < num_segments; ++i) {
-      auto task_worker = [segment_id = i, num_fragments, &do_with_kill_check, &kill_mutex, &was_killed]() {
-        auto backoff = std::make_shared<LinearBackoff>(30, std::chrono::milliseconds(300), nullptr);
+      auto task_worker = [segment_id = i, num_fragments, &do_with_kill_check, &kill_mutex, &was_killed,
+                          &cancel_token]() {
+        auto backoff = std::make_shared<LinearBackoff>(30, std::chrono::milliseconds(300), cancel_token, nullptr);
         auto batch_size_scheduler = std::make_shared<ConstantBatchSizeScheduler>(1);
         std::shared_ptr<SamovarRedisClient> redis_client;
         if (do_with_kill_check([&]() {

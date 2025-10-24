@@ -34,32 +34,11 @@ namespace tea::samovar {
 
 namespace {
 
-class CancellingBackoff : public IBackoff {
- public:
-  CancellingBackoff(std::shared_ptr<IBackoff> backoff, const CancelToken& cancel_token)
-      : backoff_(backoff), cancel_token_(cancel_token) {}
-
-  void Wait() override {
-    if (cancel_token_.IsCancelled()) {
-      throw std::runtime_error(std::string(__PRETTY_FUNCTION__) + ": query is cancelled");
-    }
-
-    backoff_->Wait();
-  }
-
-  void OnSuccess() override { backoff_->OnSuccess(); }
-
- private:
-  std::shared_ptr<IBackoff> backoff_;
-  const CancelToken& cancel_token_;
-};
-
 std::shared_ptr<ISamovarDataClient> MakeSamovarDataClient(const Config& config, const std::string& queue_name,
                                                           int segment_id, int segment_count,
                                                           const std::string& compressor_name, SamovarRole role,
                                                           const CancelToken& cancel_token) {
-  auto backoff = CreateBackoff(config.samovar_config, std::make_shared<StageLogger>());
-  backoff = std::make_shared<CancellingBackoff>(backoff, cancel_token);
+  auto backoff = CreateBackoff(config.samovar_config, cancel_token, std::make_shared<StageLogger>());
 
   std::shared_ptr<ISamovarClient> samovar_client = std::make_shared<SamovarRedisClient>(
       config.samovar_config.endpoints, backoff, config.samovar_config.request_timeout,

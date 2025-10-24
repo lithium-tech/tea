@@ -8,26 +8,17 @@
 #include <cmath>
 #include <limits>
 #include <memory>
+#include <stdexcept>
 #include <thread>
 
 #include "tea/observability/tea_log.h"
+#include "tea/util/cancel.h"
 
 namespace tea::samovar {
 
 namespace {
 
 static constexpr int kDefaultIncrement = 2;
-
-void sleep_process(std::chrono::milliseconds duration) {
-#if 0
-  std::this_thread::sleep_for(duration);
-#else
-  struct timespec ts;
-  ts.tv_sec = duration.count() / 1000;
-  ts.tv_nsec = (duration.count() % 1000) * 1000000L;
-  nanosleep(&ts, nullptr);
-#endif
-}
 
 }  // namespace
 
@@ -43,8 +34,8 @@ void NoBackoff::Wait() {
 }
 
 LinearBackoff::LinearBackoff(unsigned int limit_retries, std::chrono::milliseconds duration,
-                             std::shared_ptr<IContextLogger> logger)
-    : limit_retries_(limit_retries), duration_(duration), logger_(logger) {}
+                             const CancelToken& cancel_token, std::shared_ptr<IContextLogger> logger)
+    : limit_retries_(limit_retries), duration_(duration), cancel_token_(cancel_token), logger_(logger) {}
 
 void LinearBackoff::Wait() {
   num_iterations_++;
@@ -52,13 +43,21 @@ void LinearBackoff::Wait() {
     auto additional_log = logger_ ? logger_->GetLog() : "";
     throw std::runtime_error("Samovar: Backoff limit exceeded " + additional_log);
   }
-  sleep_process(duration_);
+
+  if (cancel_token_.WaitFor(duration_)) {
+    auto additional_log = logger_ ? logger_->GetLog() : "";
+    throw std::runtime_error("Samovar: query is cancelled " + additional_log);
+  }
 }
 
 ExponentialBackoff::ExponentialBackoff(unsigned int limit_retries, double sleep_coef,
                                        std::optional<std::chrono::milliseconds> waiting_limit,
-                                       std::shared_ptr<IContextLogger> logger)
-    : limit_retries_(limit_retries), sleep_coef_(sleep_coef), waiting_limit_(waiting_limit), logger_(logger) {}
+                                       const CancelToken& cancel_token, std::shared_ptr<IContextLogger> logger)
+    : limit_retries_(limit_retries),
+      sleep_coef_(sleep_coef),
+      waiting_limit_(waiting_limit),
+      cancel_token_(cancel_token),
+      logger_(logger) {}
 
 void ExponentialBackoff::Wait() {
   num_iterations_++;
@@ -69,10 +68,14 @@ void ExponentialBackoff::Wait() {
 
   current_waiting_time_ms_ = std::min(static_cast<int64_t>(waiting_limit_->count()),
                                       static_cast<int64_t>(current_waiting_time_ms_ * sleep_coef_));
-  sleep_process(std::chrono::milliseconds(current_waiting_time_ms_));
+  if (cancel_token_.WaitFor(std::chrono::milliseconds(current_waiting_time_ms_))) {
+    auto additional_log = logger_ ? logger_->GetLog() : "";
+    throw std::runtime_error("Samovar: query is cancelled " + additional_log);
+  }
 }
 
-std::shared_ptr<IBackoff> CreateBackoff(const SamovarConfig& config, std::shared_ptr<IContextLogger> logger) {
+std::shared_ptr<IBackoff> CreateBackoff(const SamovarConfig& config, const CancelToken& cancel_token,
+                                        std::shared_ptr<IContextLogger> logger) {
   std::shared_ptr<IBackoff> backoff;
   switch (config.backoff_type) {
     case BackoffType::kNoBackoff: {
@@ -82,7 +85,8 @@ std::shared_ptr<IBackoff> CreateBackoff(const SamovarConfig& config, std::shared
     }
     case BackoffType::kLinearBackoff: {
       TEA_LOG("Use linear backoff");
-      backoff = std::make_shared<LinearBackoff>(config.limit_retries, config.linear_backoff_time_to_sleep_ms, logger);
+      backoff = std::make_shared<LinearBackoff>(config.limit_retries, config.linear_backoff_time_to_sleep_ms,
+                                                cancel_token, logger);
       break;
     }
     case BackoffType::kExponentialBackoff: {
@@ -90,7 +94,7 @@ std::shared_ptr<IBackoff> CreateBackoff(const SamovarConfig& config, std::shared
       auto limit_backoff = config.exponential_backoff_limit.value_or(std::chrono::milliseconds(10000));
       backoff = std::make_shared<ExponentialBackoff>(config.limit_retries,
                                                      config.exponential_backoff_sleep_coef.value_or(kDefaultIncrement),
-                                                     limit_backoff, logger);
+                                                     limit_backoff, cancel_token, logger);
       break;
     }
   }

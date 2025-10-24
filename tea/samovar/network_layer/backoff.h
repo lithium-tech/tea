@@ -7,6 +7,7 @@
 #include <string>
 
 #include "tea/common/config.h"
+#include "tea/util/cancel.h"
 
 namespace tea::samovar {
 
@@ -42,7 +43,7 @@ class LinearBackoff : public IBackoff {
  public:
   // Sleep time in milliseconds
   explicit LinearBackoff(unsigned int limit_retries, std::chrono::milliseconds duration,
-                         std::shared_ptr<IContextLogger> logger);
+                         const CancelToken& cancel_token, std::shared_ptr<IContextLogger> logger);
 
   void Wait() override;
 
@@ -53,13 +54,15 @@ class LinearBackoff : public IBackoff {
   std::chrono::milliseconds duration_;
 
   unsigned int num_iterations_ = 0;
+  const CancelToken& cancel_token_;
   std::shared_ptr<IContextLogger> logger_;
 };
 
 class ExponentialBackoff : public IBackoff {
  public:
   ExponentialBackoff(unsigned int limit_retries, double sleep_coef,
-                     std::optional<std::chrono::milliseconds> waiting_limit, std::shared_ptr<IContextLogger> logger);
+                     std::optional<std::chrono::milliseconds> waiting_limit, const CancelToken& cancel_token,
+                     std::shared_ptr<IContextLogger> logger);
 
   void Wait() override;
 
@@ -75,9 +78,11 @@ class ExponentialBackoff : public IBackoff {
 
   double sleep_coef_;
   std::optional<std::chrono::milliseconds> waiting_limit_;
+  const CancelToken& cancel_token_;
   std::shared_ptr<IContextLogger> logger_;
 };
 
-std::shared_ptr<IBackoff> CreateBackoff(const SamovarConfig& config, std::shared_ptr<IContextLogger> logger);
+std::shared_ptr<IBackoff> CreateBackoff(const SamovarConfig& config, const CancelToken& cancel_token,
+                                        std::shared_ptr<IContextLogger> logger);
 
 }  // namespace tea::samovar
