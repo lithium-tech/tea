@@ -10,6 +10,7 @@ target_link_libraries(tea_util PUBLIC Arrow::arrow_static)
 
 add_executable(
   util_test
+  ut/cancel_token_test.cpp
   ut/thread_pool_test.cpp
   ut/lru_cache_test.cpp)
 
