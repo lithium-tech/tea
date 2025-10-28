@@ -189,6 +189,11 @@ class CancellingStream : public iceberg::ice_tea::IcebergEntriesStream {
   std::shared_ptr<iceberg::ice_tea::IcebergEntriesStream> stream_;
   const CancelToken& cancel_token_;
 };
+
+class EmptyIcebergStream : public iceberg::ice_tea::IcebergEntriesStream {
+ public:
+  std::optional<iceberg::ManifestEntry> ReadNext() override { return std::nullopt; }
+};
 }  // namespace
 
 std::pair<iceberg::ice_tea::ScanMetadata, PlannerStats> FromIcebergWithLocation(
@@ -224,26 +229,32 @@ std::pair<iceberg::ice_tea::ScanMetadata, PlannerStats> FromIcebergWithLocation(
     if (!table_metadata) {
       return arrow::Status::ExecutionError("GetScanMetadata: failed to parse metadata " + location);
     }
-    auto schema = table_metadata->GetCurrentSchema();
-    if (!schema) {
-      return arrow::Status::ExecutionError("GetScanMetadata: failed to parse metadata " + location +
-                                           " (schema not found)");
-    }
 
-    std::shared_ptr<iceberg::filter::StatsFilter> partition_pruning_stats_filter;
-    if (partition_pruning_filter) {
-      partition_pruning_stats_filter = std::make_shared<iceberg::filter::StatsFilter>(
-          partition_pruning_filter, iceberg::filter::StatsFilter::Settings{});
-    }
+    std::shared_ptr<iceberg::ice_tea::IcebergEntriesStream> entries_stream;
+    if (table_metadata->current_snapshot_id.has_value()) {
+      auto schema = table_metadata->GetCurrentSchema();
+      if (!schema) {
+        return arrow::Status::ExecutionError("GetScanMetadata: failed to parse metadata " + location +
+                                             " (schema not found)");
+      }
 
-    bool use_reader_schema = filter ? use_avro_reader_schema(*schema) : false;
-    std::shared_ptr<iceberg::ice_tea::IcebergEntriesStream> entries_stream = iceberg::ice_tea::AllEntriesStream::Make(
-        fs, table_metadata, use_reader_schema, partition_pruning_stats_filter,
-        filter ? MakeScanDeserializerConfigWithFilter() : MakeFullScanDeserializerConfig());
-    entries_stream = std::make_shared<CancellingStream>(entries_stream, cancel_token);
-    if (filter) {
-      entries_stream = std::make_shared<FilteringEntriesStream>(
-          entries_stream, filter, table_metadata->GetCurrentSchema(), timestamp_to_timestamptz_shift_us);
+      std::shared_ptr<iceberg::filter::StatsFilter> partition_pruning_stats_filter;
+      if (partition_pruning_filter) {
+        partition_pruning_stats_filter = std::make_shared<iceberg::filter::StatsFilter>(
+            partition_pruning_filter, iceberg::filter::StatsFilter::Settings{});
+      }
+
+      bool use_reader_schema = filter ? use_avro_reader_schema(*schema) : false;
+      entries_stream = iceberg::ice_tea::AllEntriesStream::Make(
+          fs, table_metadata, use_reader_schema, partition_pruning_stats_filter,
+          filter ? MakeScanDeserializerConfigWithFilter() : MakeFullScanDeserializerConfig());
+      entries_stream = std::make_shared<CancellingStream>(entries_stream, cancel_token);
+      if (filter) {
+        entries_stream = std::make_shared<FilteringEntriesStream>(
+            entries_stream, filter, table_metadata->GetCurrentSchema(), timestamp_to_timestamptz_shift_us);
+      }
+    } else {
+      entries_stream = std::make_shared<EmptyIcebergStream>();
     }
 
     return iceberg::ice_tea::GetScanMetadata(*entries_stream, *table_metadata, logger);
