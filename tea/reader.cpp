@@ -3,6 +3,7 @@
 #include <arrow/type_fwd.h>
 #include <iceberg/common/batch.h>
 #include <iceberg/common/error.h>
+#include <iceberg/common/fs/file_reader_provider.h>
 #include <iceberg/common/logger.h>
 #include <iceberg/common/selection_vector.h>
 #include <iceberg/filter/representation/column_extractor.h>
@@ -177,16 +178,7 @@ Reader::Reader(const Config& config, std::shared_ptr<iceberg::IFileSystemProvide
   fs_stats_ = std::make_shared<FilesystemStats>();
   fs_stats_->wait_read_stats = std::make_shared<OneThreadMultishotTimer>();
 
-  fs_provider = std::make_shared<LoggingFileSystemProvider>(fs_provider, fs_stats_);
-
-  ReaderProperties reader_properties(config_);
-
-  file_reader_provider_ = std::make_shared<FileReaderProviderWithProperties>(std::move(reader_properties), fs_provider);
-
-  if (config_.limits.metadata_cache_size > 0) {
-    file_reader_provider_ = std::make_shared<CachingFileReaderProvider>(std::move(file_reader_provider_),
-                                                                        config_.limits.metadata_cache_size);
-  }
+  fs_provider_ = std::make_shared<LoggingFileSystemProvider>(fs_provider, fs_stats_);
 }
 
 Reader::~Reader() {}
@@ -661,9 +653,30 @@ arrow::Status Reader::Plan(meta::PlannedMeta meta, const Reader::SerializedFilte
         std::make_shared<GandivaFilterApplier>(row_filter_, registry, logger_, must_apply_filter, filter_field_ids);
   }
 
+  ReaderProperties reader_properties(config_);
+  std::optional<FileReaderProviderWithProperties::AdaptiveBatchInfo> adaptive_batch_info;
+  if (config_.features.use_adaptive_batch_size) {
+    FileReaderProviderWithProperties::AdaptiveBatchInfo result;
+    result.min_rows = config_.limits.adaptive_batch_min_rows;
+    result.max_rows = config_.limits.adaptive_batch_max_rows;
+    result.max_bytes_in_column = config_.limits.adaptive_batch_max_bytes_in_column;
+    result.max_bytes_in_batch = config_.limits.adaptive_batch_max_bytes_in_batch;
+
+    adaptive_batch_info = result;
+  }
+
+  std::shared_ptr<const iceberg::IFileReaderProvider> file_reader_provider =
+      std::make_shared<FileReaderProviderWithProperties>(std::move(reader_properties), fs_provider_,
+                                                         field_ids_to_retrieve, adaptive_batch_info);
+
+  if (config_.limits.metadata_cache_size > 0) {
+    file_reader_provider = std::make_shared<CachingFileReaderProvider>(std::move(file_reader_provider),
+                                                                       config_.limits.metadata_cache_size);
+  }
+
   stream_ = iceberg::IcebergScanBuilder::MakeIcebergStream(
       meta_stream, std::move(positional_deletes), std::move(equality_deletes), std::move(equality_delete_config),
-      rg_filter, ice_filter, *schema_, std::move(field_ids_to_retrieve), file_reader_provider_, std::nullopt, logger_);
+      rg_filter, ice_filter, *schema_, std::move(field_ids_to_retrieve), file_reader_provider, std::nullopt, logger_);
 
   stream_ = std::make_shared<LowercaseRenamingStream>(stream_);
   return arrow::Status::OK();

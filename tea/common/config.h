@@ -69,6 +69,10 @@ struct Limits {
   uint64_t max_io_threads = 1;
   uint64_t parquet_buffer_size = 1ull << 20;
   uint64_t arrow_buffer_rows = 1ull << 16;
+  uint64_t adaptive_batch_max_rows = 1ull << 16;
+  uint64_t adaptive_batch_min_rows = 1ull << 7;
+  uint64_t adaptive_batch_max_bytes_in_batch = 128ull << 20;
+  uint64_t adaptive_batch_max_bytes_in_column = 4ull << 20;
   uint64_t equality_delete_max_rows = 0;
   uint64_t equality_delete_max_mb_size = 1ull << 20;
   uint64_t metadata_cache_size = 0;
@@ -104,6 +108,7 @@ struct Features {
   bool use_helper_thread = false;
   bool optimize_deletes_in_teapot_response = false;
   bool use_iceberg_metadata_partition_pruning = true;
+  bool use_adaptive_batch_size = true;
   uint64_t use_avro_projection_minimum_columns = 20;
   std::vector<int32_t> filter_ignored_op_exprs;
   std::vector<int32_t> filter_ignored_func_exprs;

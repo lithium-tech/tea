@@ -108,7 +108,7 @@ class Reader {
   std::shared_ptr<iceberg::filter::RowFilter> row_filter_;
 
   iceberg::IcebergStreamPtr stream_;
-  std::shared_ptr<const iceberg::IFileReaderProvider> file_reader_provider_;
+  std::shared_ptr<iceberg::IFileSystemProvider> fs_provider_;
 };
 
 }  // namespace tea
