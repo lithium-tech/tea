@@ -1,3 +1,14 @@
+### Tea release 1.73.0, 2025-10-28
+
+#### Improvements
+* [Samovar] Handle cancel command when reading metadata
+* Make arrow batch size adaptive
+
+### Tea release 1.72.3, 2025-09-29
+
+#### Improvements
+* Make arrow batch size configurable
+
 ### Tea release 1.72.2, 2025-09-23
 
 #### Improvements
