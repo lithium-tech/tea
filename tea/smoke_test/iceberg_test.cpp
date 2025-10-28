@@ -28,6 +28,21 @@ TEST_F(OtherEngineGeneratedTable, SanityCheck) {
   }
 }
 
+TEST_F(OtherEngineGeneratedTable, EmptyTable) {
+  CreateTable("empty", "empty",
+              std::vector<GreenplumColumnInfo>{GreenplumColumnInfo{.name = "a", .type = "int8"},
+                                               GreenplumColumnInfo{.name = "b", .type = "int8"}});
+  ASSIGN_OR_FAIL(auto result, pq::TableScanQuery(kDefaultTableName).Run(*conn_));
+
+  uint32_t rows_retrieved = result.values.size();
+  uint32_t rows_expected = 0;
+  EXPECT_EQ(rows_retrieved, rows_expected);
+
+  for (const auto& stat : stats_state_->GetStats(false)) {
+    EXPECT_GE(stat.data().data_files_read(), 0);
+  }
+}
+
 TEST_F(OtherEngineGeneratedTable, IcebergPlanningStats) {
   CreateTable("gperov", "test",
               std::vector<GreenplumColumnInfo>{GreenplumColumnInfo{.name = "a", .type = "int8"},
