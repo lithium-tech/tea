@@ -29,7 +29,6 @@ arrow::Result<PlannerStats> FillSamovar(const Config& config, iceberg::ice_tea::
 arrow::Result<std::pair<meta::PlannedMeta, PlannerStats>> FromSamovar(const Config& config, int segment_id,
                                                                       int segment_count, const std::string& queue_name,
                                                                       const std::string& compressor_name,
-                                                                      SamovarRole role,
                                                                       const CancelToken& cancel_token);
 
 }  // namespace tea::samovar

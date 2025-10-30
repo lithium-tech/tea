@@ -532,8 +532,7 @@ void TeaContextPlanForeign(TeaContextPtr tea_ctx, const ForeignScanParams *param
       if (from_samovar) {
         return tea::samovar::FromSamovar(get::Config(tea_ctx), params->segment_id, params->segment_count,
                                          meta_message.scan_metadata_identifier,
-                                         get::SamovarConfig(tea_ctx).compressor_name,
-                                         tea::samovar::SamovarRole::kFollower, get::CancelToken(tea_ctx));
+                                         get::SamovarConfig(tea_ctx).compressor_name, get::CancelToken(tea_ctx));
       } else {
         tea::ScanMetadataMessage meta = std::move(meta_message);
         meta.scan_metadata =
@@ -762,7 +761,7 @@ void TeaContextPlanExternal(TeaContextPtr tea_ctx, const ExternalScanParams *par
       if (from_samovar) {
         return tea::samovar::FromSamovar(get::Config(tea_ctx), params->segment_id, params->segment_count,
                                          make_samovar_queue_name(), get::SamovarConfig(tea_ctx).compressor_name,
-                                         tea::samovar::SamovarRole::kFollower, get::CancelToken(tea_ctx));
+                                         get::CancelToken(tea_ctx));
       } else {
         auto meta_for_me = GetMetadataForSegment(tea_ctx, get::TableConfig(tea_ctx), params->segment_id,
                                                  params->segment_count, get::SessionId(tea_ctx), filter.extracted);
