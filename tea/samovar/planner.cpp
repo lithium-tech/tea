@@ -183,14 +183,13 @@ int GetCoordinator(const std::string& session_id, const TableSource& table_sourc
 arrow::Result<std::pair<meta::PlannedMeta, PlannerStats>> FromSamovar(const Config& config, int segment_id,
                                                                       int segment_count, const std::string& queue_name,
                                                                       const std::string& compressor_name,
-                                                                      SamovarRole role,
                                                                       const CancelToken& cancel_token) {
   if (config.samovar_config.wait_before_processing) {
     std::this_thread::sleep_for(config.samovar_config.time_before_processing_ms);
   }
 
   auto sched = std::make_shared<SamovarMetadataScheduler>(config, segment_id, segment_count, queue_name,
-                                                          compressor_name, role, cancel_token);
+                                                          compressor_name, SamovarRole::kFollower, cancel_token);
   auto meta = meta::PlannedMeta(std::make_shared<meta::AnnotatedDataEntryStream>(sched), sched->GetPlannedMetadata());
 
   PlannerStats stats;
