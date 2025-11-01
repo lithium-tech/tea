@@ -470,7 +470,10 @@ arrow::Status ReadValues(Source* src, Config* config, std::string_view section_p
   Get(src, section_prefix, "samovar", "work_segments", &config->samovar_config.work_segments);
 
   Get(src, section_prefix, "samovar", "wait_before_processing", &config->samovar_config.wait_before_processing);
-  Get(src, section_prefix, "samovar", "time_before_processing_ms", &config->samovar_config.time_before_processing_ms);
+  Get(src, section_prefix, "samovar", "min_time_before_processing_ms",
+      &config->samovar_config.min_time_before_processing_ms);
+  Get(src, section_prefix, "samovar", "max_time_before_processing_ms",
+      &config->samovar_config.max_time_before_processing_ms);
 
   Get(src, section_prefix, "samovar", "ttl_utils_seconds", &config->samovar_config.ttl_utils_seconds);
 

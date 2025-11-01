@@ -530,9 +530,11 @@ void TeaContextPlanForeign(TeaContextPtr tea_ctx, const ForeignScanParams *param
     auto maybe_plan_meta = [&]() {
       bool from_samovar = get::SamovarConfig(tea_ctx).turn_on_samovar;
       if (from_samovar) {
-        return tea::samovar::FromSamovar(get::Config(tea_ctx), params->segment_id, params->segment_count,
-                                         meta_message.scan_metadata_identifier,
-                                         get::SamovarConfig(tea_ctx).compressor_name, get::CancelToken(tea_ctx));
+        const bool is_metadata_already_written = true;
+
+        return tea::samovar::FromSamovar(
+            get::Config(tea_ctx), params->segment_id, params->segment_count, meta_message.scan_metadata_identifier,
+            get::SamovarConfig(tea_ctx).compressor_name, get::CancelToken(tea_ctx), is_metadata_already_written);
       } else {
         tea::ScanMetadataMessage meta = std::move(meta_message);
         meta.scan_metadata =
@@ -759,9 +761,15 @@ void TeaContextPlanExternal(TeaContextPtr tea_ctx, const ExternalScanParams *par
 
     auto maybe_plan_meta = [&]() -> ResultType {
       if (from_samovar) {
+        const auto target_coordinator =
+            tea::samovar::GetCoordinator(get::SessionId(tea_ctx), get::Source(tea_ctx), params->segment_count);
+        const bool is_coordinator = params->segment_id == target_coordinator;
+
+        const bool is_metadata_already_written = is_coordinator;
+
         return tea::samovar::FromSamovar(get::Config(tea_ctx), params->segment_id, params->segment_count,
                                          make_samovar_queue_name(), get::SamovarConfig(tea_ctx).compressor_name,
-                                         get::CancelToken(tea_ctx));
+                                         get::CancelToken(tea_ctx), is_metadata_already_written);
       } else {
         auto meta_for_me = GetMetadataForSegment(tea_ctx, get::TableConfig(tea_ctx), params->segment_id,
                                                  params->segment_count, get::SessionId(tea_ctx), filter.extracted);
