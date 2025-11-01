@@ -154,6 +154,7 @@ struct SamovarConfig {
   std::chrono::milliseconds max_time_before_processing_ms = std::chrono::milliseconds(0);
 
   std::chrono::seconds ttl_utils_seconds = std::chrono::seconds(0);
+  bool need_sync_on_init = true;
 
   bool operator==(const SamovarConfig&) const = default;
 };

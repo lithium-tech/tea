@@ -4,6 +4,7 @@
 #include <stdexcept>
 #include <string>
 #include <utility>
+#include <variant>
 
 #include "tea/compression/compression_registry.h"
 #include "tea/observability/tea_log.h"
@@ -19,7 +20,8 @@ SingleQueueClient::SingleQueueClient(std::shared_ptr<ISamovarClient> client, std
                                      std::chrono::seconds ttl_seconds, const std::string& queue_id, int segment_count,
                                      const std::string& compressor_name, int segment_id, SamovarRole role,
                                      const std::unordered_set<int>& working_segment,
-                                     std::chrono::seconds ttl_utils_seconds, std::shared_ptr<IBackoff> sync_backoff)
+                                     std::chrono::seconds ttl_utils_seconds, std::shared_ptr<IBackoff> sync_backoff,
+                                     bool need_sync_on_init)
     : ISamovarDataClient(client, working_segment.empty() ? segment_count : working_segment.size(), ttl_seconds),
       client_(client),
       batcher_(batcher),
@@ -30,7 +32,8 @@ SingleQueueClient::SingleQueueClient(std::shared_ptr<ISamovarClient> client, std
       working_segment_(working_segment.empty() || working_segment.contains(segment_id)),
       segment_id_(segment_id),
       ttl_utils_seconds_(ttl_utils_seconds),
-      sync_backoff_(sync_backoff) {}
+      sync_backoff_(sync_backoff),
+      need_sync_on_init_(need_sync_on_init) {}
 
 std::optional<samovar::AnnotatedDataEntry> SingleQueueClient::GetNextDataEntry() {
   if (!working_segment_) {
@@ -76,18 +79,17 @@ const samovar::ScanMetadata& SingleQueueClient::GetPlannedMetadata() {
   client_->IncreaseNumericCell(GetInitScanCell());
   client_->UpdateTTL(GetInitScanCell(), ttl_seconds_);
 
-  DoWithRetries<bool>(
-      [&]() -> std::optional<bool> {
-        std::optional<int> result = client_->GetNumericCell(GetInitScanCell());
-        if (!result) {
+  if (need_sync_on_init_) {
+    DoWithRetries<std::monostate>(
+        [&]() -> std::optional<std::monostate> {
+          std::optional<int> result = client_->GetNumericCell(GetInitScanCell());
+          if (result && result.value() == segment_count_) {
+            return std::monostate{};
+          }
           return std::nullopt;
-        }
-        if (result.value() == segment_count_) {
-          return true;
-        }
-        return std::nullopt;
-      },
-      sync_backoff_);
+        },
+        sync_backoff_);
+  }
 
   samovar::ScanMetadata result_metadata;
   auto response = client_->GetCellWithRetries(GetMetadataCell());
