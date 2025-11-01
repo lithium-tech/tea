@@ -21,7 +21,7 @@ class SingleQueueClient : public ISamovarDataClient {
                              std::chrono::seconds ttl_seconds, const std::string& queue_id, int segment_count,
                              const std::string& compressor_name, int segment_id, SamovarRole role,
                              const std::unordered_set<int>& working_segment, std::chrono::seconds ttl_utils_seconds,
-                             std::shared_ptr<IBackoff> init_scan_backoff);
+                             std::shared_ptr<IBackoff> init_scan_backoff, bool need_sync_on_init);
 
   std::optional<samovar::AnnotatedDataEntry> GetNextDataEntry() override;
 
@@ -75,6 +75,8 @@ class SingleQueueClient : public ISamovarDataClient {
 
   std::chrono::seconds ttl_utils_seconds_;
   std::shared_ptr<IBackoff> sync_backoff_;
+
+  const bool need_sync_on_init_ = true;
 };
 
 }  // namespace tea::samovar
