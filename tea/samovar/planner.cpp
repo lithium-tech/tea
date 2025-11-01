@@ -3,7 +3,9 @@
 #include <iceberg/streams/iceberg/data_entries_meta_stream.h>
 
 #include <algorithm>
+#include <chrono>
 #include <memory>
+#include <random>
 #include <stdexcept>
 #include <string>
 #include <thread>
@@ -180,14 +182,37 @@ int GetCoordinator(const std::string& session_id, const TableSource& table_sourc
   return (hasher(table_id) ^ hasher(session_id)) % segment_count;
 }
 
+static std::chrono::milliseconds CalculateSleepTime(std::chrono::milliseconds min_time,
+                                                    std::chrono::milliseconds max_time, const std::string& queue_name,
+                                                    int segment_id) {
+  std::mt19937 rnd(std::accumulate(queue_name.begin(), queue_name.end(), 0) + segment_id);
+
+  std::uniform_int_distribution<int64_t> gen(min_time.count(), max_time.count());
+
+  return std::chrono::milliseconds(gen(rnd));
+}
+
 arrow::Result<std::pair<meta::PlannedMeta, PlannerStats>> FromSamovar(const Config& config, int segment_id,
                                                                       int segment_count, const std::string& queue_name,
                                                                       const std::string& compressor_name,
-                                                                      const CancelToken& cancel_token) {
-  if (config.samovar_config.wait_before_processing) {
-    std::this_thread::sleep_for(config.samovar_config.time_before_processing_ms);
+                                                                      const CancelToken& cancel_token,
+                                                                      bool is_metadata_already_written) {
+  // Followers should wait for some time (at least 3x the average s3 request latency) since no progress is
+  // impossible until the coordinator writes the metadata to Samovar.
+  // The coordinator does not have to wait because the metadata has already been written by him.
+  if (config.samovar_config.wait_before_processing && !is_metadata_already_written) {
+    std::chrono::milliseconds sleep_time =
+        CalculateSleepTime(config.samovar_config.min_time_before_processing_ms,
+                           config.samovar_config.max_time_before_processing_ms, queue_name, segment_id);
+
+    std::this_thread::sleep_for(sleep_time);
   }
 
+  // Note that we always pass SamovarRole::kFollower to SamovarMetadataScheduler because from this point on, every
+  // segment behaves as a follower.
+  // Moreover, it is not recommended to pass SamovarRole::kCoordinator as this will prevent early metadata cleanup (see
+  // SingleQueueClient destructor).
+  // TODO(gmusya): the current interfaces seem to be error prone and need to be improved.
   auto sched = std::make_shared<SamovarMetadataScheduler>(config, segment_id, segment_count, queue_name,
                                                           compressor_name, SamovarRole::kFollower, cancel_token);
   auto meta = meta::PlannedMeta(std::make_shared<meta::AnnotatedDataEntryStream>(sched), sched->GetPlannedMetadata());

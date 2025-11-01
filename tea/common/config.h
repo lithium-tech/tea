@@ -150,7 +150,8 @@ struct SamovarConfig {
   std::unordered_set<int> work_segments = {};
 
   bool wait_before_processing = false;
-  std::chrono::milliseconds time_before_processing_ms = std::chrono::milliseconds(0);
+  std::chrono::milliseconds min_time_before_processing_ms = std::chrono::milliseconds(0);
+  std::chrono::milliseconds max_time_before_processing_ms = std::chrono::milliseconds(0);
 
   std::chrono::seconds ttl_utils_seconds = std::chrono::seconds(0);
 
