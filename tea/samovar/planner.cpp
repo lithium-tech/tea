@@ -103,6 +103,15 @@ arrow::Result<PlannerStats> FillSamovar(const Config& config, iceberg::ice_tea::
               }
               return lhs_segments[0].offset() < rhs_segments[0].offset();
             });
+
+  if (config.samovar_config.allow_static_balancing &&
+      static_cast<int>(split_result.data_entries.size()) <= segment_count) {
+    // each segment can read one task and immediately close the connection
+    for (auto& elem : split_result.data_entries) {
+      elem.set_last_task_for_segment(true);
+    }
+  }
+
   samovar_data_client->FillSessionQueue(std::move(samovar_representation), split_result.file_list,
                                         split_result.data_entries);
 
@@ -115,7 +124,8 @@ namespace {
 class SamovarMetadataScheduler final : public meta::IMetadataScheduler {
  public:
   SamovarMetadataScheduler(const Config& config, int segment_id, int segment_count, const std::string& queue_name,
-                           const std::string& compressor_name, SamovarRole role, const CancelToken& cancel_token) {
+                           const std::string& compressor_name, SamovarRole role, const CancelToken& cancel_token)
+      : enable_static_balancing_(config.samovar_config.allow_static_balancing) {
     samovar_data_client_ =
         MakeSamovarDataClient(config, queue_name, segment_id, segment_count, compressor_name, role, cancel_token);
   }
@@ -129,23 +139,41 @@ class SamovarMetadataScheduler final : public meta::IMetadataScheduler {
 
       auto request_result = samovar_data_client_->GetNextDataEntry();
       if (!request_result) {
-        is_end_ = true;
+        CloseConnection();
       } else {
         result.emplace_back(
             ConvertSamovarAnnotatedDataEntryToAnnotatedDataEntry(*request_result, samovar_data_client_->GetFileList()));
+        if (enable_static_balancing_ && request_result->last_task_for_segment()) {
+          CloseConnection();
+        }
       }
     }
 
     return result;
   }
 
-  void UpdateMetrics(ReaderStats& stats) override {
-    stats.samovar_total_response_duration_ticks = GetMetric(SamovarMetrics::kResponseTime);
-    stats.samovar_requests_count = GetMetric(SamovarMetrics::kRequestCount);
-    stats.samovar_errors_count = GetMetric(SamovarMetrics::kErrorsCount);
+  void CloseConnection() {
+    SaveMetrics();
+
+    is_end_ = true;
+    samovar_data_client_.reset();
   }
 
-  int64_t GetMetric(SamovarMetrics metric) { return samovar_data_client_->GetMetricValue(metric); }
+  void UpdateMetrics(ReaderStats& stats) override {
+    if (samovar_data_client_) {
+      SaveMetrics();
+    }
+
+    stats.samovar_total_response_duration_ticks = metrics.total_response_duration_ticks;
+    stats.samovar_requests_count = metrics.request_count;
+    stats.samovar_errors_count = metrics.error_count;
+  }
+
+  int64_t GetMetric(SamovarMetrics metric) {
+    iceberg::Ensure(samovar_data_client_ != nullptr, std::string(__PRETTY_FUNCTION__) + ": internal error");
+
+    return samovar_data_client_->GetMetricValue(metric);
+  }
 
   const iceberg::ice_tea::ScanMetadata& GetPlannedMetadata() const {
     if (total_scan_metadata_.has_value()) {
@@ -159,9 +187,26 @@ class SamovarMetadataScheduler final : public meta::IMetadataScheduler {
   }
 
  private:
+  void SaveMetrics() {
+    iceberg::Ensure(samovar_data_client_ != nullptr, std::string(__PRETTY_FUNCTION__) + ": internal error");
+
+    metrics.total_response_duration_ticks = GetMetric(SamovarMetrics::kResponseTime);
+    metrics.request_count = GetMetric(SamovarMetrics::kRequestCount);
+    metrics.error_count = GetMetric(SamovarMetrics::kErrorsCount);
+  }
+
   std::shared_ptr<ISamovarDataClient> samovar_data_client_;
   bool is_end_ = false;
+  const bool enable_static_balancing_ = true;
   mutable std::optional<iceberg::ice_tea::ScanMetadata> total_scan_metadata_;
+
+  struct SchedulerMetrics {
+    int64_t total_response_duration_ticks = 0;
+    int64_t request_count = 0;
+    int64_t error_count = 0;
+  };
+
+  SchedulerMetrics metrics;
 };
 
 }  // namespace

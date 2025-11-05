@@ -48,6 +48,7 @@ message AnnotatedDataEntry {
   int32 partition_id = 3;
 
   optional int64 gp_segment_executed = 4;
+  bool last_task_for_segment = 5;
 }
 
 message FileList {
