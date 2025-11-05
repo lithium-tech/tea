@@ -15,6 +15,7 @@ enum class SamovarMetrics {
   kResponseTime,
   kRequestCount,
   kErrorsCount,
+  kSyncTime,
 };
 
 enum class Stage {

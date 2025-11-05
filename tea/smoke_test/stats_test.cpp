@@ -654,6 +654,7 @@ TEST_F(StatsTest, Redis) {
   DurationTicks samovar_total_response_duration_ticks = 0;
   int64_t request_count = 0;
   int64_t errors_count = 0;
+  DurationTicks samovar_sync_duration = 0;
 
   auto stats = stats_state_->GetStats(true);
 
@@ -664,6 +665,7 @@ TEST_F(StatsTest, Redis) {
     samovar_total_response_duration_ticks += stat.samovar().samovar_total_response_duration_ticks().nanos();
     request_count += stat.samovar().samovar_requests_count();
     errors_count += stat.samovar().samovar_errors_count();
+    samovar_sync_duration += stat.durations().samovar_sync().nanos();
   });
 
   if (Environment::GetProfile() != "samovar" && Environment::GetProfile() != "samovar_0" &&
@@ -683,6 +685,7 @@ TEST_F(StatsTest, Redis) {
   EXPECT_EQ(samovar_splitted_tasks_count, tasks_after_splitting);
   EXPECT_EQ(samovar_fetched_tasks_count, tasks_after_splitting);
   EXPECT_GT(samovar_total_response_duration_ticks, 0.00001);
+  EXPECT_GT(samovar_sync_duration, 0.00001);
   EXPECT_GE(request_count, 1);
   /// Some errors due to incorrect first host in config (to test failover).
   EXPECT_GE(errors_count, 1);

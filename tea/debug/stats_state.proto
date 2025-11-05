@@ -58,6 +58,8 @@ message Durations {
   google.protobuf.Duration heap_form_tuple = 8;
   google.protobuf.Duration positional = 9;
   google.protobuf.Duration equality = 10;
+
+  google.protobuf.Duration samovar_sync = 12;
 }
 
 message PlanStats {

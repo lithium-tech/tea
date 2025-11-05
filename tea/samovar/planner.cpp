@@ -167,6 +167,7 @@ class SamovarMetadataScheduler final : public meta::IMetadataScheduler {
     stats.samovar_total_response_duration_ticks = metrics.total_response_duration_ticks;
     stats.samovar_requests_count = metrics.request_count;
     stats.samovar_errors_count = metrics.error_count;
+    stats.samovar_sync_duration = metrics.sync_duration;
   }
 
   int64_t GetMetric(SamovarMetrics metric) {
@@ -193,6 +194,7 @@ class SamovarMetadataScheduler final : public meta::IMetadataScheduler {
     metrics.total_response_duration_ticks = GetMetric(SamovarMetrics::kResponseTime);
     metrics.request_count = GetMetric(SamovarMetrics::kRequestCount);
     metrics.error_count = GetMetric(SamovarMetrics::kErrorsCount);
+    metrics.sync_duration = GetMetric(SamovarMetrics::kSyncTime);
   }
 
   std::shared_ptr<ISamovarDataClient> samovar_data_client_;
@@ -204,6 +206,7 @@ class SamovarMetadataScheduler final : public meta::IMetadataScheduler {
     int64_t total_response_duration_ticks = 0;
     int64_t request_count = 0;
     int64_t error_count = 0;
+    DurationTicks sync_duration = 0;
   };
 
   SchedulerMetrics metrics;

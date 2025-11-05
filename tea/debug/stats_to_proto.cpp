@@ -81,6 +81,7 @@ stats_state::StatsRequest StatsToProto(DurationTicks duration_ticks, double tick
   SetDuration(reader_stats.positional_delete_apply_duration, ticks_per_second, durations->mutable_positional());
   SetDuration(reader_stats.equality_delete_apply_duration, ticks_per_second, durations->mutable_equality());
   SetDuration(planner_stats.iceberg_fs_duration, ticks_per_second, durations->mutable_iceberg_plan_fs());
+  SetDuration(reader_stats.samovar_sync_duration, ticks_per_second, durations->mutable_samovar_sync());
 
   stats_state::ProjectionStats* projection = execution_stats->mutable_projection();
   projection->set_columns_read(reader_stats.columns_read);

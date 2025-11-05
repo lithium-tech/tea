@@ -41,6 +41,7 @@ struct ReaderStats {
   DurationTicks gandiva_filter_apply_duration = 0;
   DurationTicks fetch_duration = 0;
   DurationTicks read_duration = 0;
+  DurationTicks samovar_sync_duration = 0;
 };
 
 std::string FormatStats(std::string_view event_type, std::string_view session_id, uint64_t scan_identifier,
