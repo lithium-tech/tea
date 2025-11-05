@@ -155,6 +155,7 @@ struct SamovarConfig {
 
   std::chrono::seconds ttl_utils_seconds = std::chrono::seconds(0);
   bool need_sync_on_init = true;
+  bool allow_static_balancing = true;
 
   bool operator==(const SamovarConfig&) const = default;
 };
