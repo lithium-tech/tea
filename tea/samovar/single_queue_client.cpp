@@ -13,6 +13,7 @@
 #include "tea/samovar/proto/samovar.pb.h"
 #include "tea/samovar/samovar_data_client.h"
 #include "tea/samovar/utils.h"
+#include "tea/util/measure.h"
 
 namespace tea::samovar {
 
@@ -80,6 +81,8 @@ const samovar::ScanMetadata& SingleQueueClient::GetPlannedMetadata() {
   client_->UpdateTTL(GetInitScanCell(), ttl_seconds_);
 
   if (need_sync_on_init_) {
+    ScopedTimerTicks timer(total_sync_time_);
+
     DoWithRetries<std::monostate>(
         [&]() -> std::optional<std::monostate> {
           std::optional<int> result = client_->GetNumericCell(GetInitScanCell());
@@ -172,6 +175,9 @@ int64_t SingleQueueClient::GetMetricValue(SamovarMetrics metric) const {
     }
     case SamovarMetrics::kErrorsCount: {
       return working_segment_ ? client_->GetErrorsCount() : 0;
+    }
+    case SamovarMetrics::kSyncTime: {
+      return total_sync_time_;
     }
     default:
       throw std::runtime_error("Unknown metric");

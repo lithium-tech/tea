@@ -61,6 +61,7 @@ void WriteReaderStats(JsonWriter& writer, const ReaderStats& stats, double ticks
   WriteUInt64(writer, "samovar_fetched_tasks_count", stats.samovar_fetched_tasks_count);
   WriteUInt64(writer, "samovar_requests_count", stats.samovar_requests_count);
   WriteUInt64(writer, "samovar_errors_count", stats.samovar_errors_count);
+  WriteDouble(writer, "samovar_sync_seconds", ToSeconds(stats.samovar_sync_duration, ticks_per_second));
   WriteDouble(writer, "samovar_response_seconds",
               ToSeconds(stats.samovar_total_response_duration_ticks, ticks_per_second));
 }

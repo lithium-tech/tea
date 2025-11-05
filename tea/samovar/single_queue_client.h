@@ -12,6 +12,7 @@
 #include "tea/samovar/planner.h"
 #include "tea/samovar/proto/samovar.pb.h"
 #include "tea/samovar/samovar_data_client.h"
+#include "tea/util/measure.h"
 
 namespace tea::samovar {
 
@@ -77,6 +78,7 @@ class SingleQueueClient : public ISamovarDataClient {
   std::shared_ptr<IBackoff> sync_backoff_;
 
   const bool need_sync_on_init_ = true;
+  DurationTicks total_sync_time_ = 0;
 };
 
 }  // namespace tea::samovar
