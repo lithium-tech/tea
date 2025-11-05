@@ -1,3 +1,10 @@
+### Tea release 1.74.0, 2025-11-05
+
+#### Improvements
+* [Samovar] Add jitter
+* [Samovar] Static balancing for small tables
+* [Samovar] Make initial synchronization configurable
+
 ### Tea release 1.73.0, 2025-10-28
 
 #### Improvements
