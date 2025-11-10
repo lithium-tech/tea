@@ -76,11 +76,10 @@ RedisReply RedisClient::SendRequest(const std::vector<std::string>& argv) {
   return rsp;
 }
 
-SamovarRedisClient::SamovarRedisClient(const std::vector<Endpoint>& endpoints, std::shared_ptr<IBackoff> backoff,
+SamovarRedisClient::SamovarRedisClient(const std::vector<Endpoint>& endpoints,
                                        std::chrono::milliseconds request_timeout,
                                        std::chrono::milliseconds connection_timeout)
-    : ISamovarClient(backoff),
-      underground_client_(std::make_shared<RedisClient>(endpoints, request_timeout, connection_timeout)) {}
+    : underground_client_(std::make_shared<RedisClient>(endpoints, request_timeout, connection_timeout)) {}
 
 bool RedisClient::TryConnect(const Endpoint& endpoint) {
   timeval conn_timeout = ConvertTimeout(connection_timeout_);
@@ -156,16 +155,11 @@ std::vector<std::string> SamovarRedisClient::PopQueue(const std::string& queue_n
 }
 
 void SamovarRedisClient::SetCell(const std::string& cell_name, const std::string& message, std::chrono::seconds ttl) {
-  DoWithRetries<void*>(
-      [&]() -> std::optional<void*> {
-        auto reply = underground_client_->SendRequest({"SET", cell_name, message, "EX", std::to_string(ttl.count())});
-        auto reply_repr = reply.Get();
-        if (ErrorOnMessage(reply_repr)) {
-          throw std::runtime_error("Can not set cell " + cell_name + ": " + underground_client_->GetErrorMessage());
-        }
-        return nullptr;
-      },
-      backoff_);
+  auto reply = underground_client_->SendRequest({"SET", cell_name, message, "EX", std::to_string(ttl.count())});
+  auto reply_repr = reply.Get();
+  if (ErrorOnMessage(reply_repr)) {
+    throw std::runtime_error("Can not set cell " + cell_name + ": " + underground_client_->GetErrorMessage());
+  }
 }
 
 std::optional<std::string> SamovarRedisClient::GetCell(const std::string& cell_name) {
@@ -224,17 +218,11 @@ int SamovarRedisClient::DecreaseNumericCell(const std::string& cell_name) {
 }
 
 void SamovarRedisClient::UpdateTTL(const std::string& object, std::chrono::seconds ttl) {
-  DoWithRetries<void*>(
-      [&]() -> std::optional<void*> {
-        auto ttl_str = std::to_string(ttl.count());
-        auto reply = underground_client_->SendRequest({"EXPIRE", object, ttl_str}).Get();
-        if (ErrorOnMessage(reply)) {
-          throw std::runtime_error("Can not update TTL on onject " + object + ": " +
-                                   underground_client_->GetErrorMessage());
-        }
-        return nullptr;
-      },
-      backoff_);
+  auto ttl_str = std::to_string(ttl.count());
+  auto reply = underground_client_->SendRequest({"EXPIRE", object, ttl_str}).Get();
+  if (ErrorOnMessage(reply)) {
+    throw std::runtime_error("Can not update TTL on onject " + object + ": " + underground_client_->GetErrorMessage());
+  }
 }
 
 void SamovarRedisClient::DeleteCell(const std::string& object) { underground_client_->SendRequest({"DEL", object}); }

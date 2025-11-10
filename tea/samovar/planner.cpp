@@ -43,8 +43,7 @@ std::shared_ptr<ISamovarDataClient> MakeSamovarDataClient(const Config& config, 
   auto backoff = CreateBackoff(config.samovar_config, cancel_token, std::make_shared<StageLogger>());
 
   std::shared_ptr<ISamovarClient> samovar_client = std::make_shared<SamovarRedisClient>(
-      config.samovar_config.endpoints, backoff, config.samovar_config.request_timeout,
-      config.samovar_config.connection_timeout);
+      config.samovar_config.endpoints, config.samovar_config.request_timeout, config.samovar_config.connection_timeout);
   auto batch_size_scheduler = std::make_shared<ConstantBatchSizeScheduler>(config.samovar_config.batch_size);
   auto batcher = std::make_shared<Batcher>(samovar_client, batch_size_scheduler);
 

@@ -156,9 +156,9 @@ TEST(RedisClient, NoRedis) {
 
   auto backoff = std::make_shared<NoBackoff>(30, nullptr);
   try {
-    auto redis_client = std::make_shared<SamovarRedisClient>(
-        std::vector<Endpoint>{Endpoint{.host = "0.0.0.0", .port = kDefaultPort}}, backoff,
-        std::chrono::milliseconds(30000), std::chrono::milliseconds(3000));
+    auto redis_client =
+        std::make_shared<SamovarRedisClient>(std::vector<Endpoint>{Endpoint{.host = "0.0.0.0", .port = kDefaultPort}},
+                                             std::chrono::milliseconds(30000), std::chrono::milliseconds(3000));
     EXPECT_FALSE(true);
   } catch (const std::exception& ex) {
     EXPECT_EQ(std::string(ex.what()), "No available server redis");
@@ -173,7 +173,7 @@ TEST(RedisClient, Test1) {
   auto batch_size_scheduler = std::make_shared<ConstantBatchSizeScheduler>(1);
   auto redis_client =
       std::make_shared<SamovarRedisClient>(std::vector<Endpoint>{Endpoint{.host = "0.0.0.0", .port = kDefaultPort}},
-                                           backoff, std::chrono::milliseconds(30000), std::chrono::milliseconds(3000));
+                                           std::chrono::milliseconds(30000), std::chrono::milliseconds(3000));
   auto batcher = std::make_shared<Batcher>(redis_client, batch_size_scheduler);
   auto client = SingleQueueClient(redis_client, batcher, std::chrono::seconds(std::numeric_limits<int32_t>::max()),
                                   GetQueueName(), 1, std::string(compression::kIdentityCompressorName), 0,
@@ -204,8 +204,8 @@ TEST(RedisClient, MultiThreading) {
         auto backoff = std::make_shared<LinearBackoff>(30, std::chrono::seconds(1), cancel_token, nullptr);
         auto batch_size_scheduler = std::make_shared<ConstantBatchSizeScheduler>(1);
         auto redis_client = std::make_shared<SamovarRedisClient>(
-            std::vector<Endpoint>{Endpoint{.host = "0.0.0.0", .port = kDefaultPort}}, backoff,
-            std::chrono::milliseconds(3000), std::chrono::milliseconds(3000));
+            std::vector<Endpoint>{Endpoint{.host = "0.0.0.0", .port = kDefaultPort}}, std::chrono::milliseconds(3000),
+            std::chrono::milliseconds(3000));
         auto batcher = std::make_shared<Batcher>(redis_client, batch_size_scheduler);
         auto client =
             SingleQueueClient(redis_client, batcher, std::chrono::seconds(std::numeric_limits<int32_t>::max()),
@@ -315,7 +315,7 @@ TEST(RedisClient, NoServer) {
   auto backoff = std::make_shared<NoBackoff>(30, nullptr);
   auto batch_size_scheduler = std::make_shared<ConstantBatchSizeScheduler>(1);
   EXPECT_THROW(std::make_shared<SamovarRedisClient>(
-                   std::vector<Endpoint>{Endpoint{.host = "0.0.0.0", .port = some_incorrect_port}}, backoff,
+                   std::vector<Endpoint>{Endpoint{.host = "0.0.0.0", .port = some_incorrect_port}},
                    std::chrono::milliseconds(30000), std::chrono::milliseconds(3000)),
                std::runtime_error);
 }
@@ -358,7 +358,7 @@ TEST(RedisClient, FailServer) {
         std::shared_ptr<SamovarRedisClient> redis_client;
         if (do_with_kill_check([&]() {
               redis_client = std::make_shared<SamovarRedisClient>(
-                  std::vector<Endpoint>{Endpoint{.host = "0.0.0.0", .port = kDefaultPort}}, backoff,
+                  std::vector<Endpoint>{Endpoint{.host = "0.0.0.0", .port = kDefaultPort}},
                   std::chrono::milliseconds(30000), std::chrono::milliseconds(3000));
             })) {
           return;

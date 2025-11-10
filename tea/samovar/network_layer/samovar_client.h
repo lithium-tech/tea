@@ -30,8 +30,6 @@ T DoWithRetries(std::function<std::optional<T>()> operation, std::shared_ptr<IBa
 
 class ISamovarClient {
  public:
-  explicit ISamovarClient(std::shared_ptr<IBackoff> backoff);
-
   virtual void PushQueue(const std::string& queue_name, const std::string& message) = 0;
   virtual std::vector<std::string> PopQueue(const std::string& queue_name, int num_elements) = 0;
 
@@ -47,8 +45,6 @@ class ISamovarClient {
   virtual void UpdateTTL(const std::vector<std::string>& object, std::chrono::seconds ttl);
   virtual void DeleteCell(const std::string& object) = 0;
 
-  std::string GetCellWithRetries(const std::string& cell_name);
-
   virtual DurationTicks GetTotalResponseDurationTicks() const = 0;
   virtual int64_t GetRequestCount() const = 0;
   virtual int64_t GetErrorsCount() const = 0;
@@ -58,9 +54,6 @@ class ISamovarClient {
   virtual bool ContainsInSet(const std::string& set_key, const std::string& value) = 0;
 
   virtual ~ISamovarClient() = default;
-
- protected:
-  std::shared_ptr<IBackoff> backoff_;
 };
 
 }  // namespace tea::samovar
