@@ -260,6 +260,24 @@ TEST_F(TypesTest, Float4) {
   EXPECT_EQ(result, expected);
 }
 
+TEST_F(TypesTest, FloatEvolution) {
+  {
+    auto column = iceberg::MakeDoubleColumn("col1", 1, OptionalVector<double>{15, 114878});
+    ASSIGN_OR_FAIL(auto file_path, state_->WriteFile({column}));
+    ASSERT_OK(state_->AddDataFiles({file_path}));
+  }
+  {
+    auto column = MakeFloatColumn("col1", 1, OptionalVector<float>{std::nullopt, 2, 3.75});
+    ASSIGN_OR_FAIL(auto file_path, state_->WriteFile({column}));
+    ASSERT_OK(state_->AddDataFiles({file_path}));
+  }
+  ASSIGN_OR_FAIL(auto defer, state_->CreateTable({GreenplumColumnInfo{.name = "col1", .type = "float8"}}));
+
+  ASSIGN_OR_FAIL(pq::ScanResult result, pq::Query("SELECT * FROM " + kDefaultTableName).Run(*conn_));
+  auto expected = pq::ScanResult({"col1"}, {{""}, {"2"}, {"3.75"}, {"15"}, {"114878"}});
+  EXPECT_EQ(result, expected);
+}
+
 TEST_F(TypesTest, Float4Array) {
   auto column = MakeFloatColumn("col1", 1, {});
   column.info.repetition = parquet::Repetition::REPEATED;

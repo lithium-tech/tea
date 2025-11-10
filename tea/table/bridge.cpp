@@ -230,8 +230,13 @@ Datum GetDatumFromArrow(const Oid gp_type, const std::shared_ptr<arrow::Array> &
     case arrow::Type::UINT64:
       return UInt64GetDatum(GetFieldView<arrow::UInt64Array>(array, row));
 #endif
-    case arrow::Type::FLOAT:
-      return Float4GetDatum(GetFieldView<arrow::FloatArray>(array, row));
+    case arrow::Type::FLOAT: {
+      if (gp_type == FLOAT4OID) {
+        return Float4GetDatum(GetFieldView<arrow::FloatArray>(array, row));
+      } else {
+        return Float8GetDatum(GetFieldView<arrow::FloatArray>(array, row));
+      }
+    }
     case arrow::Type::DOUBLE:
       return Float8GetDatum(GetFieldView<arrow::DoubleArray>(array, row));
 
