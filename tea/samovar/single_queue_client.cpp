@@ -95,7 +95,7 @@ const samovar::ScanMetadata& SingleQueueClient::GetPlannedMetadata() {
   }
 
   samovar::ScanMetadata result_metadata;
-  auto response = client_->GetCellWithRetries(GetMetadataCell());
+  auto response = DoWithRetries<std::string>([&]() { return client_->GetCell(GetMetadataCell()); }, sync_backoff_);
   result_metadata.ParseFromString(response);
 
   client_->UpdateTTL(std::vector{queue_id_, GetMetadataCell(), GetFileListCell(), GetCheckpointCell()}, ttl_seconds_);
@@ -106,7 +106,7 @@ const samovar::ScanMetadata& SingleQueueClient::GetPlannedMetadata() {
 const samovar::FileList& SingleQueueClient::GetFileList() {
   if (!file_list) {
     file_list = samovar::FileList{};
-    auto response = client_->GetCellWithRetries(GetFileListCell());
+    auto response = DoWithRetries<std::string>([&]() { return client_->GetCell(GetFileListCell()); }, sync_backoff_);
     compressor->Decompress(response);
     file_list->ParseFromString(response);
   }
