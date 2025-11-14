@@ -53,6 +53,7 @@
 #include "tea/observability/tea_log.h"
 #include "tea/reader.h"
 #include "tea/samovar/planner.h"
+#include "tea/samovar/samovar_data_client.h"
 #include "tea/samovar/utils.h"
 #include "tea/table/converter.h"
 #include "tea/table/filter_convert.h"
@@ -516,6 +517,14 @@ static std::string CommonFilterToTeapotFileFilter(std::string serialized_filter)
       tea::filter::TeapotFileFilterContext{.timestamp_to_timestamptz_shift_us_ = tea::TimestampToTimestamptzShiftUs()});
 }
 
+static std::shared_ptr<tea::samovar::ISamovarDataClient> CreateSamovarClient(TeaContextPtr tea_ctx,
+                                                                             const std::string &queue_name,
+                                                                             int segment_id, int segment_count,
+                                                                             tea::samovar::SamovarRole role) {
+  return MakeSamovarDataClient(get::SamovarConfig(tea_ctx), queue_name, segment_id, segment_count, role,
+                               get::CancelToken(tea_ctx));
+}
+
 // invoked on segment
 void TeaContextPlanForeign(TeaContextPtr tea_ctx, const ForeignScanParams *params) {
   TEA_INVOKE_IN_HELPER_THREAD(ERROR, [=] {
@@ -532,9 +541,14 @@ void TeaContextPlanForeign(TeaContextPtr tea_ctx, const ForeignScanParams *param
       if (from_samovar) {
         const bool is_metadata_already_written = true;
 
-        return tea::samovar::FromSamovar(
-            get::Config(tea_ctx), params->segment_id, params->segment_count, meta_message.scan_metadata_identifier,
-            get::SamovarConfig(tea_ctx).compressor_name, get::CancelToken(tea_ctx), is_metadata_already_written);
+        auto samovar_data_client =
+            CreateSamovarClient(tea_ctx, meta_message.scan_metadata_identifier, params->segment_id,
+                                params->segment_count, tea::samovar::SamovarRole::kFollower);
+
+        auto result =
+            tea::samovar::FromSamovar(get::Config(tea_ctx), params->segment_id, meta_message.scan_metadata_identifier,
+                                      is_metadata_already_written, samovar_data_client);
+        return result;
       } else {
         tea::ScanMetadataMessage meta = std::move(meta_message);
         meta.scan_metadata =
@@ -740,6 +754,7 @@ void TeaContextPlanExternal(TeaContextPtr tea_ctx, const ExternalScanParams *par
     };
 
     const bool from_samovar = get::SamovarConfig(tea_ctx).turn_on_samovar;
+    std::shared_ptr<tea::samovar::ISamovarDataClient> samovar_client;
     if (from_samovar) {
       const auto target_coordinator =
           tea::samovar::GetCoordinator(get::SessionId(tea_ctx), get::Source(tea_ctx), params->segment_count);
@@ -751,10 +766,15 @@ void TeaContextPlanExternal(TeaContextPtr tea_ctx, const ExternalScanParams *par
         iceberg::ice_tea::ScanMetadata all_meta = GetAllMetadata(
             tea_ctx, get::TableConfig(tea_ctx), get::SessionId(tea_ctx), filter.extracted, get::CancelToken(tea_ctx));
 
-        auto maybe_stats = tea::samovar::FillSamovar(
-            get::Config(tea_ctx), std::move(all_meta), params->segment_id, params->segment_count,
-            make_samovar_queue_name(), get::SamovarConfig(tea_ctx).compressor_name, get::CancelToken(tea_ctx));
+        std::string queue_name = make_samovar_queue_name();
+        samovar_client = CreateSamovarClient(tea_ctx, queue_name, params->segment_id, params->segment_count,
+                                             tea::samovar::SamovarRole::kFollower);
+
+        TEA_LOG("Filling queue " + queue_name);
+        auto maybe_stats =
+            tea::samovar::FillSamovar(get::Config(tea_ctx), std::move(all_meta), params->segment_count, samovar_client);
         TEA_RETURN_ARROW_NOT_OK(maybe_stats);
+        TEA_LOG("Queue filled " + queue_name);
         get::PlannerStats(tea_ctx).Combine(maybe_stats.MoveValueUnsafe());
       }
     }
@@ -767,9 +787,14 @@ void TeaContextPlanExternal(TeaContextPtr tea_ctx, const ExternalScanParams *par
 
         const bool is_metadata_already_written = is_coordinator;
 
-        return tea::samovar::FromSamovar(get::Config(tea_ctx), params->segment_id, params->segment_count,
-                                         make_samovar_queue_name(), get::SamovarConfig(tea_ctx).compressor_name,
-                                         get::CancelToken(tea_ctx), is_metadata_already_written);
+        if (!samovar_client) {
+          samovar_client = CreateSamovarClient(tea_ctx, make_samovar_queue_name(), params->segment_id,
+                                               params->segment_count, tea::samovar::SamovarRole::kFollower);
+        }
+
+        auto result = tea::samovar::FromSamovar(get::Config(tea_ctx), params->segment_id, make_samovar_queue_name(),
+                                                is_metadata_already_written, samovar_client);
+        return result;
       } else {
         auto meta_for_me = GetMetadataForSegment(tea_ctx, get::TableConfig(tea_ctx), params->segment_id,
                                                  params->segment_count, get::SessionId(tea_ctx), filter.extracted);
@@ -945,10 +970,14 @@ void TeaContextGetScanMetadata(const TeaContextPtr tea_ctx, const char *session_
 
           std::shared_ptr<iceberg::Schema> schema = all_meta.schema;
 
+          auto samovar_data_client =
+              CreateSamovarClient(tea_ctx, queue_name, 0, segment_count, tea::samovar::SamovarRole::kCoordinator);
+
+          TEA_LOG("Filling queue " + queue_name);
           auto stats =
-              tea::samovar::FillSamovar(get::Config(tea_ctx), std::move(all_meta), 0, segment_count, queue_name,
-                                        get::SamovarConfig(tea_ctx).compressor_name, get::CancelToken(tea_ctx));
+              tea::samovar::FillSamovar(get::Config(tea_ctx), std::move(all_meta), segment_count, samovar_data_client);
           TEA_RETURN_ARROW_NOT_OK(stats);
+          TEA_LOG("Queue filled " + queue_name);
           get::PlannerStats(tea_ctx).Combine(stats.ValueUnsafe());
 
           // TODO(gmusya): change tea::ScanMetadataMessage

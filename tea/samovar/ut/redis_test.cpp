@@ -351,8 +351,8 @@ TEST(RedisClient, FailServer) {
     CancelToken cancel_token;
 
     for (size_t i = 0; i < num_segments; ++i) {
-      auto task_worker = [segment_id = i, num_fragments, &do_with_kill_check, &kill_mutex, &was_killed,
-                          &cancel_token]() {
+      auto task_worker = [segment_id = i, num_fragments, &do_with_kill_check, &kill_mutex, &was_killed, &cancel_token,
+                          num_segments]() {
         auto backoff = std::make_shared<LinearBackoff>(30, std::chrono::milliseconds(300), cancel_token, nullptr);
         auto batch_size_scheduler = std::make_shared<ConstantBatchSizeScheduler>(1);
         std::shared_ptr<SamovarRedisClient> redis_client;
@@ -364,10 +364,18 @@ TEST(RedisClient, FailServer) {
           return;
         }
         auto batcher = std::make_shared<Batcher>(redis_client, batch_size_scheduler);
-        auto client =
-            SingleQueueClient(redis_client, batcher, std::chrono::seconds(std::numeric_limits<int32_t>::max()),
-                              GetQueueName(), num_segments, std::string(compression::kIdentityCompressorName), 0,
-                              SamovarRole::kCoordinator, {}, std::chrono::seconds(0), backoff, true);
+        std::shared_ptr<SingleQueueClient> client;
+
+        try {
+          client = std::make_shared<SingleQueueClient>(
+              redis_client, batcher, std::chrono::seconds(std::numeric_limits<int32_t>::max()), GetQueueName(),
+              num_segments, std::string(compression::kIdentityCompressorName), 0, SamovarRole::kCoordinator,
+              std::unordered_set<int>{}, std::chrono::seconds(0), backoff, true);
+        } catch (const std::runtime_error& ex) {
+          std::lock_guard lock(kill_mutex);
+          EXPECT_TRUE(was_killed);
+          return;
+        }
 
         if (segment_id == 0) {
           samovar::ScanMetadata scan_metadata;
@@ -388,13 +396,13 @@ TEST(RedisClient, FailServer) {
           samovar::FileList file_list;
           file_list.add_filenames("aaaaaa");
           if (do_with_kill_check(
-                  [&]() { client.FillSessionQueue(std::move(scan_metadata), file_list, data_entries); })) {
+                  [&]() { client->FillSessionQueue(std::move(scan_metadata), file_list, data_entries); })) {
             return;
           }
         }
 
         try {
-          client.GetPlannedMetadata();
+          client->GetPlannedMetadata();
         } catch (const std::runtime_error& ex) {
           std::lock_guard lock(kill_mutex);
           EXPECT_TRUE(was_killed);
@@ -409,7 +417,7 @@ TEST(RedisClient, FailServer) {
               return;
             }
             try {
-              entry = client.GetNextDataEntry();
+              entry = client->GetNextDataEntry();
             } catch (const std::runtime_error& ex) {
               EXPECT_TRUE(was_killed);
             }

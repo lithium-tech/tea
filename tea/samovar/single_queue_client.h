@@ -77,7 +77,6 @@ class SingleQueueClient : public ISamovarDataClient {
   std::chrono::seconds ttl_utils_seconds_;
   std::shared_ptr<IBackoff> sync_backoff_;
 
-  const bool need_sync_on_init_ = true;
   DurationTicks total_sync_time_ = 0;
 };
 
