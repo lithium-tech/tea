@@ -34,43 +34,34 @@
 
 namespace tea::samovar {
 
-namespace {
-
-std::shared_ptr<ISamovarDataClient> MakeSamovarDataClient(const Config& config, const std::string& queue_name,
-                                                          int segment_id, int segment_count,
-                                                          const std::string& compressor_name, SamovarRole role,
+std::shared_ptr<ISamovarDataClient> MakeSamovarDataClient(const SamovarConfig& config, const std::string& queue_name,
+                                                          int segment_id, int segment_count, SamovarRole role,
                                                           const CancelToken& cancel_token) {
-  auto backoff = CreateBackoff(config.samovar_config, cancel_token, std::make_shared<StageLogger>());
+  auto backoff = CreateBackoff(config, cancel_token, std::make_shared<StageLogger>());
 
-  std::shared_ptr<ISamovarClient> samovar_client = std::make_shared<SamovarRedisClient>(
-      config.samovar_config.endpoints, config.samovar_config.request_timeout, config.samovar_config.connection_timeout);
-  auto batch_size_scheduler = std::make_shared<ConstantBatchSizeScheduler>(config.samovar_config.batch_size);
+  std::shared_ptr<ISamovarClient> samovar_client =
+      std::make_shared<SamovarRedisClient>(config.endpoints, config.request_timeout, config.connection_timeout);
+  auto batch_size_scheduler = std::make_shared<ConstantBatchSizeScheduler>(config.batch_size);
   auto batcher = std::make_shared<Batcher>(samovar_client, batch_size_scheduler);
 
   std::shared_ptr<ISamovarDataClient> samovar_data_client_;
 
-  switch (config.samovar_config.balancer_type) {
+  switch (config.balancer_type) {
     case BalancerType::kOneQueue: {
       samovar_data_client_ = std::make_shared<SingleQueueClient>(
-          samovar_client, batcher, config.samovar_config.ttl_seconds, queue_name, segment_count, compressor_name,
-          segment_id, role, config.samovar_config.work_segments, config.samovar_config.ttl_utils_seconds, backoff,
-          config.samovar_config.need_sync_on_init);
+          samovar_client, batcher, config.ttl_seconds, queue_name, segment_count, config.compressor_name, segment_id,
+          role, config.work_segments, config.ttl_utils_seconds, backoff, config.need_sync_on_init);
       break;
     }
     default:
-      throw arrow::Status::ExecutionError("Unexpected balancer type: ",
-                                          static_cast<int>(config.samovar_config.balancer_type));
+      throw arrow::Status::ExecutionError("Unexpected balancer type: ", static_cast<int>(config.balancer_type));
   }
 
   return samovar_data_client_;
 }
 
-}  // namespace
-
-arrow::Result<PlannerStats> FillSamovar(const Config& config, iceberg::ice_tea::ScanMetadata&& meta, int segment_id,
-                                        int segment_count, const std::string& queue_name,
-                                        const std::string& compressor_name, const CancelToken& cancel_token) {
-  TEA_LOG("Filling queue " + queue_name);
+arrow::Result<PlannerStats> FillSamovar(const Config& config, iceberg::ice_tea::ScanMetadata&& meta, int segment_count,
+                                        std::shared_ptr<ISamovarDataClient> samovar_client) {
   PlannerStats stats;
   std::optional<ScopedTimerTicks> timer = ScopedTimerTicks(stats.plan_duration);
   for (const auto& part : meta.partitions) {
@@ -78,9 +69,6 @@ arrow::Result<PlannerStats> FillSamovar(const Config& config, iceberg::ice_tea::
       stats.samovar_initial_tasks_count += layer.data_entries_.size();
     }
   }
-
-  auto samovar_data_client = MakeSamovarDataClient(config, queue_name, segment_id, segment_count, compressor_name,
-                                                   SamovarRole::kCoordinator, cancel_token);
 
   ARROW_ASSIGN_OR_RAISE(auto split_result, SplitPartitions(meta.partitions, config));
 
@@ -111,10 +99,9 @@ arrow::Result<PlannerStats> FillSamovar(const Config& config, iceberg::ice_tea::
     }
   }
 
-  samovar_data_client->FillSessionQueue(std::move(samovar_representation), split_result.file_list,
-                                        split_result.data_entries);
+  samovar_client->FillSessionQueue(std::move(samovar_representation), split_result.file_list,
+                                   split_result.data_entries);
 
-  TEA_LOG("Queue filled " + queue_name);
   timer.reset();
   return stats;
 }
@@ -122,12 +109,9 @@ arrow::Result<PlannerStats> FillSamovar(const Config& config, iceberg::ice_tea::
 namespace {
 class SamovarMetadataScheduler final : public meta::IMetadataScheduler {
  public:
-  SamovarMetadataScheduler(const Config& config, int segment_id, int segment_count, const std::string& queue_name,
-                           const std::string& compressor_name, SamovarRole role, const CancelToken& cancel_token)
-      : enable_static_balancing_(config.samovar_config.allow_static_balancing) {
-    samovar_data_client_ =
-        MakeSamovarDataClient(config, queue_name, segment_id, segment_count, compressor_name, role, cancel_token);
-  }
+  SamovarMetadataScheduler(const Config& config, std::shared_ptr<ISamovarDataClient> samovar_data_client)
+      : samovar_data_client_(samovar_data_client),
+        enable_static_balancing_(config.samovar_config.allow_static_balancing) {}
 
   std::vector<iceberg::AnnotatedDataPath> GetNextMetadata(size_t num_data_files) override {
     std::vector<iceberg::AnnotatedDataPath> result;
@@ -240,11 +224,9 @@ static std::chrono::milliseconds CalculateSleepTime(std::chrono::milliseconds mi
   return std::chrono::milliseconds(gen(rnd));
 }
 
-arrow::Result<std::pair<meta::PlannedMeta, PlannerStats>> FromSamovar(const Config& config, int segment_id,
-                                                                      int segment_count, const std::string& queue_name,
-                                                                      const std::string& compressor_name,
-                                                                      const CancelToken& cancel_token,
-                                                                      bool is_metadata_already_written) {
+arrow::Result<std::pair<meta::PlannedMeta, PlannerStats>> FromSamovar(
+    const Config& config, int segment_id, const std::string& queue_name, bool is_metadata_already_written,
+    std::shared_ptr<ISamovarDataClient> samovar_client) {
   // Followers should wait for some time (at least 3x the average s3 request latency) since no progress is
   // impossible until the coordinator writes the metadata to Samovar.
   // The coordinator does not have to wait because the metadata has already been written by him.
@@ -261,8 +243,7 @@ arrow::Result<std::pair<meta::PlannedMeta, PlannerStats>> FromSamovar(const Conf
   // Moreover, it is not recommended to pass SamovarRole::kCoordinator as this will prevent early metadata cleanup (see
   // SingleQueueClient destructor).
   // TODO(gmusya): the current interfaces seem to be error prone and need to be improved.
-  auto sched = std::make_shared<SamovarMetadataScheduler>(config, segment_id, segment_count, queue_name,
-                                                          compressor_name, SamovarRole::kFollower, cancel_token);
+  auto sched = std::make_shared<SamovarMetadataScheduler>(config, samovar_client);
   auto meta = meta::PlannedMeta(std::make_shared<meta::AnnotatedDataEntryStream>(sched), sched->GetPlannedMetadata());
 
   PlannerStats stats;

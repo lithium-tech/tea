@@ -159,8 +159,13 @@ int main(int argc, char **argv) {
       std::cerr << "Ticks in second: " << ticks_in_second << std::endl;
 
       std::cerr << "Filling samovar" << std::endl;
-      auto maybe_stats = tea::samovar::FillSamovar(config, std::move(iceberg_meta), absl::GetFlag(FLAGS_segment_id),
-                                                   absl::GetFlag(FLAGS_segment_count), queue_name, "", cancel_token);
+
+      auto samovar_data_client = MakeSamovarDataClient(
+          config.samovar_config, queue_name, absl::GetFlag(FLAGS_segment_id), absl::GetFlag(FLAGS_segment_count),
+          tea::samovar::SamovarRole::kCoordinator, cancel_token);
+
+      auto maybe_stats = tea::samovar::FillSamovar(config, std::move(iceberg_meta), absl::GetFlag(FLAGS_segment_count),
+                                                   samovar_data_client);
       if (!maybe_stats.ok()) {
         std::cerr << "Failed to fill samovar: " << maybe_stats.status().message() << std::endl;
       }

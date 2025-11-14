@@ -8,6 +8,7 @@
 
 #include "tea/compression/compression_registry.h"
 #include "tea/observability/tea_log.h"
+#include "tea/samovar/network_layer/backoff.h"
 #include "tea/samovar/network_layer/samovar_client.h"
 #include "tea/samovar/planner.h"
 #include "tea/samovar/proto/samovar.pb.h"
@@ -16,6 +17,21 @@
 #include "tea/util/measure.h"
 
 namespace tea::samovar {
+
+namespace {
+void SyncSegments(std::shared_ptr<ISamovarClient> client, const std::string& cell_name, int segment_count,
+                  std::shared_ptr<IBackoff> backoff) {
+  DoWithRetries<std::monostate>(
+      [&]() -> std::optional<std::monostate> {
+        std::optional<int> result = client->GetNumericCell(cell_name);
+        if (result && result.value() == segment_count) {
+          return std::monostate{};
+        }
+        return std::nullopt;
+      },
+      backoff);
+}
+}  // namespace
 
 SingleQueueClient::SingleQueueClient(std::shared_ptr<ISamovarClient> client, std::shared_ptr<Batcher> batcher,
                                      std::chrono::seconds ttl_seconds, const std::string& queue_id, int segment_count,
@@ -33,8 +49,23 @@ SingleQueueClient::SingleQueueClient(std::shared_ptr<ISamovarClient> client, std
       working_segment_(working_segment.empty() || working_segment.contains(segment_id)),
       segment_id_(segment_id),
       ttl_utils_seconds_(ttl_utils_seconds),
-      sync_backoff_(sync_backoff),
-      need_sync_on_init_(need_sync_on_init) {}
+      sync_backoff_(sync_backoff) {
+  // role semantics in context of SingleQueueClient class:
+  // kCoordinator means that segment will write metadata
+  // kFollower means that:
+  // * segment will write write and read metadata
+  // * or segment will read metadata
+  if (role == SamovarRole::kFollower) {
+    client_->IncreaseNumericCell(GetInitScanCell());
+    client_->UpdateTTL(GetInitScanCell(), ttl_seconds_);
+
+    if (need_sync_on_init) {
+      ScopedTimerTicks timer(total_sync_time_);
+
+      SyncSegments(client, GetInitScanCell(), segment_count, sync_backoff);
+    }
+  }
+}
 
 std::optional<samovar::AnnotatedDataEntry> SingleQueueClient::GetNextDataEntry() {
   if (!working_segment_) {
@@ -77,22 +108,6 @@ const samovar::ScanMetadata& SingleQueueClient::GetPlannedMetadata() {
   }
 
   SetProcessingStage(Stage::kReading);
-  client_->IncreaseNumericCell(GetInitScanCell());
-  client_->UpdateTTL(GetInitScanCell(), ttl_seconds_);
-
-  if (need_sync_on_init_) {
-    ScopedTimerTicks timer(total_sync_time_);
-
-    DoWithRetries<std::monostate>(
-        [&]() -> std::optional<std::monostate> {
-          std::optional<int> result = client_->GetNumericCell(GetInitScanCell());
-          if (result && result.value() == segment_count_) {
-            return std::monostate{};
-          }
-          return std::nullopt;
-        },
-        sync_backoff_);
-  }
 
   samovar::ScanMetadata result_metadata;
   auto response = DoWithRetries<std::string>([&]() { return client_->GetCell(GetMetadataCell()); }, sync_backoff_);
