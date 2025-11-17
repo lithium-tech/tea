@@ -37,7 +37,7 @@ namespace tea::samovar {
 std::shared_ptr<ISamovarDataClient> MakeSamovarDataClient(const SamovarConfig& config, const std::string& queue_name,
                                                           int segment_id, int segment_count, SamovarRole role,
                                                           const CancelToken& cancel_token) {
-  auto backoff = CreateBackoff(config, cancel_token, std::make_shared<StageLogger>());
+  auto backoff = CreateBackoff(config, cancel_token);
 
   std::shared_ptr<ISamovarClient> samovar_client =
       std::make_shared<SamovarRedisClient>(config.endpoints, config.request_timeout, config.connection_timeout);

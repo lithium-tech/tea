@@ -12,23 +12,19 @@
 namespace tea::samovar {
 
 struct IBackoff {
-  virtual void Wait() = 0;
+  enum class Result { kQueryCancelled, kShouldRetry, kStop };
+
+  [[nodiscard]] virtual Result Wait() = 0;
   virtual void OnSuccess() = 0;
 
   virtual ~IBackoff() = default;
 };
 
-struct IContextLogger {
-  virtual std::string GetLog() const = 0;
-
-  virtual ~IContextLogger() = default;
-};
-
 class NoBackoff : public IBackoff {
  public:
-  explicit NoBackoff(unsigned int limit_retries, std::shared_ptr<IContextLogger> logger);
+  explicit NoBackoff(unsigned int limit_retries);
 
-  void Wait() override;
+  [[nodiscard]] Result Wait() override;
 
   void OnSuccess() override { num_iterations_ = 0; }
 
@@ -36,16 +32,15 @@ class NoBackoff : public IBackoff {
   unsigned int limit_retries_;
 
   unsigned int num_iterations_ = 0;
-  std::shared_ptr<IContextLogger> logger_;
 };
 
 class LinearBackoff : public IBackoff {
  public:
   // Sleep time in milliseconds
   explicit LinearBackoff(unsigned int limit_retries, std::chrono::milliseconds duration,
-                         const CancelToken& cancel_token, std::shared_ptr<IContextLogger> logger);
+                         const CancelToken& cancel_token);
 
-  void Wait() override;
+  [[nodiscard]] Result Wait() override;
 
   void OnSuccess() override { num_iterations_ = 0; }
 
@@ -55,16 +50,14 @@ class LinearBackoff : public IBackoff {
 
   unsigned int num_iterations_ = 0;
   const CancelToken& cancel_token_;
-  std::shared_ptr<IContextLogger> logger_;
 };
 
 class ExponentialBackoff : public IBackoff {
  public:
   ExponentialBackoff(unsigned int limit_retries, double sleep_coef,
-                     std::optional<std::chrono::milliseconds> waiting_limit, const CancelToken& cancel_token,
-                     std::shared_ptr<IContextLogger> logger);
+                     std::optional<std::chrono::milliseconds> waiting_limit, const CancelToken& cancel_token);
 
-  void Wait() override;
+  [[nodiscard]] Result Wait() override;
 
   void OnSuccess() override {
     num_iterations_ = 0;
@@ -79,10 +72,8 @@ class ExponentialBackoff : public IBackoff {
   double sleep_coef_;
   std::optional<std::chrono::milliseconds> waiting_limit_;
   const CancelToken& cancel_token_;
-  std::shared_ptr<IContextLogger> logger_;
 };
 
-std::shared_ptr<IBackoff> CreateBackoff(const SamovarConfig& config, const CancelToken& cancel_token,
-                                        std::shared_ptr<IContextLogger> logger);
+std::shared_ptr<IBackoff> CreateBackoff(const SamovarConfig& config, const CancelToken& cancel_token);
 
 }  // namespace tea::samovar

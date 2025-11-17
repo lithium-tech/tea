@@ -18,20 +18,6 @@ enum class SamovarMetrics {
   kSyncTime,
 };
 
-enum class Stage {
-  kPreparing,
-  kFilling,
-  kReading,
-  kRemoving,
-};
-
-Stage GetProcessingStage();
-void SetProcessingStage(Stage stage);
-
-struct StageLogger : public IContextLogger {
-  std::string GetLog() const override;
-};
-
 struct ISamovarDataClient {
  public:
   explicit ISamovarDataClient(std::shared_ptr<ISamovarClient> client, int segment_count,
