@@ -4,6 +4,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -15,12 +16,17 @@ namespace tea::samovar {
 static constexpr int MAX_RETRIES = 1000000;
 
 template <typename T>
-T DoWithRetries(std::function<std::optional<T>()> operation, std::shared_ptr<IBackoff> backoff) {
+T DoWithRetries(std::function<std::optional<T>()> operation, std::shared_ptr<IBackoff> backoff,
+                const std::string& message) {
   for (int i = 0; i < MAX_RETRIES; ++i) {
     auto maybe_answer = operation();
     if (!maybe_answer) {
-      backoff->Wait();
-      continue;
+      IBackoff::Result response = backoff->Wait();
+      if (response == IBackoff::Result::kShouldRetry) {
+        continue;
+      }
+      std::string reason = response == IBackoff::Result::kQueryCancelled ? "failed" : "cancelled";
+      throw std::runtime_error("Samovar: " + message + " (query " + reason + ")");
     }
     backoff->OnSuccess();
     return *maybe_answer;

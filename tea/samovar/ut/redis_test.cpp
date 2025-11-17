@@ -154,7 +154,7 @@ void StartRedis() {
 TEST(RedisClient, NoRedis) {
   KillRedis();
 
-  auto backoff = std::make_shared<NoBackoff>(30, nullptr);
+  auto backoff = std::make_shared<NoBackoff>(30);
   try {
     auto redis_client =
         std::make_shared<SamovarRedisClient>(std::vector<Endpoint>{Endpoint{.host = "0.0.0.0", .port = kDefaultPort}},
@@ -169,7 +169,7 @@ TEST(RedisClient, Test1) {
   StartRedis();
   FlushServer();
 
-  auto backoff = std::make_shared<NoBackoff>(30, nullptr);
+  auto backoff = std::make_shared<NoBackoff>(30);
   auto batch_size_scheduler = std::make_shared<ConstantBatchSizeScheduler>(1);
   auto redis_client =
       std::make_shared<SamovarRedisClient>(std::vector<Endpoint>{Endpoint{.host = "0.0.0.0", .port = kDefaultPort}},
@@ -201,7 +201,7 @@ TEST(RedisClient, MultiThreading) {
     std::vector<std::thread> workers;
     for (size_t i = 0; i < num_segments; ++i) {
       auto task_worker = [segment_id = i, num_fragments, test_iter, &cancel_token]() {
-        auto backoff = std::make_shared<LinearBackoff>(30, std::chrono::seconds(1), cancel_token, nullptr);
+        auto backoff = std::make_shared<LinearBackoff>(30, std::chrono::seconds(1), cancel_token);
         auto batch_size_scheduler = std::make_shared<ConstantBatchSizeScheduler>(1);
         auto redis_client = std::make_shared<SamovarRedisClient>(
             std::vector<Endpoint>{Endpoint{.host = "0.0.0.0", .port = kDefaultPort}}, std::chrono::milliseconds(3000),
@@ -312,7 +312,7 @@ TEST(RedisClient, Cache) {
 
 TEST(RedisClient, NoServer) {
   uint16_t some_incorrect_port = 4242;
-  auto backoff = std::make_shared<NoBackoff>(30, nullptr);
+  auto backoff = std::make_shared<NoBackoff>(30);
   auto batch_size_scheduler = std::make_shared<ConstantBatchSizeScheduler>(1);
   EXPECT_THROW(std::make_shared<SamovarRedisClient>(
                    std::vector<Endpoint>{Endpoint{.host = "0.0.0.0", .port = some_incorrect_port}},
@@ -353,7 +353,7 @@ TEST(RedisClient, FailServer) {
     for (size_t i = 0; i < num_segments; ++i) {
       auto task_worker = [segment_id = i, num_fragments, &do_with_kill_check, &kill_mutex, &was_killed, &cancel_token,
                           num_segments]() {
-        auto backoff = std::make_shared<LinearBackoff>(30, std::chrono::milliseconds(300), cancel_token, nullptr);
+        auto backoff = std::make_shared<LinearBackoff>(30, std::chrono::milliseconds(300), cancel_token);
         auto batch_size_scheduler = std::make_shared<ConstantBatchSizeScheduler>(1);
         std::shared_ptr<SamovarRedisClient> redis_client;
         if (do_with_kill_check([&]() {

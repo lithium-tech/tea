@@ -29,7 +29,7 @@ void SyncSegments(std::shared_ptr<ISamovarClient> client, const std::string& cel
         }
         return std::nullopt;
       },
-      backoff);
+      backoff, "sync_segments");
 }
 }  // namespace
 
@@ -107,10 +107,9 @@ const samovar::ScanMetadata& SingleQueueClient::GetPlannedMetadata() {
     return cached_result_metadata.value();
   }
 
-  SetProcessingStage(Stage::kReading);
-
   samovar::ScanMetadata result_metadata;
-  auto response = DoWithRetries<std::string>([&]() { return client_->GetCell(GetMetadataCell()); }, sync_backoff_);
+  auto response = DoWithRetries<std::string>([&]() { return client_->GetCell(GetMetadataCell()); }, sync_backoff_,
+                                             "wait_meta_from_coordinator");
   result_metadata.ParseFromString(response);
 
   client_->UpdateTTL(std::vector{queue_id_, GetMetadataCell(), GetFileListCell(), GetCheckpointCell()}, ttl_seconds_);
@@ -121,7 +120,9 @@ const samovar::ScanMetadata& SingleQueueClient::GetPlannedMetadata() {
 const samovar::FileList& SingleQueueClient::GetFileList() {
   if (!file_list) {
     file_list = samovar::FileList{};
-    auto response = DoWithRetries<std::string>([&]() { return client_->GetCell(GetFileListCell()); }, sync_backoff_);
+    // TODO(gmusya): seems redundant
+    auto response = DoWithRetries<std::string>([&]() { return client_->GetCell(GetFileListCell()); }, sync_backoff_,
+                                               "wait_file_list_from_coordinator");
     compressor->Decompress(response);
     file_list->ParseFromString(response);
   }
@@ -130,7 +131,6 @@ const samovar::FileList& SingleQueueClient::GetFileList() {
 
 void SingleQueueClient::FillSessionQueue(samovar::ScanMetadata&& scan_metadata, const samovar::FileList& all_file_list,
                                          const std::vector<samovar::AnnotatedDataEntry>& additional_data_entries) {
-  SetProcessingStage(Stage::kFilling);
   SendDataEntries(client_, additional_data_entries, queue_id_, ttl_seconds_);
 
   {

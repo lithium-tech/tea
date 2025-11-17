@@ -6,27 +6,6 @@
 
 namespace tea::samovar {
 
-static Stage processing_stage = Stage::kPreparing;
-
-std::string StageLogger::GetLog() const {
-  switch (processing_stage) {
-    case Stage::kPreparing:
-      return "samovar failed at preparing stage";
-    case Stage::kFilling:
-      return "samovar failed at filling stage";
-    case Stage::kReading:
-      return "samovar failed at reading stage";
-    case Stage::kRemoving:
-      return "samovar failed at removing stage";
-    default:
-      throw std::runtime_error("Unknown stage");
-  }
-}
-
-Stage GetProcessingStage() { return processing_stage; }
-
-void SetProcessingStage(Stage stage) { processing_stage = stage; }
-
 ISamovarDataClient::ISamovarDataClient(std::shared_ptr<ISamovarClient> client, int segment_count,
                                        std::chrono::seconds ttl_seconds)
     : client_(client), segment_count_(segment_count), ttl_seconds_(ttl_seconds) {}
@@ -41,7 +20,6 @@ void ISamovarDataClient::OnProcessingEnd(const std::string& checkpoint_cell,
   if (cleared_ || !started_) {
     return;
   }
-  SetProcessingStage(Stage::kRemoving);
   cleared_ = true;
   std::optional<int> value_after_change = client_->DecreaseNumericCell(checkpoint_cell);
   if (!value_after_change) {
