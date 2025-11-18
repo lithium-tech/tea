@@ -488,6 +488,10 @@ arrow::Status ReadValues(Source* src, Config* config, std::string_view section_p
   Get(src, section_prefix, "samovar", "need_sync_on_init", &config->samovar_config.need_sync_on_init);
   Get(src, section_prefix, "samovar", "allow_static_balancing", &config->samovar_config.allow_static_balancing);
 
+  Get(src, section_prefix, "samovar", "first_slice_to_sleep", &config->samovar_config.first_slice_to_sleep);
+  Get(src, section_prefix, "samovar", "sleep_per_slice_ms", &config->samovar_config.sleep_per_slice_ms);
+  Get(src, section_prefix, "samovar", "max_sleep_time_ms", &config->samovar_config.max_sleep_time_ms);
+
   return arrow::Status::OK();
 }
 
