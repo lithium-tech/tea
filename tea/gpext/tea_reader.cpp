@@ -22,6 +22,7 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <unordered_map>
 #include <utility>
 #include <variant>
@@ -761,6 +762,21 @@ void TeaContextPlanExternal(TeaContextPtr tea_ctx, const ExternalScanParams *par
       const bool is_coordinator = params->segment_id == target_coordinator;
 
       TEA_LOG("Samovar coordinator for query is " + std::to_string(target_coordinator));
+
+      const auto &cfg = get::Config(tea_ctx).samovar_config;
+      const int slice_id = params->slice_id;
+      const int first_slice_to_sleep = cfg.first_slice_to_sleep;
+
+      if (slice_id > first_slice_to_sleep) {
+        std::chrono::milliseconds time_to_sleep = (slice_id - first_slice_to_sleep) * cfg.sleep_per_slice_ms;
+        time_to_sleep = std::min(time_to_sleep, cfg.max_sleep_time_ms);
+        if (time_to_sleep.count() > 0) {
+          TEA_LOG("Slice id = " + std::to_string(slice_id) + ", sleep for " + std::to_string(time_to_sleep.count()) +
+                  "ms");
+          std::this_thread::sleep_for(time_to_sleep);
+        }
+      }
+
       if (is_coordinator) {
         TEA_LOG("I am samovar coordinator");
         iceberg::ice_tea::ScanMetadata all_meta = GetAllMetadata(
