@@ -1,3 +1,15 @@
+### Tea release 1.75.0, 2025-11-18
+
+### Improvements
+* [Teapotless][Samovar] Improve dangling positional delete pruning
+* [Samovar] Sleep before processing for large slice numbers
+* [Samovar] Make initial synchronization timeouts configurable
+
+### Tea release 1.74.1, 2025-11-10
+
+#### Bug Fix
+* Fix reading float4 values in tables with float8 type
+
 ### Tea release 1.74.0, 2025-11-05
 
 #### Improvements
