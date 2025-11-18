@@ -38,7 +38,7 @@ SingleQueueClient::SingleQueueClient(std::shared_ptr<ISamovarClient> client, std
                                      const std::string& compressor_name, int segment_id, SamovarRole role,
                                      const std::unordered_set<int>& working_segment,
                                      std::chrono::seconds ttl_utils_seconds, std::shared_ptr<IBackoff> sync_backoff,
-                                     bool need_sync_on_init)
+                                     std::shared_ptr<IBackoff> metadata_backoff, bool need_sync_on_init)
     : ISamovarDataClient(client, working_segment.empty() ? segment_count : working_segment.size(), ttl_seconds),
       client_(client),
       batcher_(batcher),
@@ -49,7 +49,7 @@ SingleQueueClient::SingleQueueClient(std::shared_ptr<ISamovarClient> client, std
       working_segment_(working_segment.empty() || working_segment.contains(segment_id)),
       segment_id_(segment_id),
       ttl_utils_seconds_(ttl_utils_seconds),
-      sync_backoff_(sync_backoff) {
+      metadata_backoff_(metadata_backoff) {
   // role semantics in context of SingleQueueClient class:
   // kCoordinator means that segment will write metadata
   // kFollower means that:
@@ -108,7 +108,7 @@ const samovar::ScanMetadata& SingleQueueClient::GetPlannedMetadata() {
   }
 
   samovar::ScanMetadata result_metadata;
-  auto response = DoWithRetries<std::string>([&]() { return client_->GetCell(GetMetadataCell()); }, sync_backoff_,
+  auto response = DoWithRetries<std::string>([&]() { return client_->GetCell(GetMetadataCell()); }, metadata_backoff_,
                                              "wait_meta_from_coordinator");
   result_metadata.ParseFromString(response);
 
@@ -121,7 +121,7 @@ const samovar::FileList& SingleQueueClient::GetFileList() {
   if (!file_list) {
     file_list = samovar::FileList{};
     // TODO(gmusya): seems redundant
-    auto response = DoWithRetries<std::string>([&]() { return client_->GetCell(GetFileListCell()); }, sync_backoff_,
+    auto response = DoWithRetries<std::string>([&]() { return client_->GetCell(GetFileListCell()); }, metadata_backoff_,
                                                "wait_file_list_from_coordinator");
     compressor->Decompress(response);
     file_list->ParseFromString(response);

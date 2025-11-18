@@ -11,6 +11,7 @@
 #include <stdexcept>
 #include <thread>
 
+#include "tea/common/config.h"
 #include "tea/observability/tea_log.h"
 #include "tea/util/cancel.h"
 
@@ -72,7 +73,7 @@ IBackoff::Result ExponentialBackoff::Wait() {
   return Result::kShouldRetry;
 }
 
-std::shared_ptr<IBackoff> CreateBackoff(const SamovarConfig& config, const CancelToken& cancel_token) {
+std::shared_ptr<IBackoff> CreateBackoff(const BackoffInfo& config, const CancelToken& cancel_token) {
   std::shared_ptr<IBackoff> backoff;
   switch (config.backoff_type) {
     case BackoffType::kNoBackoff: {

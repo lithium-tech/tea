@@ -37,7 +37,8 @@ namespace tea::samovar {
 std::shared_ptr<ISamovarDataClient> MakeSamovarDataClient(const SamovarConfig& config, const std::string& queue_name,
                                                           int segment_id, int segment_count, SamovarRole role,
                                                           const CancelToken& cancel_token) {
-  auto backoff = CreateBackoff(config, cancel_token);
+  auto sync_backoff = CreateBackoff(config.sync_backoff, cancel_token);
+  auto metadata_backoff = CreateBackoff(config.metadata_backoff, cancel_token);
 
   std::shared_ptr<ISamovarClient> samovar_client =
       std::make_shared<SamovarRedisClient>(config.endpoints, config.request_timeout, config.connection_timeout);
@@ -50,7 +51,8 @@ std::shared_ptr<ISamovarDataClient> MakeSamovarDataClient(const SamovarConfig& c
     case BalancerType::kOneQueue: {
       samovar_data_client_ = std::make_shared<SingleQueueClient>(
           samovar_client, batcher, config.ttl_seconds, queue_name, segment_count, config.compressor_name, segment_id,
-          role, config.work_segments, config.ttl_utils_seconds, backoff, config.need_sync_on_init);
+          role, config.work_segments, config.ttl_utils_seconds, sync_backoff, metadata_backoff,
+          config.need_sync_on_init);
       break;
     }
     default:
