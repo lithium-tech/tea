@@ -355,6 +355,33 @@ bool GetEndpoints(Source* source, std::string_view section_prefix, std::string_v
 }
 
 template <typename Source>
+void GetBackoffInfo(Source* src, BackoffInfo* config, std::string_view section_prefix,
+                    std::string_view keys_prefix = "") {
+  Get(src, section_prefix, "samovar", absl::StrCat(keys_prefix, "backoff_type"), &config->backoff_type);
+  // Sleep time in milliseconds
+  Get(src, section_prefix, "samovar", absl::StrCat(keys_prefix, "linear_backoff_time_to_sleep_ms"),
+      &config->linear_backoff_time_to_sleep_ms);
+  // Increasing coefficient in exponential backoff
+  // Compat: will be removed in future versions
+  GetOptional(src, section_prefix, "samovar", absl::StrCat(keys_prefix, "exponentail_backoff_sleep_coef"),
+              &config->exponential_backoff_sleep_coef);
+
+  GetOptional(src, section_prefix, "samovar", absl::StrCat(keys_prefix, "exponential_backoff_sleep_coef"),
+              &config->exponential_backoff_sleep_coef);
+
+  // Upper bound on waiting time for exponential backoff
+  // Compat: will be removed in future versions
+  GetOptional(src, section_prefix, "samovar", absl::StrCat(keys_prefix, "exponentail_backoff_limit"),
+              &config->exponential_backoff_limit);
+
+  GetOptional(src, section_prefix, "samovar", absl::StrCat(keys_prefix, "exponential_backoff_limit"),  // deprecated
+              &config->exponential_backoff_limit);
+  GetOptional(src, section_prefix, "samovar", absl::StrCat(keys_prefix, "exponential_backoff_limit_ms"),
+              &config->exponential_backoff_limit);
+  Get(src, section_prefix, "samovar", absl::StrCat(keys_prefix, "limit_retries"), &config->limit_retries);
+}
+
+template <typename Source>
 arrow::Status ReadValues(Source* src, Config* config, std::string_view section_prefix) {
   Get(src, section_prefix, "s3", "access_key", &config->s3.access_key);
   Get(src, section_prefix, "s3", "secret_key", &config->s3.secret_key);
@@ -427,29 +454,11 @@ arrow::Status ReadValues(Source* src, Config* config, std::string_view section_p
 
   Get(src, section_prefix, "samovar", "use_samovar", &config->samovar_config.turn_on_samovar);
 
-  Get(src, section_prefix, "samovar", "backoff_type", &config->samovar_config.backoff_type);
-  // Sleep time in milliseconds
-  Get(src, section_prefix, "samovar", "linear_backoff_time_to_sleep_ms",
-      &config->samovar_config.linear_backoff_time_to_sleep_ms);
-  // Increasing coefficient in exponential backoff
-  // Compat: will be removed in future versions
-  GetOptional(src, section_prefix, "samovar", "exponentail_backoff_sleep_coef",
-              &config->samovar_config.exponential_backoff_sleep_coef);
+  // SyncBackoff = MetadataBackoff by default, but params can be overrided
+  GetBackoffInfo(src, &config->samovar_config.metadata_backoff, section_prefix, "");
+  config->samovar_config.sync_backoff = config->samovar_config.metadata_backoff;
+  GetBackoffInfo(src, &config->samovar_config.sync_backoff, section_prefix, "sync_");
 
-  GetOptional(src, section_prefix, "samovar", "exponential_backoff_sleep_coef",
-              &config->samovar_config.exponential_backoff_sleep_coef);
-
-  // Upper bound on waiting time for exponential backoff
-  // Compat: will be removed in future versions
-  GetOptional(src, section_prefix, "samovar", "exponentail_backoff_limit",
-              &config->samovar_config.exponential_backoff_limit);
-
-  GetOptional(src, section_prefix, "samovar", "exponential_backoff_limit",  // deprecated
-              &config->samovar_config.exponential_backoff_limit);
-  GetOptional(src, section_prefix, "samovar", "exponential_backoff_limit_ms",
-              &config->samovar_config.exponential_backoff_limit);
-
-  Get(src, section_prefix, "samovar", "limit_retries", &config->samovar_config.limit_retries);
   Get(src, section_prefix, "samovar", "balancer_type", &config->samovar_config.balancer_type);
   Get(src, section_prefix, "samovar", "cluster_id", &config->samovar_config.cluster_id);
   // Maybe better to use different keys for redis and postgres

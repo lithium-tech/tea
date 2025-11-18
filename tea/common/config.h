@@ -126,14 +126,22 @@ enum class SplitType { kOffsets, kWholeDataEntry };
 
 enum class BalancerType { kOneQueue };
 
-struct SamovarConfig {
-  bool turn_on_samovar = false;
-
+struct BackoffInfo {
   BackoffType backoff_type = BackoffType::kNoBackoff;
   std::chrono::milliseconds linear_backoff_time_to_sleep_ms = std::chrono::milliseconds(0);
   std::optional<double> exponential_backoff_sleep_coef = std::nullopt;
   std::optional<std::chrono::milliseconds> exponential_backoff_limit = std::nullopt;
   int limit_retries = 0;
+
+  bool operator==(const BackoffInfo&) const = default;
+};
+
+struct SamovarConfig {
+  bool turn_on_samovar = false;
+
+  BackoffInfo metadata_backoff;
+  BackoffInfo sync_backoff;
+
   SplitType split_type = SplitType::kOffsets;
   BalancerType balancer_type = BalancerType::kOneQueue;
   int batch_size = 1;

@@ -74,6 +74,6 @@ class ExponentialBackoff : public IBackoff {
   const CancelToken& cancel_token_;
 };
 
-std::shared_ptr<IBackoff> CreateBackoff(const SamovarConfig& config, const CancelToken& cancel_token);
+std::shared_ptr<IBackoff> CreateBackoff(const BackoffInfo& config, const CancelToken& cancel_token);
 
 }  // namespace tea::samovar
