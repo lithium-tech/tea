@@ -37,8 +37,8 @@ SingleQueueClient::SingleQueueClient(std::shared_ptr<ISamovarClient> client, std
                                      std::chrono::seconds ttl_seconds, const std::string& queue_id, int segment_count,
                                      const std::string& compressor_name, int segment_id, SamovarRole role,
                                      const std::unordered_set<int>& working_segment,
-                                     std::chrono::seconds ttl_utils_seconds, std::shared_ptr<IBackoff> sync_backoff,
-                                     std::shared_ptr<IBackoff> metadata_backoff, bool need_sync_on_init)
+                                     std::shared_ptr<IBackoff> sync_backoff, std::shared_ptr<IBackoff> metadata_backoff,
+                                     bool need_sync_on_init)
     : ISamovarDataClient(client, working_segment.empty() ? segment_count : working_segment.size(), ttl_seconds),
       client_(client),
       batcher_(batcher),
@@ -47,8 +47,6 @@ SingleQueueClient::SingleQueueClient(std::shared_ptr<ISamovarClient> client, std
       compressor(compression::CompressorFactory().GetCompressor(compressor_name)),
       role_(role),
       working_segment_(working_segment.empty() || working_segment.contains(segment_id)),
-      segment_id_(segment_id),
-      ttl_utils_seconds_(ttl_utils_seconds),
       metadata_backoff_(metadata_backoff) {
   // role semantics in context of SingleQueueClient class:
   // kCoordinator means that segment will write metadata
@@ -71,14 +69,6 @@ std::optional<samovar::AnnotatedDataEntry> SingleQueueClient::GetNextDataEntry()
   if (!working_segment_) {
     return std::nullopt;
   }
-  if (!previous_task_.empty()) {
-    client_->AddIntoSet(GetDoneCell(), previous_task_);
-    client_->RemoveFromSet(GetProcessingCell(), previous_task_);
-
-    client_->UpdateTTL(std::vector{GetProcessingCell(), GetDoneCell()}, ttl_utils_seconds_);
-
-    previous_task_.clear();
-  }
 
   client_->UpdateTTL(std::vector{queue_id_, GetMetadataCell()}, ttl_seconds_);
 
@@ -86,12 +76,8 @@ std::optional<samovar::AnnotatedDataEntry> SingleQueueClient::GetNextDataEntry()
   if (!result) {
     OnProcessingEnd(GetCheckpointCell(), {queue_id_, GetMetadataCell(), GetCheckpointCell(), GetFileListCell()});
   }
-  if (result) {
-    result->set_gp_segment_executed(segment_id_);
-    client_->AddIntoSet(GetProcessingCell(), result->SerializeAsString());
-    client_->UpdateTTL(std::vector{GetProcessingCell(), GetDoneCell()}, ttl_utils_seconds_);
-    previous_task_ = result->SerializeAsString();
 
+  if (result) {
     size_t file_index = result->data_entry().entry().file_index();
     if (file_index > 0) {
       auto* data_entry = result->mutable_data_entry();
@@ -198,9 +184,6 @@ int64_t SingleQueueClient::GetMetricValue(SamovarMetrics metric) const {
       throw std::runtime_error("Unknown metric");
   }
 }
-
-std::string SingleQueueClient::GetProcessingCell() { return processing_queue_prefix + queue_id_; }
-std::string SingleQueueClient::GetDoneCell() { return done_queue_prefix + queue_id_; }
 
 SingleQueueClient::~SingleQueueClient() {
   if (!working_segment_) {
