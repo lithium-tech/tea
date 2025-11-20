@@ -21,8 +21,8 @@ class SingleQueueClient : public ISamovarDataClient {
   explicit SingleQueueClient(std::shared_ptr<ISamovarClient> client, std::shared_ptr<Batcher> batcher,
                              std::chrono::seconds ttl_seconds, const std::string& queue_id, int segment_count,
                              const std::string& compressor_name, int segment_id, SamovarRole role,
-                             const std::unordered_set<int>& working_segment, std::shared_ptr<IBackoff> sync_backoff,
-                             std::shared_ptr<IBackoff> metadata_backoff, bool need_sync_on_init);
+                             std::shared_ptr<IBackoff> sync_backoff, std::shared_ptr<IBackoff> metadata_backoff,
+                             bool need_sync_on_init);
 
   std::optional<samovar::AnnotatedDataEntry> GetNextDataEntry() override;
 
@@ -65,8 +65,6 @@ class SingleQueueClient : public ISamovarDataClient {
 
   compression::CompressorPtr compressor;
   SamovarRole role_;
-
-  bool working_segment_;
 
   std::shared_ptr<IBackoff> metadata_backoff_;
 

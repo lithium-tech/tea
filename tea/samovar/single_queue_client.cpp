@@ -36,17 +36,15 @@ void SyncSegments(std::shared_ptr<ISamovarClient> client, const std::string& cel
 SingleQueueClient::SingleQueueClient(std::shared_ptr<ISamovarClient> client, std::shared_ptr<Batcher> batcher,
                                      std::chrono::seconds ttl_seconds, const std::string& queue_id, int segment_count,
                                      const std::string& compressor_name, int segment_id, SamovarRole role,
-                                     const std::unordered_set<int>& working_segment,
                                      std::shared_ptr<IBackoff> sync_backoff, std::shared_ptr<IBackoff> metadata_backoff,
                                      bool need_sync_on_init)
-    : ISamovarDataClient(client, working_segment.empty() ? segment_count : working_segment.size(), ttl_seconds),
+    : ISamovarDataClient(client, segment_count, ttl_seconds),
       client_(client),
       batcher_(batcher),
       ttl_seconds_(ttl_seconds),
       queue_id_(queue_id),
       compressor(compression::CompressorFactory().GetCompressor(compressor_name)),
       role_(role),
-      working_segment_(working_segment.empty() || working_segment.contains(segment_id)),
       metadata_backoff_(metadata_backoff) {
   // role semantics in context of SingleQueueClient class:
   // kCoordinator means that segment will write metadata
@@ -66,10 +64,6 @@ SingleQueueClient::SingleQueueClient(std::shared_ptr<ISamovarClient> client, std
 }
 
 std::optional<samovar::AnnotatedDataEntry> SingleQueueClient::GetNextDataEntry() {
-  if (!working_segment_) {
-    return std::nullopt;
-  }
-
   client_->UpdateTTL(std::vector{queue_id_, GetMetadataCell()}, ttl_seconds_);
 
   auto result = batcher_->GetNextDataEntry(queue_id_);
@@ -169,13 +163,13 @@ std::string SingleQueueClient::GetFileListCell() {
 int64_t SingleQueueClient::GetMetricValue(SamovarMetrics metric) const {
   switch (metric) {
     case SamovarMetrics::kResponseTime: {
-      return working_segment_ ? client_->GetTotalResponseDurationTicks() : 0;
+      return client_->GetTotalResponseDurationTicks();
     }
     case SamovarMetrics::kRequestCount: {
-      return working_segment_ ? client_->GetRequestCount() : 0;
+      return client_->GetRequestCount();
     }
     case SamovarMetrics::kErrorsCount: {
-      return working_segment_ ? client_->GetErrorsCount() : 0;
+      return client_->GetErrorsCount();
     }
     case SamovarMetrics::kSyncTime: {
       return total_sync_time_;
@@ -186,9 +180,6 @@ int64_t SingleQueueClient::GetMetricValue(SamovarMetrics metric) const {
 }
 
 SingleQueueClient::~SingleQueueClient() {
-  if (!working_segment_) {
-    return;
-  }
   if (role_ != SamovarRole::kCoordinator) {
     try {
       OnProcessingEnd(GetCheckpointCell(), {queue_id_, GetMetadataCell(), GetCheckpointCell(), GetFileListCell()});

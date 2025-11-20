@@ -93,25 +93,6 @@ bool Get(const rapidjson::Value* doc, std::string_view section_prefix, std::stri
 }
 
 bool Get(const rapidjson::Value* doc, std::string_view section_prefix, std::string_view section, const std::string& key,
-         std::unordered_set<int>* out) {
-  const rapidjson::Value* value = Advance(doc, {std::string(section), key});
-  if (!value) {
-    return false;
-  }
-  out->clear();
-  if (!value->IsArray()) {
-    return false;
-  }
-  for (const auto& elem : value->GetArray()) {
-    if (!elem.IsInt()) {
-      return false;
-    }
-    out->insert(elem.GetFloat());
-  }
-  return true;
-}
-
-bool Get(const rapidjson::Value* doc, std::string_view section_prefix, std::string_view section, const std::string& key,
          std::vector<std::string>* out) {
   const rapidjson::Value* value = Advance(doc, {std::string(section), key});
   if (!value) {
@@ -476,7 +457,6 @@ arrow::Status ReadValues(Source* src, Config* config, std::string_view section_p
 
   Get(src, section_prefix, "samovar", "batch_size", &config->samovar_config.batch_size);
   Get(src, section_prefix, "samovar", "compressor_name", &config->samovar_config.compressor_name);
-  Get(src, section_prefix, "samovar", "work_segments", &config->samovar_config.work_segments);
 
   Get(src, section_prefix, "samovar", "wait_before_processing", &config->samovar_config.wait_before_processing);
   Get(src, section_prefix, "samovar", "min_time_before_processing_ms",
