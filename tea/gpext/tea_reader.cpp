@@ -794,6 +794,8 @@ void TeaContextPlanExternal(TeaContextPtr tea_ctx, const ExternalScanParams *par
         TEA_RETURN_ARROW_NOT_OK(maybe_stats);
         TEA_LOG("Queue filled " + queue_name);
         get::PlannerStats(tea_ctx).Combine(maybe_stats.MoveValueUnsafe());
+      } else {
+        TEA_LOG("I am samovar follower");
       }
     }
 
