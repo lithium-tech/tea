@@ -522,6 +522,7 @@ static std::shared_ptr<tea::samovar::ISamovarDataClient> CreateSamovarClient(Tea
                                                                              const std::string &queue_name,
                                                                              int segment_id, int segment_count,
                                                                              tea::samovar::SamovarRole role) {
+  TEA_LOG("Creating samovar client with queue " + queue_name);
   return MakeSamovarDataClient(get::SamovarConfig(tea_ctx), queue_name, segment_id, segment_count, role,
                                get::CancelToken(tea_ctx));
 }
@@ -757,6 +758,8 @@ void TeaContextPlanExternal(TeaContextPtr tea_ctx, const ExternalScanParams *par
     const bool from_samovar = get::SamovarConfig(tea_ctx).turn_on_samovar;
     std::shared_ptr<tea::samovar::ISamovarDataClient> samovar_client;
     if (from_samovar) {
+      const std::string queue_name = make_samovar_queue_name();
+
       const auto target_coordinator =
           tea::samovar::GetCoordinator(get::SessionId(tea_ctx), get::Source(tea_ctx), params->segment_count);
       const bool is_coordinator = params->segment_id == target_coordinator;
@@ -782,7 +785,6 @@ void TeaContextPlanExternal(TeaContextPtr tea_ctx, const ExternalScanParams *par
         iceberg::ice_tea::ScanMetadata all_meta = GetAllMetadata(
             tea_ctx, get::TableConfig(tea_ctx), get::SessionId(tea_ctx), filter.extracted, get::CancelToken(tea_ctx));
 
-        std::string queue_name = make_samovar_queue_name();
         samovar_client = CreateSamovarClient(tea_ctx, queue_name, params->segment_id, params->segment_count,
                                              tea::samovar::SamovarRole::kFollower);
 
@@ -797,6 +799,8 @@ void TeaContextPlanExternal(TeaContextPtr tea_ctx, const ExternalScanParams *par
 
     auto maybe_plan_meta = [&]() -> ResultType {
       if (from_samovar) {
+        const std::string queue_name = make_samovar_queue_name();
+
         const auto target_coordinator =
             tea::samovar::GetCoordinator(get::SessionId(tea_ctx), get::Source(tea_ctx), params->segment_count);
         const bool is_coordinator = params->segment_id == target_coordinator;
@@ -804,11 +808,11 @@ void TeaContextPlanExternal(TeaContextPtr tea_ctx, const ExternalScanParams *par
         const bool is_metadata_already_written = is_coordinator;
 
         if (!samovar_client) {
-          samovar_client = CreateSamovarClient(tea_ctx, make_samovar_queue_name(), params->segment_id,
-                                               params->segment_count, tea::samovar::SamovarRole::kFollower);
+          samovar_client = CreateSamovarClient(tea_ctx, queue_name, params->segment_id, params->segment_count,
+                                               tea::samovar::SamovarRole::kFollower);
         }
 
-        auto result = tea::samovar::FromSamovar(get::Config(tea_ctx), params->segment_id, make_samovar_queue_name(),
+        auto result = tea::samovar::FromSamovar(get::Config(tea_ctx), params->segment_id, queue_name,
                                                 is_metadata_already_written, samovar_client);
         return result;
       } else {
