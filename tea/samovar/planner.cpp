@@ -51,8 +51,7 @@ std::shared_ptr<ISamovarDataClient> MakeSamovarDataClient(const SamovarConfig& c
     case BalancerType::kOneQueue: {
       samovar_data_client_ = std::make_shared<SingleQueueClient>(
           samovar_client, batcher, config.ttl_seconds, queue_name, segment_count, config.compressor_name, segment_id,
-          role, config.work_segments, config.ttl_utils_seconds, sync_backoff, metadata_backoff,
-          config.need_sync_on_init);
+          role, config.work_segments, sync_backoff, metadata_backoff, config.need_sync_on_init);
       break;
     }
     default:

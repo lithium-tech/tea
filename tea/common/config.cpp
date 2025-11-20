@@ -484,7 +484,6 @@ arrow::Status ReadValues(Source* src, Config* config, std::string_view section_p
   Get(src, section_prefix, "samovar", "max_time_before_processing_ms",
       &config->samovar_config.max_time_before_processing_ms);
 
-  Get(src, section_prefix, "samovar", "ttl_utils_seconds", &config->samovar_config.ttl_utils_seconds);
   Get(src, section_prefix, "samovar", "need_sync_on_init", &config->samovar_config.need_sync_on_init);
   Get(src, section_prefix, "samovar", "allow_static_balancing", &config->samovar_config.allow_static_balancing);
 
