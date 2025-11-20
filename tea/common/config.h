@@ -155,8 +155,6 @@ struct SamovarConfig {
 
   std::optional<int> first_request_fragments = std::nullopt;
 
-  std::unordered_set<int> work_segments = {};
-
   bool wait_before_processing = false;
   std::chrono::milliseconds min_time_before_processing_ms = std::chrono::milliseconds(0);
   std::chrono::milliseconds max_time_before_processing_ms = std::chrono::milliseconds(0);
