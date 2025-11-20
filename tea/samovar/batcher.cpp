@@ -6,7 +6,6 @@
 #include "tea/observability/tea_log.h"
 #include "tea/samovar/network_layer/samovar_client.h"
 #include "tea/samovar/proto/samovar.pb.h"
-#include "tea/samovar/samovar_data_client.h"
 
 namespace tea::samovar {
 

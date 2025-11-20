@@ -9,34 +9,47 @@
 #include "tea/samovar/batcher.h"
 #include "tea/samovar/network_layer/backoff.h"
 #include "tea/samovar/network_layer/samovar_client.h"
-#include "tea/samovar/planner.h"
 #include "tea/samovar/proto/samovar.pb.h"
-#include "tea/samovar/samovar_data_client.h"
 #include "tea/util/measure.h"
 
 namespace tea::samovar {
 
-class SingleQueueClient : public ISamovarDataClient {
+enum class SamovarMetrics {
+  kResponseTime,
+  kRequestCount,
+  kErrorsCount,
+  kSyncTime,
+};
+
+enum class SamovarRole {
+  kCoordinator,
+  kFollower,
+};
+
+class SingleQueueClient {
  public:
   explicit SingleQueueClient(std::shared_ptr<ISamovarClient> client, std::shared_ptr<Batcher> batcher,
                              std::chrono::seconds ttl_seconds, const std::string& queue_id, int segment_count,
-                             const std::string& compressor_name, int segment_id, SamovarRole role,
+                             const std::string& compressor_name, SamovarRole role,
                              std::shared_ptr<IBackoff> sync_backoff, std::shared_ptr<IBackoff> metadata_backoff,
                              bool need_sync_on_init);
 
-  std::optional<samovar::AnnotatedDataEntry> GetNextDataEntry() override;
+  std::optional<samovar::AnnotatedDataEntry> GetNextDataEntry();
 
-  const samovar::ScanMetadata& GetPlannedMetadata() override;
-  const samovar::FileList& GetFileList() override;
+  const samovar::ScanMetadata& GetPlannedMetadata();
+  const samovar::FileList& GetFileList();
 
   void FillSessionQueue(samovar::ScanMetadata&& scan_metadata, const samovar::FileList& file_list,
-                        const std::vector<samovar::AnnotatedDataEntry>& additional_data_entries) override;
+                        const std::vector<samovar::AnnotatedDataEntry>& additional_data_entries);
 
-  std::string GetQueueId() const override { return queue_id_; }
+  std::string GetQueueId() const { return queue_id_; }
 
-  int64_t GetMetricValue(SamovarMetrics metric) const override;
+  int64_t GetMetricValue(SamovarMetrics metric) const;
 
-  ~SingleQueueClient() override;
+  ~SingleQueueClient();
+
+  void OnProcessingStart(const std::string& checkpoint_cell);
+  void OnProcessingEnd(const std::string& checkpoint_cell, const std::vector<std::string>& cells_to_clear);
 
  private:
   mutable std::shared_ptr<ISamovarClient> client_;
@@ -69,6 +82,10 @@ class SingleQueueClient : public ISamovarDataClient {
   std::shared_ptr<IBackoff> metadata_backoff_;
 
   DurationTicks total_sync_time_ = 0;
+
+  int segment_count_ = 0;
+  bool cleared_ = false;
+  bool started_ = false;
 };
 
 }  // namespace tea::samovar

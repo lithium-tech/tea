@@ -17,6 +17,7 @@
 #include "iceberg/tea_scan.h"
 
 #include "tea/common/config.h"
+#include "tea/common/utils.h"
 #include "tea/metadata/metadata.h"
 #include "tea/metadata/planner.h"
 #include "tea/observability/planner_stats.h"
@@ -27,16 +28,15 @@
 #include "tea/samovar/network_layer/redis_client.h"
 #include "tea/samovar/network_layer/samovar_client.h"
 #include "tea/samovar/proto/samovar.pb.h"
-#include "tea/samovar/samovar_data_client.h"
 #include "tea/samovar/single_queue_client.h"
 #include "tea/samovar/utils.h"
 #include "tea/util/measure.h"
 
 namespace tea::samovar {
 
-std::shared_ptr<ISamovarDataClient> MakeSamovarDataClient(const SamovarConfig& config, const std::string& queue_name,
-                                                          int segment_id, int segment_count, SamovarRole role,
-                                                          const CancelToken& cancel_token) {
+std::shared_ptr<SingleQueueClient> MakeSamovarDataClient(const SamovarConfig& config, const std::string& queue_name,
+                                                         int segment_id, int segment_count, SamovarRole role,
+                                                         const CancelToken& cancel_token) {
   auto sync_backoff = CreateBackoff(config.sync_backoff, cancel_token);
   auto metadata_backoff = CreateBackoff(config.metadata_backoff, cancel_token);
 
@@ -45,13 +45,13 @@ std::shared_ptr<ISamovarDataClient> MakeSamovarDataClient(const SamovarConfig& c
   auto batch_size_scheduler = std::make_shared<ConstantBatchSizeScheduler>(config.batch_size);
   auto batcher = std::make_shared<Batcher>(samovar_client, batch_size_scheduler);
 
-  std::shared_ptr<ISamovarDataClient> samovar_data_client_;
+  std::shared_ptr<SingleQueueClient> samovar_data_client_;
 
   switch (config.balancer_type) {
     case BalancerType::kOneQueue: {
       samovar_data_client_ = std::make_shared<SingleQueueClient>(
-          samovar_client, batcher, config.ttl_seconds, queue_name, segment_count, config.compressor_name, segment_id,
-          role, sync_backoff, metadata_backoff, config.need_sync_on_init);
+          samovar_client, batcher, config.ttl_seconds, queue_name, segment_count, config.compressor_name, role,
+          sync_backoff, metadata_backoff, config.need_sync_on_init);
       break;
     }
     default:
@@ -62,7 +62,7 @@ std::shared_ptr<ISamovarDataClient> MakeSamovarDataClient(const SamovarConfig& c
 }
 
 arrow::Result<PlannerStats> FillSamovar(const Config& config, iceberg::ice_tea::ScanMetadata&& meta, int segment_count,
-                                        std::shared_ptr<ISamovarDataClient> samovar_client) {
+                                        std::shared_ptr<SingleQueueClient> samovar_client) {
   PlannerStats stats;
   std::optional<ScopedTimerTicks> timer = ScopedTimerTicks(stats.plan_duration);
   for (const auto& part : meta.partitions) {
@@ -110,7 +110,7 @@ arrow::Result<PlannerStats> FillSamovar(const Config& config, iceberg::ice_tea::
 namespace {
 class SamovarMetadataScheduler final : public meta::IMetadataScheduler {
  public:
-  SamovarMetadataScheduler(const Config& config, std::shared_ptr<ISamovarDataClient> samovar_data_client)
+  SamovarMetadataScheduler(const Config& config, std::shared_ptr<SingleQueueClient> samovar_data_client)
       : samovar_data_client_(samovar_data_client),
         enable_static_balancing_(config.samovar_config.allow_static_balancing) {}
 
@@ -160,17 +160,6 @@ class SamovarMetadataScheduler final : public meta::IMetadataScheduler {
     return samovar_data_client_->GetMetricValue(metric);
   }
 
-  const iceberg::ice_tea::ScanMetadata& GetPlannedMetadata() const {
-    if (total_scan_metadata_.has_value()) {
-      return total_scan_metadata_.value();
-    }
-
-    auto response = samovar_data_client_->GetPlannedMetadata();
-    auto response_file_list = samovar_data_client_->GetFileList();
-    total_scan_metadata_ = ConvertSamovarRepresentationToScanMeta(response, response_file_list);
-    return total_scan_metadata_.value();
-  }
-
  private:
   void SaveMetrics() {
     iceberg::Ensure(samovar_data_client_ != nullptr, std::string(__PRETTY_FUNCTION__) + ": internal error");
@@ -181,10 +170,9 @@ class SamovarMetadataScheduler final : public meta::IMetadataScheduler {
     metrics.sync_duration = GetMetric(SamovarMetrics::kSyncTime);
   }
 
-  std::shared_ptr<ISamovarDataClient> samovar_data_client_;
+  std::shared_ptr<SingleQueueClient> samovar_data_client_;
   bool is_end_ = false;
   const bool enable_static_balancing_ = true;
-  mutable std::optional<iceberg::ice_tea::ScanMetadata> total_scan_metadata_;
 
   struct SchedulerMetrics {
     int64_t total_response_duration_ticks = 0;
@@ -227,7 +215,7 @@ static std::chrono::milliseconds CalculateSleepTime(std::chrono::milliseconds mi
 
 arrow::Result<std::pair<meta::PlannedMeta, PlannerStats>> FromSamovar(
     const Config& config, int segment_id, const std::string& queue_name, bool is_metadata_already_written,
-    std::shared_ptr<ISamovarDataClient> samovar_client) {
+    std::shared_ptr<SingleQueueClient> samovar_client) {
   // Followers should wait for some time (at least 3x the average s3 request latency) since no progress is
   // impossible until the coordinator writes the metadata to Samovar.
   // The coordinator does not have to wait because the metadata has already been written by him.
@@ -239,13 +227,13 @@ arrow::Result<std::pair<meta::PlannedMeta, PlannerStats>> FromSamovar(
     std::this_thread::sleep_for(sleep_time);
   }
 
-  // Note that we always pass SamovarRole::kFollower to SamovarMetadataScheduler because from this point on, every
-  // segment behaves as a follower.
-  // Moreover, it is not recommended to pass SamovarRole::kCoordinator as this will prevent early metadata cleanup (see
-  // SingleQueueClient destructor).
-  // TODO(gmusya): the current interfaces seem to be error prone and need to be improved.
+  auto response = samovar_client->GetPlannedMetadata();
+  auto response_file_list = samovar_client->GetFileList();
+  auto total_scan_metadata = ConvertSamovarRepresentationToScanMeta(response, response_file_list);
+
   auto sched = std::make_shared<SamovarMetadataScheduler>(config, samovar_client);
-  auto meta = meta::PlannedMeta(std::make_shared<meta::AnnotatedDataEntryStream>(sched), sched->GetPlannedMetadata());
+  auto meta =
+      meta::PlannedMeta(std::make_shared<meta::AnnotatedDataEntryStream>(sched), std::move(total_scan_metadata));
 
   PlannerStats stats;
   return std::make_pair(std::move(meta), stats);

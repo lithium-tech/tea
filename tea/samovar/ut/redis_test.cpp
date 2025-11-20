@@ -18,7 +18,6 @@
 #include "tea/samovar/network_layer/redis_client.h"
 #include "tea/samovar/planner.h"
 #include "tea/samovar/proto/samovar.pb.h"
-#include "tea/samovar/samovar_data_client.h"
 #include "tea/samovar/single_queue_client.h"
 #include "tea/samovar/utils.h"
 #include "tea/util/cancel.h"
@@ -176,7 +175,7 @@ TEST(RedisClient, Test1) {
                                            std::chrono::milliseconds(30000), std::chrono::milliseconds(3000));
   auto batcher = std::make_shared<Batcher>(redis_client, batch_size_scheduler);
   auto client = SingleQueueClient(redis_client, batcher, std::chrono::seconds(std::numeric_limits<int32_t>::max()),
-                                  GetQueueName(), 1, std::string(compression::kIdentityCompressorName), 0,
+                                  GetQueueName(), 1, std::string(compression::kIdentityCompressorName),
                                   SamovarRole::kCoordinator, backoff, backoff, true);
 
   client.FillSessionQueue({}, {}, {});
@@ -210,7 +209,7 @@ TEST(RedisClient, MultiThreading) {
         auto client =
             SingleQueueClient(redis_client, batcher, std::chrono::seconds(std::numeric_limits<int32_t>::max()),
                               GetQueueName(test_iter), num_segments, std::string(compression::kIdentityCompressorName),
-                              0, SamovarRole::kCoordinator, backoff, backoff, true);
+                              SamovarRole::kCoordinator, backoff, backoff, true);
 
         if (segment_id == 0) {
           samovar::ScanMetadata scan_metadata;
@@ -369,7 +368,7 @@ TEST(RedisClient, FailServer) {
         try {
           client = std::make_shared<SingleQueueClient>(
               redis_client, batcher, std::chrono::seconds(std::numeric_limits<int32_t>::max()), GetQueueName(),
-              num_segments, std::string(compression::kIdentityCompressorName), 0, SamovarRole::kCoordinator, backoff,
+              num_segments, std::string(compression::kIdentityCompressorName), SamovarRole::kCoordinator, backoff,
               backoff, true);
         } catch (const std::runtime_error& ex) {
           std::lock_guard lock(kill_mutex);

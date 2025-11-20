@@ -54,7 +54,7 @@
 #include "tea/observability/tea_log.h"
 #include "tea/reader.h"
 #include "tea/samovar/planner.h"
-#include "tea/samovar/samovar_data_client.h"
+#include "tea/samovar/single_queue_client.h"
 #include "tea/samovar/utils.h"
 #include "tea/table/converter.h"
 #include "tea/table/filter_convert.h"
@@ -518,10 +518,10 @@ static std::string CommonFilterToTeapotFileFilter(std::string serialized_filter)
       tea::filter::TeapotFileFilterContext{.timestamp_to_timestamptz_shift_us_ = tea::TimestampToTimestamptzShiftUs()});
 }
 
-static std::shared_ptr<tea::samovar::ISamovarDataClient> CreateSamovarClient(TeaContextPtr tea_ctx,
-                                                                             const std::string &queue_name,
-                                                                             int segment_id, int segment_count,
-                                                                             tea::samovar::SamovarRole role) {
+static std::shared_ptr<tea::samovar::SingleQueueClient> CreateSamovarClient(TeaContextPtr tea_ctx,
+                                                                            const std::string &queue_name,
+                                                                            int segment_id, int segment_count,
+                                                                            tea::samovar::SamovarRole role) {
   TEA_LOG("Creating samovar client with queue " + queue_name);
   return MakeSamovarDataClient(get::SamovarConfig(tea_ctx), queue_name, segment_id, segment_count, role,
                                get::CancelToken(tea_ctx));
@@ -756,7 +756,7 @@ void TeaContextPlanExternal(TeaContextPtr tea_ctx, const ExternalScanParams *par
     };
 
     const bool from_samovar = get::SamovarConfig(tea_ctx).turn_on_samovar;
-    std::shared_ptr<tea::samovar::ISamovarDataClient> samovar_client;
+    std::shared_ptr<tea::samovar::SingleQueueClient> samovar_client;
     if (from_samovar) {
       const std::string queue_name = make_samovar_queue_name();
 
