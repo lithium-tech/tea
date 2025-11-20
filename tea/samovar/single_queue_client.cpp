@@ -12,7 +12,6 @@
 #include "tea/samovar/network_layer/samovar_client.h"
 #include "tea/samovar/planner.h"
 #include "tea/samovar/proto/samovar.pb.h"
-#include "tea/samovar/samovar_data_client.h"
 #include "tea/samovar/utils.h"
 #include "tea/util/measure.h"
 
@@ -35,17 +34,17 @@ void SyncSegments(std::shared_ptr<ISamovarClient> client, const std::string& cel
 
 SingleQueueClient::SingleQueueClient(std::shared_ptr<ISamovarClient> client, std::shared_ptr<Batcher> batcher,
                                      std::chrono::seconds ttl_seconds, const std::string& queue_id, int segment_count,
-                                     const std::string& compressor_name, int segment_id, SamovarRole role,
+                                     const std::string& compressor_name, SamovarRole role,
                                      std::shared_ptr<IBackoff> sync_backoff, std::shared_ptr<IBackoff> metadata_backoff,
                                      bool need_sync_on_init)
-    : ISamovarDataClient(client, segment_count, ttl_seconds),
-      client_(client),
+    : client_(client),
       batcher_(batcher),
       ttl_seconds_(ttl_seconds),
       queue_id_(queue_id),
       compressor(compression::CompressorFactory().GetCompressor(compressor_name)),
       role_(role),
-      metadata_backoff_(metadata_backoff) {
+      metadata_backoff_(metadata_backoff),
+      segment_count_(segment_count) {
   // role semantics in context of SingleQueueClient class:
   // kCoordinator means that segment will write metadata
   // kFollower means that:
@@ -76,6 +75,11 @@ std::optional<samovar::AnnotatedDataEntry> SingleQueueClient::GetNextDataEntry()
     if (file_index > 0) {
       auto* data_entry = result->mutable_data_entry();
       auto* entry = data_entry->mutable_entry();
+      if (static_cast<int64_t>(file_index) > GetFileList().filenames().size()) {
+        throw std::runtime_error(std::string(__PRETTY_FUNCTION__) + ": file index is out of bounds (index is " +
+                                 std::to_string(file_index) + ", size is " +
+                                 std::to_string(GetFileList().filenames().size()) + ")");
+      }
       entry->set_file_path(GetFileList().filenames()[file_index - 1]);
     }
   }
@@ -186,6 +190,36 @@ SingleQueueClient::~SingleQueueClient() {
     } catch (...) {
       TEA_LOG("Can not clear redis - it will be dirty.");
     }
+  }
+}
+
+void SingleQueueClient::OnProcessingStart(const std::string& checkpoint_cell) {
+  started_ = true;
+  client_->SetNumericCell(checkpoint_cell, segment_count_ + 1, ttl_seconds_);
+}
+
+void SingleQueueClient::OnProcessingEnd(const std::string& checkpoint_cell,
+                                        const std::vector<std::string>& cells_to_clear) {
+  if (cleared_ || !started_) {
+    return;
+  }
+  cleared_ = true;
+  std::optional<int> value_after_change = client_->DecreaseNumericCell(checkpoint_cell);
+  if (!value_after_change) {
+    TEA_LOG("Can not decrement cell, redis cluster will be unclear");
+    return;
+  }
+  if (value_after_change == 1) {
+    for (const auto& cell : cells_to_clear) {
+      client_->DeleteCell(cell);
+    }
+  }
+
+  if (value_after_change <= 0) {
+    for (const auto& cell : cells_to_clear) {
+      client_->DeleteCell(cell);
+    }
+    throw std::runtime_error("redis cluster state was flushed due query execution - checkpoint cell result mismatched");
   }
 }
 

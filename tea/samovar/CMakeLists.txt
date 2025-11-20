@@ -25,8 +25,6 @@ add_library(
   samovar_client STATIC
   planner.cpp
   planner.h
-  samovar_data_client.cpp
-  samovar_data_client.h
   batcher.cpp
   batcher.h
   single_queue_client.cpp
