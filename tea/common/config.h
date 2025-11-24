@@ -79,6 +79,9 @@ struct Limits {
   uint64_t grpc_max_message_size = 16ull << 20;
   uint64_t json_max_message_size_on_master = 32ull << 20;
 
+  uint64_t samovar_max_total_data_files = 100'000;
+  uint64_t samovar_max_total_positional_delete_files = 500;
+
   bool operator==(const Limits&) const = default;
 };
 
