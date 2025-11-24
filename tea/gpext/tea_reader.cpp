@@ -20,6 +20,7 @@
 #include <future>
 #include <map>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -236,6 +237,28 @@ arrow::Result<std::string> ReadFile(std::shared_ptr<iceberg::IFileSystemProvider
                                     const std::string &path) {
   ARROW_ASSIGN_OR_RAISE(auto fs, fs_provider->GetFileSystem(path));
   return iceberg::ice_tea::ReadFile(fs, path);
+}
+
+uint64_t CountDataFiles(const iceberg::ice_tea::ScanMetadata &scan_metadata) {
+  uint64_t result = 0;
+  for (const auto &partition : scan_metadata.partitions) {
+    for (const auto &layer : partition) {
+      result += layer.data_entries_.size();
+    }
+  }
+
+  return result;
+}
+
+uint64_t CountPositionalDeleteFiles(const iceberg::ice_tea::ScanMetadata &scan_metadata) {
+  uint64_t result = 0;
+  for (const auto &partition : scan_metadata.partitions) {
+    for (const auto &layer : partition) {
+      result += layer.positional_delete_entries_.size();
+    }
+  }
+
+  return result;
 }
 
 }  // namespace
@@ -784,6 +807,26 @@ void TeaContextPlanExternal(TeaContextPtr tea_ctx, const ExternalScanParams *par
         TEA_LOG("I am samovar coordinator");
         iceberg::ice_tea::ScanMetadata all_meta = GetAllMetadata(
             tea_ctx, get::TableConfig(tea_ctx), get::SessionId(tea_ctx), filter.extracted, get::CancelToken(tea_ctx));
+
+        {
+          uint64_t positional_delete_count = tea::CountPositionalDeleteFiles(all_meta);
+          uint64_t limit = get::Config(tea_ctx).limits.samovar_max_total_positional_delete_files;
+          if (positional_delete_count > limit) {
+            throw std::runtime_error("There are " + std::to_string(positional_delete_count) +
+                                     " positional delete files in plan (limit is " + std::to_string(limit) +
+                                     "). Call compaction or use more selective filter");
+          }
+        }
+
+        {
+          uint64_t data_files_count = tea::CountDataFiles(all_meta);
+          uint64_t limit = get::Config(tea_ctx).limits.samovar_max_total_data_files;
+          if (data_files_count > limit) {
+            throw std::runtime_error("There are " + std::to_string(data_files_count) +
+                                     " data files in plan (limit is " + std::to_string(limit) +
+                                     "). Call compaction or use more selective filter");
+          }
+        }
 
         samovar_client = CreateSamovarClient(tea_ctx, queue_name, params->segment_id, params->segment_count,
                                              tea::samovar::SamovarRole::kFollower);
