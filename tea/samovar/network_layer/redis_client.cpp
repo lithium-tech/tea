@@ -169,7 +169,6 @@ std::optional<std::string> SamovarRedisClient::GetCell(const std::string& cell_n
     throw std::runtime_error("Can not get cell " + cell_name + ": " + underground_client_->GetErrorMessage());
   }
   if (reply_repr->type == REDIS_REPLY_NIL) {
-    TEA_LOG("Can not get cell " + cell_name + ": " + underground_client_->GetErrorMessage());
     return std::nullopt;
   }
   return std::string(reply_repr->str, reply_repr->len);
