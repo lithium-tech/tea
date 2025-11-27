@@ -388,7 +388,12 @@ void UpdateConfig(const std::string &profile_to_tables_path, std::shared_ptr<ice
                   const std::string &table_url, tea::TableConfig &config) {
   arrow::Result<std::string> maybe_file_content = tea::ReadFile(fs_provider, profile_to_tables_path);
   if (!maybe_file_content.ok()) {
-    TEA_LOG("Failed to read profile-to-tables config: " + maybe_file_content.status().message());
+    std::string message = "Failed to read profile-to-tables config: " + maybe_file_content.status().message();
+    if (config.config.must_read_profile_to_tables_file) {
+      throw std::runtime_error(message);
+    } else {
+      TEA_LOG(message);
+    }
   } else {
     std::string file_content = maybe_file_content.MoveValueUnsafe();
     auto maybe_table_to_profile = tea::GetTableToProfileMapping(file_content);
