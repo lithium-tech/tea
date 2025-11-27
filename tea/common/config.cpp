@@ -492,6 +492,14 @@ arrow::Status Load(const rapidjson::Document& document, std::string_view profile
     }
     config->profile_to_tables_path = document["profile-to-tables-path"].GetString();
   }
+  constexpr const char* kMustReadProfileConfig = "must-read-profile-to-tables-config";
+  if (document.HasMember(kMustReadProfileConfig)) {
+    if (!document[kMustReadProfileConfig].IsBool()) {
+      return arrow::Status::ExecutionError("Invalid tea-config.json flie: root has field '",
+                                           std::string(kMustReadProfileConfig), "', but it is not bool");
+    }
+    config->must_read_profile_to_tables_file = document[kMustReadProfileConfig].GetBool();
+  }
   if (!profile.empty()) {
     if (!document.HasMember("profiles")) {
       return arrow::Status::OK();

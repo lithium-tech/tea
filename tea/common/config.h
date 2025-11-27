@@ -183,6 +183,7 @@ struct Debug {
 };
 
 struct Config {
+  bool must_read_profile_to_tables_file = true;
   std::string profile_to_tables_path;
 
   S3Config s3;

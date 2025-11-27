@@ -1,4 +1,5 @@
 {
+    "must-read-profile-to-tables-config": false,
     "profile-to-tables-path": "s3://warehouse/profile-to-tables.json",
     "common": {
         "s3": {
