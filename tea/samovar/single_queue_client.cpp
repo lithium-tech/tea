@@ -44,6 +44,8 @@ SingleQueueClient::SingleQueueClient(std::shared_ptr<ISamovarClient> client, std
       compressor(compression::CompressorFactory().GetCompressor(compressor_name)),
       role_(role),
       metadata_backoff_(metadata_backoff),
+      need_sync_on_init_(need_sync_on_init),
+      sync_backoff_(sync_backoff),
       segment_count_(segment_count) {
   // role semantics in context of SingleQueueClient class:
   // kCoordinator means that segment will write metadata
@@ -53,12 +55,6 @@ SingleQueueClient::SingleQueueClient(std::shared_ptr<ISamovarClient> client, std
   if (role == SamovarRole::kFollower) {
     client_->IncreaseNumericCell(GetInitScanCell());
     client_->UpdateTTL(GetInitScanCell(), ttl_seconds_);
-
-    if (need_sync_on_init) {
-      ScopedTimerTicks timer(total_sync_time_);
-
-      SyncSegments(client, GetInitScanCell(), segment_count, sync_backoff);
-    }
   }
 }
 
@@ -89,6 +85,12 @@ std::optional<samovar::AnnotatedDataEntry> SingleQueueClient::GetNextDataEntry()
 const samovar::ScanMetadata& SingleQueueClient::GetPlannedMetadata() {
   if (cached_result_metadata.has_value()) {
     return cached_result_metadata.value();
+  }
+
+  if (role_ == SamovarRole::kFollower && need_sync_on_init_) {
+    ScopedTimerTicks timer(total_sync_time_);
+
+    SyncSegments(client_, GetInitScanCell(), segment_count_, sync_backoff_);
   }
 
   samovar::ScanMetadata result_metadata;

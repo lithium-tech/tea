@@ -81,6 +81,8 @@ class SingleQueueClient {
 
   std::shared_ptr<IBackoff> metadata_backoff_;
 
+  bool need_sync_on_init_ = false;
+  std::shared_ptr<IBackoff> sync_backoff_;
   DurationTicks total_sync_time_ = 0;
 
   int segment_count_ = 0;
