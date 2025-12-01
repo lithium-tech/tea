@@ -84,16 +84,16 @@ enum FdwScanPrivateIndex {
  */
 typedef struct TeaRelationInfo {
   /* baserestrictinfo clauses, broken down into safe and unsafe subsets. */
-  List *remote_conds;
-  List *local_conds;
-  char *iceberg_metadata;
+  List* remote_conds;
+  List* local_conds;
+  char* iceberg_metadata;
   CSerializedFilter filter;
   bool postfilter_on_gp;
 
   /// Bitmap of attr numbers we need to fetch from the remote server.
-  Bitmapset *retrieved_attrs_bitmap;
+  Bitmapset* retrieved_attrs_bitmap;
   /// Bitmap of attr numbers we need to read on remote server.
-  Bitmapset *used_attrs_bitmap;
+  Bitmapset* used_attrs_bitmap;
 
   /* Cost and selectivity of local_conds. */
   QualCost local_conds_cost;
@@ -106,15 +106,15 @@ typedef struct TeaRelationInfo {
   Cost total_cost;
 
   /// List of attributes (columns) that we need to get.
-  List *retrieved_attrs;
+  List* retrieved_attrs;
   /// List of attributes (columns) that remote need to process.
-  List *used_attr;
+  List* used_attr;
 
   /* Cached catalog information. */
   TupleDesc desc;
-  char *location;
-  ForeignTable *table;
-  ForeignServer *server;
+  char* location;
+  ForeignTable* table;
+  ForeignServer* server;
 } TeaRelationInfo;
 
 /*
@@ -124,24 +124,24 @@ typedef struct TeaScanState {
   /// relcache entry for the foreign table.
   Relation rel;
   /// Attribute datatype conversion metadata.
-  AttInMetadata *attinmeta;
+  AttInMetadata* attinmeta;
 
   /* extracted fdw_private data */
 
-  char *iceberg_metadata;
+  char* iceberg_metadata;
   CSerializedFilter filter;
   bool postfilter_on_gp;
   /// List of attribute numbers used on remote.
-  List *used_attrs;
+  List* used_attrs;
   /// List of retrieved attribute numbers.
-  List *retrieved_attrs;
-  List *remote_clause;
+  List* retrieved_attrs;
+  List* remote_clause;
 
   /* for remote query execution */
-  char *location;
+  char* location;
   Import import;
-  bool *is_remote_only;
-  FmgrInfo *fmt_conversion_proc;
+  bool* is_remote_only;
+  FmgrInfo* fmt_conversion_proc;
   ItemPointerData fake_ctid;
 
   /* Working memory contexts */
@@ -154,7 +154,7 @@ typedef struct TeaScanState {
   bool use_virtual_tuple;
 } TeaScanState;
 
-static void DestroyScanParams(ForeignScanParams *params) {
+static void DestroyScanParams(ForeignScanParams* params) {
   if (params) {
     pfree(params->projection.columns);
     // Formally, allocated filter string should be also freed, but
@@ -164,7 +164,7 @@ static void DestroyScanParams(ForeignScanParams *params) {
   }
 }
 
-static void DestroyAnalyzeParams(AnalyzeParams *params) {
+static void DestroyAnalyzeParams(AnalyzeParams* params) {
   if (params) {
     pfree(params->projection.columns);
     // Formally, allocated filter string should be also freed, but
@@ -182,9 +182,9 @@ static void DestroyAnalyzeParams(AnalyzeParams *params) {
  * We assume that all the baserestrictinfo clauses will be applied, plus
  * any join clauses listed in join_conds.
  */
-static void EstimatePathCostSize(PlannerInfo *root, RelOptInfo *baserel, List *join_conds, double *p_rows, int *p_width,
-                                 Cost *p_startup_cost, Cost *p_total_cost) {
-  TeaRelationInfo *fpinfo = (TeaRelationInfo *)baserel->fdw_private;
+static void EstimatePathCostSize(PlannerInfo* root, RelOptInfo* baserel, List* join_conds, double* p_rows, int* p_width,
+                                 Cost* p_startup_cost, Cost* p_total_cost) {
+  TeaRelationInfo* fpinfo = (TeaRelationInfo*)baserel->fdw_private;
   double rows;
   double retrieved_rows;
   int width;
@@ -246,20 +246,20 @@ static void EstimatePathCostSize(PlannerInfo *root, RelOptInfo *baserel, List *j
        *p_width, *p_startup_cost, *p_total_cost);
 }
 
-static int GetRequiredColumns(const List *used_attrs, const List *retrieved_attrs, TupleDesc tupdesc, bool *remote_only,
-                              int *columns, const int ncolumns);
+static int GetRequiredColumns(const List* used_attrs, const List* retrieved_attrs, TupleDesc tupdesc, bool* remote_only,
+                              int* columns, const int ncolumns);
 
 /*
  * Obtain relation size estimates for a foreign table
  */
-static void TeaGetForeignRelSize(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntableid) {
+static void TeaGetForeignRelSize(PlannerInfo* root, RelOptInfo* baserel, Oid foreigntableid) {
   elog(DEBUG1, "! TeaGetForeignRelSize");
 
   char session_id[SESSION_ID_LEN];
   // We use TeaRelationInfo to pass various information to subsequent
   // functions.
-  TeaRelationInfo *fpinfo = (TeaRelationInfo *)palloc0(sizeof(TeaRelationInfo));
-  baserel->fdw_private = (void *)fpinfo;
+  TeaRelationInfo* fpinfo = (TeaRelationInfo*)palloc0(sizeof(TeaRelationInfo));
+  baserel->fdw_private = (void*)fpinfo;
 
   GetScanSessionId(session_id, SESSION_ID_LEN);
 
@@ -271,7 +271,7 @@ static void TeaGetForeignRelSize(PlannerInfo *root, RelOptInfo *baserel, Oid for
    * Core code already has some lock on each rel being planned, so we can
    * use NoLock here.
    */
-  RangeTblEntry *rte = planner_rt_fetch(baserel->relid, root);
+  RangeTblEntry* rte = planner_rt_fetch(baserel->relid, root);
   Relation rel;
 
 #if PG_VERSION_NUM >= 90600
@@ -316,13 +316,13 @@ static void TeaGetForeignRelSize(PlannerInfo *root, RelOptInfo *baserel, Oid for
 
   /* here we serialize the WHERE clauses */
   {
-    ListCell *lc;
-    List *clauses = NULL;
+    ListCell* lc;
+    List* clauses = NULL;
 
     // Using baserel->baserestrictinfo insteaf remote conds because there are
     // iceberg clauses not supported by gandiva
     foreach (lc, baserel->baserestrictinfo) {
-      RestrictInfo *ri = (RestrictInfo *)lfirst(lc);
+      RestrictInfo* ri = (RestrictInfo*)lfirst(lc);
 
       clauses = lappend(clauses, ri->clause);
     }
@@ -331,7 +331,7 @@ static void TeaGetForeignRelSize(PlannerInfo *root, RelOptInfo *baserel, Oid for
 
   heap_close(rel, NoLock);
 
-  const char *extracted_filter = fpinfo->filter.all_extracted;
+  const char* extracted_filter = fpinfo->filter.all_extracted;
   TeaContextGetScanMetadata(reader, session_id, extracted_filter, &fpinfo->iceberg_metadata, getgpsegmentCount());
 
   // TODO(gmusya): retrieve and set number of rows if possible
@@ -368,11 +368,11 @@ static void TeaGetForeignRelSize(PlannerInfo *root, RelOptInfo *baserel, Oid for
  * possible access path, which simply returns all records in the order in
  * the data file.
  */
-static void TeaGetForeignPaths(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntableid) {
+static void TeaGetForeignPaths(PlannerInfo* root, RelOptInfo* baserel, Oid foreigntableid) {
   elog(DEBUG1, "! TeaGetForeignPaths");
 
-  TeaRelationInfo *fpinfo = (TeaRelationInfo *)baserel->fdw_private;
-  ForeignPath *path;
+  TeaRelationInfo* fpinfo = (TeaRelationInfo*)baserel->fdw_private;
+  ForeignPath* path;
 
   /*
    * Create simplest ForeignScan path node and add it to baserel.  This path
@@ -388,7 +388,7 @@ static void TeaGetForeignPaths(PlannerInfo *root, RelOptInfo *baserel, Oid forei
                                  NIL,  /* no pathkeys */
                                  NULL, /* no outer rel either */
                                  fpinfo->retrieved_attrs);
-  add_path(baserel, (Path *)path);
+  add_path(baserel, (Path*)path);
 
   /*
    * If we're not using remote estimates, stop here.  We have no way to
@@ -401,16 +401,16 @@ static void TeaGetForeignPaths(PlannerInfo *root, RelOptInfo *baserel, Oid forei
 /*
  * Create a ForeignScan plan node for scanning the foreign table
  */
-static ForeignScan *TeaGetForeignPlan(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntableid,
-                                      ForeignPath *best_path, List *tlist, List *scan_clauses) {
+static ForeignScan* TeaGetForeignPlan(PlannerInfo* root, RelOptInfo* baserel, Oid foreigntableid,
+                                      ForeignPath* best_path, List* tlist, List* scan_clauses) {
   elog(DEBUG1, "! TeaGetForeignPlan");
 
-  TeaRelationInfo *fpinfo = (TeaRelationInfo *)baserel->fdw_private;
+  TeaRelationInfo* fpinfo = (TeaRelationInfo*)baserel->fdw_private;
   Index scan_relid = baserel->relid;
-  List *fdw_private;
-  ListCell *lc;
-  List *remote_expr = NIL;
-  List *local_exprs = NIL;
+  List* fdw_private;
+  ListCell* lc;
+  List* remote_expr = NIL;
+  List* local_exprs = NIL;
 
   if (!fpinfo->postfilter_on_gp) {
     /*
@@ -433,7 +433,7 @@ static ForeignScan *TeaGetForeignPlan(PlannerInfo *root, RelOptInfo *baserel, Oi
      * RestrictInfos.
      */
     foreach (lc, scan_clauses) {
-      RestrictInfo *rinfo = (RestrictInfo *)lfirst(lc);
+      RestrictInfo* rinfo = (RestrictInfo*)lfirst(lc);
 
       Assert(IsA(rinfo, RestrictInfo));
 
@@ -480,16 +480,16 @@ static ForeignScan *TeaGetForeignPlan(PlannerInfo *root, RelOptInfo *baserel, Oi
 /*
  * Report projection description to the remote component
  */
-static int GetRequiredColumns(const List *used_attrs, const List *retrieved_attrs, TupleDesc tupdesc, bool *remote_only,
-                              int *columns, const int ncolumns) {
-  int *out = columns;
+static int GetRequiredColumns(const List* used_attrs, const List* retrieved_attrs, TupleDesc tupdesc, bool* remote_only,
+                              int* columns, const int ncolumns) {
+  int* out = columns;
 
   if (used_attrs == NIL) {
     return out - columns;
   } else {
-    ListCell *lc = NULL;
-    Bitmapset *used_attrs_projected = NULL;
-    Bitmapset *retrieved_attrs_projected = NULL;
+    ListCell* lc = NULL;
+    Bitmapset* used_attrs_projected = NULL;
+    Bitmapset* retrieved_attrs_projected = NULL;
 
     foreach (lc, used_attrs) {
       int attno = lfirst_int(lc);
@@ -522,11 +522,11 @@ static int GetRequiredColumns(const List *used_attrs, const List *retrieved_attr
   return out - columns;
 }
 
-static ForeignScanParams *MakeScanParams(const TeaScanState *fsstate, const char *url) {
+static ForeignScanParams* MakeScanParams(const TeaScanState* fsstate, const char* url) {
   assert(fsstate->import.columns);
 
   TupleDesc tupdesc = fsstate->attinmeta->tupdesc;
-  ForeignScanParams *params = palloc0(sizeof(ForeignScanParams));
+  ForeignScanParams* params = palloc0(sizeof(ForeignScanParams));
   params->session_id = fsstate->import.session_id;
   params->segment_id = GpIdentity.segindex;
   params->segment_count = getgpsegmentCount();
@@ -540,11 +540,11 @@ static ForeignScanParams *MakeScanParams(const TeaScanState *fsstate, const char
   return params;
 }
 
-static AnalyzeParams *MakeAnalyzeParams(const TeaScanState *fsstate, const char *url) {
+static AnalyzeParams* MakeAnalyzeParams(const TeaScanState* fsstate, const char* url) {
   assert(fsstate->import.columns);
 
   TupleDesc tupdesc = fsstate->attinmeta->tupdesc;
-  AnalyzeParams *params = palloc0(sizeof(AnalyzeParams));
+  AnalyzeParams* params = palloc0(sizeof(AnalyzeParams));
   params->session_id = fsstate->import.session_id;
   params->metadata = fsstate->iceberg_metadata;
   params->projection =
@@ -556,7 +556,7 @@ static AnalyzeParams *MakeAnalyzeParams(const TeaScanState *fsstate, const char 
 /*
  * Initiate access to the table by creating CopyState
  */
-static void TeaBeginForeignScan(ForeignScanState *node, int eflags) {
+static void TeaBeginForeignScan(ForeignScanState* node, int eflags) {
   elog(DEBUG1, "! TeaBeginForeignScan");
 
   // Do nothing in EXPLAIN (no ANALYZE) case.  node->fdw_state stays NULL.
@@ -564,17 +564,17 @@ static void TeaBeginForeignScan(ForeignScanState *node, int eflags) {
     return;
   }
 
-  ForeignScan *fsplan = (ForeignScan *)node->ss.ps.plan;
-  EState *estate = node->ss.ps.state;
-  TeaScanState *fsstate;
+  ForeignScan* fsplan = (ForeignScan*)node->ss.ps.plan;
+  EState* estate = node->ss.ps.state;
+  TeaScanState* fsstate;
   int ncolumns;
   char session_id[SESSION_ID_LEN];
 
   /*
    * We'll save private state in node->fdw_state.
    */
-  fsstate = (TeaScanState *)palloc0(sizeof(TeaScanState));
-  node->fdw_state = (void *)fsstate;
+  fsstate = (TeaScanState*)palloc0(sizeof(TeaScanState));
+  node->fdw_state = (void*)fsstate;
 
   /* Get info about foreign table. */
   fsstate->rel = node->ss.ss_currentRelation;
@@ -582,8 +582,8 @@ static void TeaBeginForeignScan(ForeignScanState *node, int eflags) {
 
   /* Get private info created by planner functions. */
   fsstate->iceberg_metadata = strVal(list_nth(fsplan->fdw_private, FdwScanPrivateMetadata));
-  fsstate->used_attrs = (List *)list_nth(fsplan->fdw_private, FdwScanPrivateUsedAttrs);
-  fsstate->retrieved_attrs = (List *)list_nth(fsplan->fdw_private, FdwScanPrivateRetrievedAttrs);
+  fsstate->used_attrs = (List*)list_nth(fsplan->fdw_private, FdwScanPrivateUsedAttrs);
+  fsstate->retrieved_attrs = (List*)list_nth(fsplan->fdw_private, FdwScanPrivateRetrievedAttrs);
   fsstate->filter.all_extracted = strVal(list_nth(fsplan->fdw_private, FdwScanPrivateCommonFilter));
   fsstate->filter.row = strVal(list_nth(fsplan->fdw_private, FdwScanPrivateRowFilter));
   fsstate->postfilter_on_gp = intVal(list_nth(fsplan->fdw_private, FdwScanPrivateMustUseRowFilter));
@@ -596,10 +596,10 @@ static void TeaBeginForeignScan(ForeignScanState *node, int eflags) {
   fsstate->attinmeta = TupleDescGetAttInMetadata(RelationGetDescr(fsstate->rel));
   ncolumns = fsstate->attinmeta->tupdesc->natts;
 
-  Import *import = &fsstate->import;
+  Import* import = &fsstate->import;
 
-  import->columns = (int *)palloc0(sizeof(int) * ncolumns);
-  fsstate->is_remote_only = (bool *)palloc0(sizeof(bool) * ncolumns);
+  import->columns = (int*)palloc0(sizeof(int) * ncolumns);
+  fsstate->is_remote_only = (bool*)palloc0(sizeof(bool) * ncolumns);
   import->ncolumns = GetRequiredColumns(fsstate->used_attrs, fsstate->retrieved_attrs, fsstate->attinmeta->tupdesc,
                                         fsstate->is_remote_only, import->columns, ncolumns);
 
@@ -612,7 +612,7 @@ static void TeaBeginForeignScan(ForeignScanState *node, int eflags) {
   if (GetDatabaseEncoding() != PG_UTF8) {
     Oid conversion_proc = FindDefaultConversionProc(PG_UTF8, GetDatabaseEncoding());
     if (OidIsValid(conversion_proc)) {
-      FmgrInfo *enc_conversion_proc = (FmgrInfo *)palloc0(sizeof(FmgrInfo));
+      FmgrInfo* enc_conversion_proc = (FmgrInfo*)palloc0(sizeof(FmgrInfo));
       fmgr_info(conversion_proc, enc_conversion_proc);
       fsstate->fmt_conversion_proc = enc_conversion_proc;
     }
@@ -622,7 +622,7 @@ static void TeaBeginForeignScan(ForeignScanState *node, int eflags) {
 /*
  * Fetch some more rows from the node's cursor.
  */
-static HeapTuple FetchData(TeaScanState *fsstate, MemoryContext tuple_ctx) {
+static HeapTuple FetchData(TeaScanState* fsstate, MemoryContext tuple_ctx) {
   TupleDesc tupdesc = fsstate->attinmeta->tupdesc;
   MemoryContext oldcontext;
   HeapTuple tuple = NULL;
@@ -667,7 +667,7 @@ static HeapTuple FetchData(TeaScanState *fsstate, MemoryContext tuple_ctx) {
   return tuple;
 }
 
-static void FetchDataToVirtualTuple(TeaScanState *fsstate, MemoryContext tuple_ctx, Datum *values, bool *nulls) {
+static void FetchDataToVirtualTuple(TeaScanState* fsstate, MemoryContext tuple_ctx, Datum* values, bool* nulls) {
   TupleDesc tupdesc = fsstate->attinmeta->tupdesc;
   MemoryContext oldcontext;
   PG_TRY();
@@ -699,11 +699,11 @@ static void FetchDataToVirtualTuple(TeaScanState *fsstate, MemoryContext tuple_c
  * Read next record from the data file and store it into the
  * ScanTupleSlot as a virtual tuple
  */
-static TupleTableSlot *TeaIterateForeignScan(ForeignScanState *node) {
-  TeaScanState *fsstate = (TeaScanState *)node->fdw_state;
-  ForeignScan *fsplan = (ForeignScan *)node->ss.ps.plan;
-  TupleTableSlot *slot = node->ss.ss_ScanTupleSlot;
-  Import *import = &fsstate->import;
+static TupleTableSlot* TeaIterateForeignScan(ForeignScanState* node) {
+  TeaScanState* fsstate = (TeaScanState*)node->fdw_state;
+  ForeignScan* fsplan = (ForeignScan*)node->ss.ps.plan;
+  TupleTableSlot* slot = node->ss.ss_ScanTupleSlot;
+  Import* import = &fsstate->import;
   if (!import->tea_ctx) {
     /*
      * Get connection to the foreign server.  Connection manager will
@@ -714,7 +714,7 @@ static TupleTableSlot *TeaIterateForeignScan(ForeignScanState *node) {
     if (import->options.use_custom_heap_form_tuple) {
       InitHeapFormTupleInfo(&import->heap_form_tuple_info, import->columns, import->ncolumns);
     }
-    ForeignScanParams *params = MakeScanParams(fsstate, fsstate->location);
+    ForeignScanParams* params = MakeScanParams(fsstate, fsstate->location);
     if (params->filter.all_extracted) {
       elog(LOG, "Using filter %s", params->filter.all_extracted);
     }
@@ -754,7 +754,7 @@ static TupleTableSlot *TeaIterateForeignScan(ForeignScanState *node) {
 /*
  * Rescan table, possibly with new parameters
  */
-static void TeaReScanForeignScan(ForeignScanState *node) {
+static void TeaReScanForeignScan(ForeignScanState* node) {
   elog(DEBUG1, "! TeaReScanForeignScan");
   // TeaFdwExecutionState *festate = (TeaFdwExecutionState *)node->fdw_state;
 }
@@ -762,10 +762,10 @@ static void TeaReScanForeignScan(ForeignScanState *node) {
 /*
  * Finish scanning foreign table and dispose objects used for this scan
  */
-static void TeaEndForeignScan(ForeignScanState *node) {
+static void TeaEndForeignScan(ForeignScanState* node) {
   elog(DEBUG1, "! TeaEndForeignScan");
 
-  TeaScanState *fsstate = (TeaScanState *)node->fdw_state;
+  TeaScanState* fsstate = (TeaScanState*)node->fdw_state;
   // If festate is NULL, we are in EXPLAIN; nothing to do.
   if (fsstate == NULL) {
     return;
@@ -781,7 +781,7 @@ static void TeaEndForeignScan(ForeignScanState *node) {
   fsstate->import.tea_ctx = NULL;
 }
 
-static bool FetchTupleNoClear(TeaScanState *fsstate, HeapTuple *rows, int pos) {
+static bool FetchTupleNoClear(TeaScanState* fsstate, HeapTuple* rows, int pos) {
   HeapTuple tuple;
   /* Create a tuple from current result row. */
   if ((tuple = FetchData(fsstate, fsstate->batch_cxt))) {
@@ -807,11 +807,11 @@ static bool FetchTupleNoClear(TeaScanState *fsstate, HeapTuple *rows, int pos) {
  * may be meaningless, but it's OK because we don't use the estimates
  * currently (the planner only pays attention to correlation for indexscans).
  */
-static int TeaAcquireSampleRowsFunc(Relation relation, int elevel, HeapTuple *rows, int targrows, double *totalrows,
-                                    double *totaldeadrows) {
+static int TeaAcquireSampleRowsFunc(Relation relation, int elevel, HeapTuple* rows, int targrows, double* totalrows,
+                                    double* totaldeadrows) {
   elog(DEBUG1, "! TeaAcquireSampleRowsFunc");
 
-  TeaScanState *fsstate = (TeaScanState *)palloc0(sizeof(TeaScanState));
+  TeaScanState* fsstate = (TeaScanState*)palloc0(sizeof(TeaScanState));
   int ncolumns;
   char session_id[SESSION_ID_LEN];
 
@@ -821,11 +821,11 @@ static int TeaAcquireSampleRowsFunc(Relation relation, int elevel, HeapTuple *ro
 
   ncolumns = fsstate->attinmeta->tupdesc->natts;
 
-  Import *import = &fsstate->import;
+  Import* import = &fsstate->import;
 
-  fsstate->is_remote_only = (bool *)palloc0(sizeof(bool) * ncolumns);
+  fsstate->is_remote_only = (bool*)palloc0(sizeof(bool) * ncolumns);
   import->ncolumns = ncolumns;
-  import->columns = (int *)palloc0(sizeof(int) * ncolumns);
+  import->columns = (int*)palloc0(sizeof(int) * ncolumns);
   for (int i = 0; i < ncolumns; ++i) {
     import->columns[i] = i;
   }
@@ -844,16 +844,16 @@ static int TeaAcquireSampleRowsFunc(Relation relation, int elevel, HeapTuple *ro
   if (GetDatabaseEncoding() != PG_UTF8) {
     Oid conversion_proc = FindDefaultConversionProc(PG_UTF8, GetDatabaseEncoding());
     if (OidIsValid(conversion_proc)) {
-      FmgrInfo *enc_conversion_proc = (FmgrInfo *)palloc0(sizeof(FmgrInfo));
+      FmgrInfo* enc_conversion_proc = (FmgrInfo*)palloc0(sizeof(FmgrInfo));
       fmgr_info(conversion_proc, enc_conversion_proc);
       fsstate->fmt_conversion_proc = enc_conversion_proc;
     }
   }
 
-  const char *url = fsstate->location;
+  const char* url = fsstate->location;
 
   import->tea_ctx = TeaContextCreate(url);
-  AnalyzeParams *params = MakeAnalyzeParams(fsstate, url);
+  AnalyzeParams* params = MakeAnalyzeParams(fsstate, url);
 
   TeaContextPlanAnalyze(import->tea_ctx, params);
   DestroyAnalyzeParams(params);
@@ -943,10 +943,10 @@ static int TeaAcquireSampleRowsFunc(Relation relation, int elevel, HeapTuple *ro
 /*
  * Test whether analyzing this foreign table is supported
  */
-static bool TeaAnalyzeForeignTable(Relation relation, AcquireSampleRowsFunc *func, BlockNumber *totalpages) {
+static bool TeaAnalyzeForeignTable(Relation relation, AcquireSampleRowsFunc* func, BlockNumber* totalpages) {
   elog(DEBUG1, "! TeaAnalyzeForeignTable");
 
-  const char *url = TeaGetLocation(RelationGetRelid(relation));
+  const char* url = TeaGetLocation(RelationGetRelid(relation));
 
   /* Return the row-analysis function pointer */
   *func = TeaAcquireSampleRowsFunc;
@@ -966,8 +966,8 @@ static bool TeaAnalyzeForeignTable(Relation relation, AcquireSampleRowsFunc *fun
     TeaContextPtr tea_ctx = TeaContextCreate(url);
     TupleDesc desc = RelationGetDescr(relation);
     int ncolumns = desc->natts;
-    bool *is_remote_only = (bool *)palloc0(sizeof(bool) * ncolumns);
-    int *columns = (int *)palloc0(sizeof(int) * ncolumns);
+    bool* is_remote_only = (bool*)palloc0(sizeof(bool) * ncolumns);
+    int* columns = (int*)palloc0(sizeof(int) * ncolumns);
     for (int i = 0; i < ncolumns; ++i) {
       columns[i] = i;
     }
@@ -993,12 +993,12 @@ static bool TeaAnalyzeForeignTable(Relation relation, AcquireSampleRowsFunc *fun
 /*
  * Produce extra output for EXPLAIN
  */
-static void TeaExplainForeignScan(ForeignScanState *node, ExplainState *es) {
+static void TeaExplainForeignScan(ForeignScanState* node, ExplainState* es) {
   elog(DEBUG1, "! TeaExplainForeignScan");
 
   if (es->verbose) {
-    List *fdw_private = ((ForeignScan *)node->ss.ps.plan)->fdw_private;
-    const char *iceberg_metadata = strVal(list_nth(fdw_private, FdwScanPrivateMetadata));
+    List* fdw_private = ((ForeignScan*)node->ss.ps.plan)->fdw_private;
+    const char* iceberg_metadata = strVal(list_nth(fdw_private, FdwScanPrivateMetadata));
 
     // seems too verbose
     if (iceberg_metadata) {
@@ -1012,7 +1012,7 @@ static void TeaExplainForeignScan(ForeignScanState *node, ExplainState *es) {
  * to my callback routines.
  */
 Datum tea_fdw_handler(PG_FUNCTION_ARGS) {
-  FdwRoutine *fdwroutine = makeNode(FdwRoutine);
+  FdwRoutine* fdwroutine = makeNode(FdwRoutine);
 
   /* Support functions for ANALYZE */
   fdwroutine->AnalyzeForeignTable = TeaAnalyzeForeignTable;

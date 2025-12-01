@@ -1,7 +1,7 @@
 #pragma once
 
 typedef struct ReaderScanColumn {
-  const char *name;
+  const char* name;
   int index;
   unsigned int type;
   signed int type_mode;
@@ -9,6 +9,6 @@ typedef struct ReaderScanColumn {
 } ReaderScanColumn;
 
 typedef struct ReaderScanProjection {
-  ReaderScanColumn *columns;
+  ReaderScanColumn* columns;
   int ncolumns;
 } ReaderScanProjection;

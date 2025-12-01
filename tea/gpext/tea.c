@@ -9,12 +9,12 @@
 #include "tea/gpext/tea_reader.h"
 
 static bool reader_initialized = false;
-static List *readers = NULL;
+static List* readers = NULL;
 
 PG_MODULE_MAGIC;
 
 static void DestroyAllReaders() {
-  ListCell *lc = NULL;
+  ListCell* lc = NULL;
   foreach (lc, readers) {
     TeaContextPtr ctx = lfirst(lc);
     TeaContextLogStats(ctx, "CANCELLED_QUERY");
@@ -24,7 +24,7 @@ static void DestroyAllReaders() {
   readers = NULL;
 }
 
-static void XactCallbackTea(XactEvent event, void *arg) {
+static void XactCallbackTea(XactEvent event, void* arg) {
   switch (event) {
     case XACT_EVENT_ABORT:
       DestroyAllReaders();
@@ -47,7 +47,7 @@ static void OnExitCallback(int code, Datum arg) {
   TeaContextFinalize();
 }
 
-TeaContextPtr TeaContextCreate(const char *url) {
+TeaContextPtr TeaContextCreate(const char* url) {
   if (!reader_initialized) {
     TeaContextInitialize(GetDatabaseEncoding());
     RegisterXactCallback(XactCallbackTea, NULL);

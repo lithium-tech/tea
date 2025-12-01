@@ -11,7 +11,7 @@
 
 #include "optimizer/var.h"
 
-void DeparseTargetList(const Relation rel, const Bitmapset *attrs_used, List **retrieved_attrs) {
+void DeparseTargetList(const Relation rel, const Bitmapset* attrs_used, List** retrieved_attrs) {
   *retrieved_attrs = NIL;
 
   // If there's a whole-row reference, we'll need all the columns.
@@ -30,25 +30,25 @@ void DeparseTargetList(const Relation rel, const Bitmapset *attrs_used, List **r
   }
 }
 
-Bitmapset *GetUsedAttributesSet(RelOptInfo *baserel, List *local_conds) {
-  Bitmapset *attrs_used = NULL;
-  ListCell *lc;
+Bitmapset* GetUsedAttributesSet(RelOptInfo* baserel, List* local_conds) {
+  Bitmapset* attrs_used = NULL;
+  ListCell* lc;
 
 #if (PG_VERSION_NUM < 90000)
-  pull_varattnos((Node *)baserel, &attrs_used);
+  pull_varattnos((Node*)baserel, &attrs_used);
 #elif (PG_VERSION_NUM <= 90500)
-  pull_varattnos((Node *)baserel->reltargetlist, baserel->relid, &attrs_used);
+  pull_varattnos((Node*)baserel->reltargetlist, baserel->relid, &attrs_used);
 #else
-  pull_varattnos((Node *)baserel->reltarget->exprs, baserel->relid, &attrs_used);
+  pull_varattnos((Node*)baserel->reltarget->exprs, baserel->relid, &attrs_used);
 #endif
 
   foreach (lc, local_conds) {
-    RestrictInfo *rinfo = (RestrictInfo *)lfirst(lc);
+    RestrictInfo* rinfo = (RestrictInfo*)lfirst(lc);
 
 #if (PG_VERSION_NUM < 90000)
-    pull_varattnos((Node *)rinfo, &attrs_used);
+    pull_varattnos((Node*)rinfo, &attrs_used);
 #else
-    pull_varattnos((Node *)rinfo->clause, baserel->relid, &attrs_used);
+    pull_varattnos((Node*)rinfo->clause, baserel->relid, &attrs_used);
 #endif
   }
 

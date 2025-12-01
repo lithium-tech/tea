@@ -43,15 +43,15 @@ static constexpr int64_t kPostgresLagMicros = 946684800000000;
 static constexpr int32_t kPostgresLagDays = 10957;
 
 template <typename T>
-auto GetFieldView(const std::shared_ptr<arrow::Array> &field, int64_t row) {
-  return static_cast<const T *>(field.get())->GetView(row);
+auto GetFieldView(const std::shared_ptr<arrow::Array>& field, int64_t row) {
+  return static_cast<const T*>(field.get())->GetView(row);
 }
 
 inline Datum StringViewToText(const std::string_view s, CharsetConverter converter) {
   return PointerGetDatum(converter.proc(converter.context, s.data(), s.size()));
 }
 
-Datum CreateDatumArray(const Oid array_oid, const std::shared_ptr<arrow::Array> &values, CharsetConverter converter,
+Datum CreateDatumArray(const Oid array_oid, const std::shared_ptr<arrow::Array>& values, CharsetConverter converter,
                        bool substitute_unicode) {
   const auto get_element_type = [](const auto array_oid) -> std::tuple<Oid, int, bool, char> {
     switch (array_oid) {
@@ -94,7 +94,7 @@ Datum CreateDatumArray(const Oid array_oid, const std::shared_ptr<arrow::Array> 
   };
 
   const int elems_count = values->length();
-  const auto &[elem_oid, elem_size, elem_by_val, elem_align] = get_element_type(array_oid);
+  const auto& [elem_oid, elem_size, elem_by_val, elem_align] = get_element_type(array_oid);
 
   if (elem_oid == 0) {
     throw arrow::Status::ExecutionError("Greenplum array of type ", array_oid, " is not supported");
@@ -104,8 +104,8 @@ Datum CreateDatumArray(const Oid array_oid, const std::shared_ptr<arrow::Array> 
     return PointerGetDatum(::construct_empty_array(elem_oid));
   }
   // Allocate memory for an array.
-  Datum *elems = (Datum *)palloc(sizeof(Datum) * elems_count);
-  bool *nulls = values->null_count() ? (bool *)palloc0(sizeof(bool) * elems_count) : (bool *)nullptr;
+  Datum* elems = (Datum*)palloc(sizeof(Datum) * elems_count);
+  bool* nulls = values->null_count() ? (bool*)palloc0(sizeof(bool) * elems_count) : (bool*)nullptr;
   // Fill values.
   if (nulls) {
     for (int i = 0; i != elems_count; ++i) {
@@ -128,26 +128,26 @@ Datum CreateDatumArray(const Oid array_oid, const std::shared_ptr<arrow::Array> 
       ::construct_md_array(elems, nulls, 1, dims, lbs, elem_oid, elem_size, elem_by_val, elem_align));
 }
 
-text *CharsetConvertIdentity(void *, const char *str, size_t len) { return cstring_to_text_with_len(str, len); }
+text* CharsetConvertIdentity(void*, const char* str, size_t len) { return cstring_to_text_with_len(str, len); }
 
-text *CharsetConverterPg(void *proc, const char *str, size_t len) {
-  char *cvt = pg_custom_to_server(str, len, PG_UTF8, proc);
+text* CharsetConverterPg(void* proc, const char* str, size_t len) {
+  char* cvt = pg_custom_to_server(str, len, PG_UTF8, proc);
   if (cvt && cvt != str) {
-    text *out = cstring_to_text(cvt);
+    text* out = cstring_to_text(cvt);
     pfree(cvt);
     return out;
   }
   return cstring_to_text_with_len(str, len);
 }
 
-text *CharsetConverterIconv(void *instance, const char *str, size_t len) {
+text* CharsetConverterIconv(void* instance, const char* str, size_t len) {
   iconv_t converter = static_cast<iconv_t>(instance);
-  char *in = const_cast<char *>(str);
+  char* in = const_cast<char*>(str);
   size_t in_len = len;
   // Allocate the same amount of space as the input data since we only
   // support conversion from multibyte (UTF-8) to singlebyte (CP1251).
-  text *out = static_cast<text *>(palloc(VARHDRSZ + len));
-  char *out_ptr = VARDATA(out);
+  text* out = static_cast<text*>(palloc(VARHDRSZ + len));
+  char* out_ptr = VARDATA(out);
   size_t out_len = len;
 
   while (in_len) {
@@ -180,15 +180,15 @@ text *CharsetConverterIconv(void *instance, const char *str, size_t len) {
 
 }  // namespace
 
-Datum GetDatumFromArrow(const Oid gp_type, const std::shared_ptr<arrow::Array> &array, const int64_t row,
+Datum GetDatumFromArrow(const Oid gp_type, const std::shared_ptr<arrow::Array>& array, const int64_t row,
                         CharsetConverter converter, bool substitute_unicode) {
-  const auto &type = array->type();
+  const auto& type = array->type();
   if (gp_type == BYTEAOID) {
     if (type->id() != arrow::Type::BINARY) {
       throw arrow::Status::ExecutionError("Internal error in tea: gp_type is bytea, but arrow::Type is not BINARY");
     }
     const auto f = GetFieldView<arrow::BinaryArray>(array, row);
-    bytea *result = (bytea *)palloc(f.size() + VARHDRSZ);
+    bytea* result = (bytea*)palloc(f.size() + VARHDRSZ);
     std::memcpy(VARDATA(result), f.data(), f.size());
     SET_VARSIZE(result, VARHDRSZ + f.size());
     return Datum(result);
@@ -248,11 +248,11 @@ Datum GetDatumFromArrow(const Oid gp_type, const std::shared_ptr<arrow::Array> &
 
     // UUID type.
     case arrow::Type::FIXED_SIZE_BINARY: {
-      const auto f = static_cast<const arrow::FixedSizeBinaryArray *>(array.get());
+      const auto f = static_cast<const arrow::FixedSizeBinaryArray*>(array.get());
 
       assert(f->byte_width() == kUuidLen);
 
-      void *dest = palloc(kUuidLen);
+      void* dest = palloc(kUuidLen);
       std::memcpy(dest, f->Value(row), kUuidLen);
       return PointerGetDatum(dest);
     }
@@ -267,18 +267,18 @@ Datum GetDatumFromArrow(const Oid gp_type, const std::shared_ptr<arrow::Array> &
 
     // Decimal (numeric) types.
     case arrow::Type::DECIMAL128: {
-      const auto f = static_cast<const arrow::Decimal128Array *>(array.get());
-      const auto t = static_cast<const arrow::Decimal128Type *>(type.get());
+      const auto f = static_cast<const arrow::Decimal128Array*>(array.get());
+      const auto t = static_cast<const arrow::Decimal128Type*>(type.get());
       NumericVar var;
       quick_init_var(&var);
       const arrow::Decimal128 decimal(f->GetValue(row));
-      Int128ToNumericVar(*std::bit_cast<const Int128 *>(decimal.native_endian_bytes()), t->scale(), &var);
+      Int128ToNumericVar(*std::bit_cast<const Int128*>(decimal.native_endian_bytes()), t->scale(), &var);
       return NumericGetDatum(NumericVarToNumeric(&var));
     }
 
     // List type.
     case arrow::Type::LIST: {
-      const auto &list = static_cast<const arrow::ListArray *>(array.get())->value_slice(row);
+      const auto& list = static_cast<const arrow::ListArray*>(array.get())->value_slice(row);
 
       return CreateDatumArray(gp_type, list, converter, substitute_unicode);
     }
@@ -294,7 +294,7 @@ Datum GetDatumFromArrow(const Oid gp_type, const std::shared_ptr<arrow::Array> &
   }
 }
 
-bool MatchArrowColumn(const std::shared_ptr<arrow::DataType> &type, const Oid gp_type, const int gp_type_mode) {
+bool MatchArrowColumn(const std::shared_ptr<arrow::DataType>& type, const Oid gp_type, const int gp_type_mode) {
 #define MATCH_TYPE_IF(gtype, ptype, pred)                      \
   if (gp_type == (gtype) && type->id() == (ptype) && (pred)) { \
     return true;                                               \
@@ -307,7 +307,7 @@ bool MatchArrowColumn(const std::shared_ptr<arrow::DataType> &type, const Oid gp
     return precision >= dec_type->precision() && scale == dec_type->scale();
   };
 
-  const auto is_utc = [](const std::string &timezone) {
+  const auto is_utc = [](const std::string& timezone) {
     return timezone == "UTC" || timezone == "Etc/UTC" || timezone == "+00:00";
   };
 
@@ -387,7 +387,7 @@ bool MatchArrowColumn(const std::shared_ptr<arrow::DataType> &type, const Oid gp
   return false;
 }
 
-std::optional<FieldId> MatchIcebergColumn(const iceberg::types::NestedField &field, const Oid gp_type) {
+std::optional<FieldId> MatchIcebergColumn(const iceberg::types::NestedField& field, const Oid gp_type) {
   using IceTypeId = iceberg::TypeID;
 
   FieldId field_id = field.field_id;
@@ -444,14 +444,14 @@ std::optional<FieldId> MatchIcebergColumn(const iceberg::types::NestedField &fie
 
 CharsetConverter MakeIdentityConverter() { return {.proc = CharsetConvertIdentity}; }
 
-CharsetConverter MakePgConverter(FmgrInfo *converter_proc) {
+CharsetConverter MakePgConverter(FmgrInfo* converter_proc) {
   return {.proc = CharsetConverterPg, .context = converter_proc};
 }
 
 CharsetConverter MakeIconvConverter(iconv_t instance) { return {.proc = CharsetConverterIconv, .context = instance}; }
 
 arrow::Result<iconv_t> InitializeIconv(int db_encoding) {
-  const char *dest_encoding;
+  const char* dest_encoding;
   switch (db_encoding) {
     case PG_UTF8:
       return nullptr;

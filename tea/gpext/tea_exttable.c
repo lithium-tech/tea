@@ -44,7 +44,7 @@ Datum teaformat_export(PG_FUNCTION_ARGS);
 
 static Datum FetchNextTuple(PG_FUNCTION_ARGS);
 
-static bool HasPrefix(char *s, char *prefix) { return strncmp(s, prefix, strlen(prefix)) == 0; }
+static bool HasPrefix(char* s, char* prefix) { return strncmp(s, prefix, strlen(prefix)) == 0; }
 
 Datum teaprotocol_validate_urls(PG_FUNCTION_ARGS) {
   if (!CALLED_AS_EXTPROTOCOL_VALIDATOR(fcinfo)) {
@@ -63,7 +63,7 @@ Datum teaprotocol_validate_urls(PG_FUNCTION_ARGS) {
     ereport(ERROR, (errcode(ERRCODE_PROTOCOL_VIOLATION), errmsg("Unexpected number of urls (1 expected): %d", nurls)));
   }
 
-  char *url = EXTPROTOCOL_VALIDATOR_GET_NTH_URL(fcinfo, 1);
+  char* url = EXTPROTOCOL_VALIDATOR_GET_NTH_URL(fcinfo, 1);
   if (!HasPrefix(url, TEA_SCHEMA)) {
     ereport(ERROR, (errcode(ERRCODE_PROTOCOL_VIOLATION), errmsg("Expected " TEA_SCHEMA " protocol")));
   }
@@ -74,11 +74,11 @@ Datum teaprotocol_validate_urls(PG_FUNCTION_ARGS) {
 Datum teaprotocol_export(PG_FUNCTION_ARGS) { elog(ERROR, "Tea error: Writeable tables are not supported"); }
 
 typedef struct {
-  Import *import;
+  Import* import;
   FunctionCallInfo fcinfo;
 } FetchRowContext;
 
-static void DestroyScanParams(ExternalScanParams *params) {
+static void DestroyScanParams(ExternalScanParams* params) {
   if (params) {
     pfree(params->projection.columns);
     // Formally, allocated filter string should be also freed, but
@@ -88,11 +88,11 @@ static void DestroyScanParams(ExternalScanParams *params) {
   }
 }
 
-static ExternalScanParams *MakeScanParams(const Import *context, const char *url, struct ExternalSelectDescData *desc,
+static ExternalScanParams* MakeScanParams(const Import* context, const char* url, struct ExternalSelectDescData* desc,
                                           TupleDesc tupdesc, IgnoredExprs ignored_exprs) {
   assert(context->columns);
 
-  ExternalScanParams *params = palloc0(sizeof(ExternalScanParams));
+  ExternalScanParams* params = palloc0(sizeof(ExternalScanParams));
   params->session_id = context->session_id;
   params->segment_id = GpIdentity.segindex;
   params->segment_count = getgpsegmentCount();
@@ -128,18 +128,18 @@ typedef struct {
 
 typedef struct {
   int version;
-  TeaProtocolData *context;
+  TeaProtocolData* context;
 } TeaHandshake;
 
-static_assert(sizeof(TeaHandshake) != sizeof(void *),
+static_assert(sizeof(TeaHandshake) != sizeof(void*),
               "Size of TeaHandshake struct is the same as unversioned handshake");
 static_assert(offsetof(TeaProtocolData, formatter_data) == 0,
               "The formatter_data member is not the first member of TeaProtocolData");
 
 #define TEA_HANDSHAKE_LEN ((int)sizeof(TeaHandshake))
 
-static int StoreContextToProtocolData(FunctionCallInfo protocol_fcinfo, TeaProtocolData *context) {
-  char *databuf = EXTPROTOCOL_GET_DATABUF(protocol_fcinfo);
+static int StoreContextToProtocolData(FunctionCallInfo protocol_fcinfo, TeaProtocolData* context) {
+  char* databuf = EXTPROTOCOL_GET_DATABUF(protocol_fcinfo);
   int datalen = EXTPROTOCOL_GET_DATALEN(protocol_fcinfo);
   if (datalen < TEA_HANDSHAKE_LEN) {
     elog(ERROR, "Tea error: teaprotocol_import. Data buffer is too small: %d", datalen);
@@ -151,8 +151,8 @@ static int StoreContextToProtocolData(FunctionCallInfo protocol_fcinfo, TeaProto
   return TEA_HANDSHAKE_LEN;
 }
 
-static TeaFormatterData *LoadContextFromFormatterData(FunctionCallInfo formatter_fcinfo) {
-  char *data_buf = FORMATTER_GET_DATABUF(formatter_fcinfo);
+static TeaFormatterData* LoadContextFromFormatterData(FunctionCallInfo formatter_fcinfo) {
+  char* data_buf = FORMATTER_GET_DATABUF(formatter_fcinfo);
   int data_len = FORMATTER_GET_DATALEN(formatter_fcinfo);
   if (data_len != TEA_HANDSHAKE_LEN) {
     elog(ERROR, "Tea error: unexpected formatter data len %d", data_len);
@@ -176,7 +176,7 @@ static void ConsumeFormatterData(FunctionCallInfo formatter_fcinfo) {
   FORMATTER_SET_DATACURSOR(formatter_fcinfo, TEA_HANDSHAKE_LEN);
 }
 
-static void DestroyProtocolData(TeaProtocolData *context) {
+static void DestroyProtocolData(TeaProtocolData* context) {
   if (context) {
     if (context->import.tea_ctx) {
       TeaContextDestroy(context->import.tea_ctx);
@@ -186,11 +186,11 @@ static void DestroyProtocolData(TeaProtocolData *context) {
   }
 }
 
-static void InitImportContext(Import *context, char *url, TupleDesc tupdesc, struct ExternalSelectDescData *desc) {
+static void InitImportContext(Import* context, char* url, TupleDesc tupdesc, struct ExternalSelectDescData* desc) {
   char session_id[SESSION_ID_LEN];
   GetScanSessionId(session_id, SESSION_ID_LEN);
   memcpy(context->session_id, session_id, SESSION_ID_LEN);
-  context->columns = (int *)palloc0(sizeof(int) * tupdesc->natts);
+  context->columns = (int*)palloc0(sizeof(int) * tupdesc->natts);
   context->values = palloc0(sizeof(Datum) * tupdesc->natts);
   context->nulls = palloc0(sizeof(bool) * tupdesc->natts);
   context->tea_ctx = TeaContextCreate(url);
@@ -198,7 +198,7 @@ static void InitImportContext(Import *context, char *url, TupleDesc tupdesc, str
   context->ncolumns = GetRequiredColumns(desc, context->columns, tupdesc->natts,
                                          context->options.ext_table_filter_walker_for_projection);
   InitHeapFormTupleInfo(&context->heap_form_tuple_info, context->columns, context->ncolumns);
-  ExternalScanParams *params = MakeScanParams(context, url, desc, tupdesc, context->options.ignored_exprs);
+  ExternalScanParams* params = MakeScanParams(context, url, desc, tupdesc, context->options.ignored_exprs);
   if (params->filter.all_extracted) {
     elog(LOG, "Using filter %s", params->filter.all_extracted);
   }
@@ -211,7 +211,7 @@ Datum teaprotocol_import(PG_FUNCTION_ARGS) {
     elog(ERROR, "Tea error: teaprotocol_import not called by protocol mgr");
   }
 
-  TeaProtocolData *context = (TeaProtocolData *)EXTPROTOCOL_GET_USER_CTX(fcinfo);
+  TeaProtocolData* context = (TeaProtocolData*)EXTPROTOCOL_GET_USER_CTX(fcinfo);
 
   if (EXTPROTOCOL_IS_LAST_CALL(fcinfo)) {
     elog(DEBUG1, "teaprotocol_import. last call");
@@ -235,8 +235,8 @@ Datum teaprotocol_import(PG_FUNCTION_ARGS) {
   PG_RETURN_INT32(0);
 }
 
-static void FetchRow(FetchRowContext *context, Datum *values, bool *nulls) {
-  const FormatterData *formatter_data = (const FormatterData *)context->fcinfo->context;
+static void FetchRow(FetchRowContext* context, Datum* values, bool* nulls) {
+  const FormatterData* formatter_data = (const FormatterData*)context->fcinfo->context;
   const TupleDesc tupdesc = FORMATTER_GET_TUPDESC(context->fcinfo);
   const bool needs_transcoding = formatter_data->fmt_needs_transcoding;
 
@@ -250,7 +250,7 @@ Datum teaformat_import(PG_FUNCTION_ARGS) {
     elog(ERROR, "Tea error: teaformat_import not called by formatter");
   }
 
-  TeaFormatterData *formatter_data = (TeaFormatterData *)FORMATTER_GET_USER_CTX(fcinfo);
+  TeaFormatterData* formatter_data = (TeaFormatterData*)FORMATTER_GET_USER_CTX(fcinfo);
   if (formatter_data == NULL) {
     elog(DEBUG1, "teaformat_import first call");
 
@@ -263,7 +263,7 @@ Datum teaformat_import(PG_FUNCTION_ARGS) {
 }
 
 static Datum FetchNextTuple(PG_FUNCTION_ARGS) {
-  TeaProtocolData *protocol_data = (TeaProtocolData *)FORMATTER_GET_USER_CTX(fcinfo);
+  TeaProtocolData* protocol_data = (TeaProtocolData*)FORMATTER_GET_USER_CTX(fcinfo);
   if (protocol_data == NULL) {
     elog(ERROR, "Unexpected empty formatter user context.");
   }
@@ -275,7 +275,7 @@ static Datum FetchNextTuple(PG_FUNCTION_ARGS) {
     protocol_data->formatter_initialized = true;
   }
 
-  Import *import = &protocol_data->import;
+  Import* import = &protocol_data->import;
   TupleDesc tupdesc = FORMATTER_GET_TUPDESC(fcinfo);
   FetchRowContext context;
   context.fcinfo = fcinfo;

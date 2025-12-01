@@ -7,24 +7,24 @@
 #include "optimizer/clauses.h"
 #include "optimizer/walkers.h"
 
-static int *GetVarNumbers(ProjectionInfo *projInfo);
-static List *GetTargetList(ProjectionInfo *projInfo);
-static bool NeedToIterateTargetList(List *targetList, int *varNumbers);
-static Node *GetTargetListEntryExpression(ListCell *lc1);
-static bool AddAttnumsFromTargetList(Node *node, List *attnums);
-static bool GetVarnoFromTargetList(Node *node, Index **varno);
-static bool GetVarnoFromQuals(Node *node, Index **varno);
-static int GetNumSimpleVars(ProjectionInfo *projInfo);
-static List *GetAttrsFromQualsWithVarno(List *quals, Index varno);
+static int* GetVarNumbers(ProjectionInfo* projInfo);
+static List* GetTargetList(ProjectionInfo* projInfo);
+static bool NeedToIterateTargetList(List* targetList, int* varNumbers);
+static Node* GetTargetListEntryExpression(ListCell* lc1);
+static bool AddAttnumsFromTargetList(Node* node, List* attnums);
+static bool GetVarnoFromTargetList(Node* node, Index** varno);
+static bool GetVarnoFromQuals(Node* node, Index** varno);
+static int GetNumSimpleVars(ProjectionInfo* projInfo);
+static List* GetAttrsFromQualsWithVarno(List* quals, Index varno);
 
-static List *GetAttrsFromQuals(List *quals, bool *subtree_is_supported);
-static Bitmapset *GetUsedAttrsSet(ExternalSelectDesc desc, bool *full_row, bool ext_table_filter_walker_for_projection);
+static List* GetAttrsFromQuals(List* quals, bool* subtree_is_supported);
+static Bitmapset* GetUsedAttrsSet(ExternalSelectDesc desc, bool* full_row, bool ext_table_filter_walker_for_projection);
 
-int GetRequiredColumns(ExternalSelectDesc desc, int *columns, int ncolumns,
+int GetRequiredColumns(ExternalSelectDesc desc, int* columns, int ncolumns,
                        bool ext_table_filter_walker_for_projection) {
-  int *out = columns;
+  int* out = columns;
   bool full_row = false;
-  Bitmapset *attrs_used = GetUsedAttrsSet(desc, &full_row, ext_table_filter_walker_for_projection);
+  Bitmapset* attrs_used = GetUsedAttrsSet(desc, &full_row, ext_table_filter_walker_for_projection);
   if (full_row) {
     for (int i = 0; i < ncolumns; ++i) {
       *out++ = i;
@@ -42,17 +42,17 @@ int GetRequiredColumns(ExternalSelectDesc desc, int *columns, int ncolumns,
   return out - columns;
 }
 
-static Bitmapset *GetUsedAttrsSet(ExternalSelectDesc desc, bool *full_row,
+static Bitmapset* GetUsedAttrsSet(ExternalSelectDesc desc, bool* full_row,
                                   bool ext_table_filter_walker_for_projection) {
-  Bitmapset *attrs_used = NULL;  // hashset to keep and de-dup collected attrnos
+  Bitmapset* attrs_used = NULL;  // hashset to keep and de-dup collected attrnos
 
   if (!desc->projInfo) {
     *full_row = true;
     return NULL;
   }
 
-  List *target_list = GetTargetList(desc->projInfo);
-  int *var_numbers = GetVarNumbers(desc->projInfo);
+  List* target_list = GetTargetList(desc->projInfo);
+  int* var_numbers = GetVarNumbers(desc->projInfo);
   // STEP 1: collect attribute numbers (attrno) from the targetList, if
   // necessary
   if (NeedToIterateTargetList(target_list, var_numbers)) {
@@ -60,11 +60,11 @@ static Bitmapset *GetUsedAttrsSet(ExternalSelectDesc desc, bool *full_row,
      * we use expression_tree_walker to access attrno information
      * we do it through a helper function add_attnums_from_targetList
      */
-    List *l = lappend_int(NIL, 0);
-    ListCell *lc1;
+    List* l = lappend_int(NIL, 0);
+    ListCell* lc1;
     foreach (lc1, target_list) {
       if (IsA(lfirst(lc1), GenericExprState)) {
-        Node *node = GetTargetListEntryExpression(lc1);
+        Node* node = GetTargetListEntryExpression(lc1);
         AddAttnumsFromTargetList(node, l);
       } else {
         elog(LOG, "GetUsedAttrsSet: unexpected node type %d", nodeTag(lfirst(lc1)));
@@ -92,7 +92,7 @@ static Bitmapset *GetUsedAttrsSet(ExternalSelectDesc desc, bool *full_row,
   }
 
   // STEP 3: collect attribute numbers from qualifiers (WHERE conditions)
-  List *quals_attributes = NULL;
+  List* quals_attributes = NULL;
   if (desc->filter_quals) {
     /* projection information is incomplete if columns from WHERE clause wasn't
      * extracted */
@@ -102,13 +102,13 @@ static Bitmapset *GetUsedAttrsSet(ExternalSelectDesc desc, bool *full_row,
       if (ext_table_filter_walker_for_projection) {
         // fallback: try to get varno of current table and recursively pull all varattnos with this varno on current
         // level
-        Index *varno = NULL;
-        ListCell *lc1;
+        Index* varno = NULL;
+        ListCell* lc1;
         foreach (lc1, target_list) {
-          Node *node = GetTargetListEntryExpression(lc1);
-          GetVarnoFromTargetList((Node *)node, &varno);
+          Node* node = GetTargetListEntryExpression(lc1);
+          GetVarnoFromTargetList((Node*)node, &varno);
         }
-        GetVarnoFromQuals((Node *)desc->filter_quals, &varno);
+        GetVarnoFromQuals((Node*)desc->filter_quals, &varno);
 
         if (varno != NULL) {
           quals_attributes = GetAttrsFromQualsWithVarno(desc->filter_quals, *varno);
@@ -126,7 +126,7 @@ static Bitmapset *GetUsedAttrsSet(ExternalSelectDesc desc, bool *full_row,
     }
   }
 
-  ListCell *attribute = NULL;
+  ListCell* attribute = NULL;
   foreach (attribute, quals_attributes) {
     AttrNumber attrNumber = (AttrNumber)lfirst_int(attribute);
     attrs_used = bms_add_member(attrs_used, attrNumber);
@@ -137,7 +137,7 @@ static Bitmapset *GetUsedAttrsSet(ExternalSelectDesc desc, bool *full_row,
 /*
  * Returns pre-computed array of simple var attrnos, if available
  */
-static inline int *GetVarNumbers(ProjectionInfo *projInfo) {
+static inline int* GetVarNumbers(ProjectionInfo* projInfo) {
 #if PG_VERSION_NUM >= 120000
   return NULL;  // does not exist in projInfo in GP7
 #else
@@ -148,9 +148,9 @@ static inline int *GetVarNumbers(ProjectionInfo *projInfo) {
 /*
  * Returns targetList from provided ProjectionInfo
  */
-static inline List *GetTargetList(ProjectionInfo *projInfo) {
+static inline List* GetTargetList(ProjectionInfo* projInfo) {
 #if PG_VERSION_NUM >= 120000
-  return (List *)projInfo->pi_state.expr;
+  return (List*)projInfo->pi_state.expr;
 #else
   return projInfo->pi_targetlist;
 #endif
@@ -160,7 +160,7 @@ static inline List *GetTargetList(ProjectionInfo *projInfo) {
  * Determines whether there is a need to iterate over the targetList to find
  * projected attributes
  */
-static inline bool NeedToIterateTargetList(List *targetList, int *varNumbers) {
+static inline bool NeedToIterateTargetList(List* targetList, int* varNumbers) {
 #if PG_VERSION_NUM >= 90400
   /*
    * In GP6 non-simple Vars are added to the targetlist of ProjectionInfo
@@ -181,13 +181,13 @@ static inline bool NeedToIterateTargetList(List *targetList, int *varNumbers) {
 /*
  * Returns expression for a targetList entry.
  */
-static inline Node *GetTargetListEntryExpression(ListCell *lc1) {
+static inline Node* GetTargetListEntryExpression(ListCell* lc1) {
 #if PG_VERSION_NUM >= 120000
-  ExprState *gstate = (ExprState *)lfirst(lc1);
-  return (Node *)gstate;
+  ExprState* gstate = (ExprState*)lfirst(lc1);
+  return (Node*)gstate;
 #else
-  GenericExprState *gstate = (GenericExprState *)lfirst(lc1);
-  return (Node *)gstate->arg->expr;
+  GenericExprState* gstate = (GenericExprState*)lfirst(lc1);
+  return (Node*)gstate->arg->expr;
 #endif
 }
 
@@ -196,10 +196,10 @@ static inline Node *GetTargetListEntryExpression(ListCell *lc1) {
  * it uses expression_tree_walker to recursively
  * get the list
  */
-static bool AddAttnumsFromTargetList(Node *node, List *attnums) {
+static bool AddAttnumsFromTargetList(Node* node, List* attnums) {
   if (node == NULL) return false;
   if (IsA(node, Var)) {
-    Var *variable = (Var *)node;
+    Var* variable = (Var*)node;
     AttrNumber attnum = variable->varattno;
 
     lappend_int(attnums, attnum);
@@ -218,13 +218,13 @@ static bool AddAttnumsFromTargetList(Node *node, List *attnums) {
   if (IsA(node, WindowRef))
 #endif
     return false;
-  return expression_tree_walker(node, AddAttnumsFromTargetList, (void *)attnums);
+  return expression_tree_walker(node, AddAttnumsFromTargetList, (void*)attnums);
 }
 
 /*
  * Returns a count of simpleVars if they were pre-computed.
  */
-static inline int GetNumSimpleVars(ProjectionInfo *projInfo) {
+static inline int GetNumSimpleVars(ProjectionInfo* projInfo) {
   int numSimpleVars = 0;
 #if PG_VERSION_NUM < 90400
   // in GP5 if varNumbers is not NULL, it means the attrnos have been
@@ -242,9 +242,9 @@ static inline int GetNumSimpleVars(ProjectionInfo *projInfo) {
   return numSimpleVars;
 }
 
-static List *GetAttrsFromNode(Node *node, bool *subtree_is_supported);
+static List* GetAttrsFromNode(Node* node, bool* subtree_is_supported);
 
-static List *GetAttrsFromVar(Var *var_node, bool *subtree_is_supported) {
+static List* GetAttrsFromVar(Var* var_node, bool* subtree_is_supported) {
   AttrNumber varattno = var_node->varattno;
   /* system attr not supported */
   if (varattno <= InvalidAttrNumber) {
@@ -252,76 +252,76 @@ static List *GetAttrsFromVar(Var *var_node, bool *subtree_is_supported) {
     return NULL;
   }
 
-  List *result = NULL;
+  List* result = NULL;
   return lappend_int(result, varattno - 1);
 }
 
-static List *GetAttrsFromConst(Const *const_node, bool *subtree_is_supported) { return NULL; }
+static List* GetAttrsFromConst(Const* const_node, bool* subtree_is_supported) { return NULL; }
 
-static List *GetAttrsFromFuncExpr(FuncExpr *funcexpr_node, bool *subtree_is_supported) {
-  List *result = NULL;
+static List* GetAttrsFromFuncExpr(FuncExpr* funcexpr_node, bool* subtree_is_supported) {
+  List* result = NULL;
 
-  ListCell *lc = NULL;
+  ListCell* lc = NULL;
   foreach (lc, funcexpr_node->args) {
-    Node *node = (Node *)lfirst(lc);
-    List *new_attributes = GetAttrsFromNode(node, subtree_is_supported);
+    Node* node = (Node*)lfirst(lc);
+    List* new_attributes = GetAttrsFromNode(node, subtree_is_supported);
     result = list_concat(result, new_attributes);
   }
   return result;
 }
 
-static List *GetAttrsFromOpExpr(OpExpr *opexpr_node, bool *subtree_is_supported) {
-  Node *leftop = get_leftop((Expr *)opexpr_node);
-  Node *rightop = get_rightop((Expr *)opexpr_node);
+static List* GetAttrsFromOpExpr(OpExpr* opexpr_node, bool* subtree_is_supported) {
+  Node* leftop = get_leftop((Expr*)opexpr_node);
+  Node* rightop = get_rightop((Expr*)opexpr_node);
 
-  List *left_part = GetAttrsFromNode(leftop, subtree_is_supported);
+  List* left_part = GetAttrsFromNode(leftop, subtree_is_supported);
   if (rightop) {
-    List *right_part = GetAttrsFromNode(rightop, subtree_is_supported);
+    List* right_part = GetAttrsFromNode(rightop, subtree_is_supported);
     return list_concat(left_part, right_part);
   }
   return left_part;
 }
 
-static List *GetAttrsFromBoolExpr(BoolExpr *boolexpr_node, bool *subtree_is_supported) {
+static List* GetAttrsFromBoolExpr(BoolExpr* boolexpr_node, bool* subtree_is_supported) {
   return GetAttrsFromQuals(boolexpr_node->args, subtree_is_supported);
 }
 
-static List *GetAttrsFromRelabelType(RelabelType *relabeltype_node, bool *subtree_is_supported) {
-  return GetAttrsFromNode((Node *)relabeltype_node->arg, subtree_is_supported);
+static List* GetAttrsFromRelabelType(RelabelType* relabeltype_node, bool* subtree_is_supported) {
+  return GetAttrsFromNode((Node*)relabeltype_node->arg, subtree_is_supported);
 }
 
-static List *GetAttrsFromNullTest(NullTest *nulltest_node, bool *subtree_is_supported) {
-  return GetAttrsFromNode((Node *)nulltest_node->arg, subtree_is_supported);
+static List* GetAttrsFromNullTest(NullTest* nulltest_node, bool* subtree_is_supported) {
+  return GetAttrsFromNode((Node*)nulltest_node->arg, subtree_is_supported);
 }
 
-static List *GetAttrsFromScalarArrayOpExpr(ScalarArrayOpExpr *scalararrayopexpr_node, bool *subtree_is_supported) {
-  Node *leftop = (Node *)linitial(scalararrayopexpr_node->args);
-  Node *rightop = (Node *)lsecond(scalararrayopexpr_node->args);
+static List* GetAttrsFromScalarArrayOpExpr(ScalarArrayOpExpr* scalararrayopexpr_node, bool* subtree_is_supported) {
+  Node* leftop = (Node*)linitial(scalararrayopexpr_node->args);
+  Node* rightop = (Node*)lsecond(scalararrayopexpr_node->args);
 
-  List *left_part = GetAttrsFromNode(leftop, subtree_is_supported);
-  List *right_part = GetAttrsFromNode(rightop, subtree_is_supported);
+  List* left_part = GetAttrsFromNode(leftop, subtree_is_supported);
+  List* right_part = GetAttrsFromNode(rightop, subtree_is_supported);
   return list_concat(left_part, right_part);
 }
 
-static List *GetAttrsFromCoalesceExpr(CoalesceExpr *coalesceexpr_node, bool *subtree_is_supported) {
+static List* GetAttrsFromCoalesceExpr(CoalesceExpr* coalesceexpr_node, bool* subtree_is_supported) {
   return GetAttrsFromQuals(coalesceexpr_node->args, subtree_is_supported);
 }
 
-static List *GetAttrsFromCaseExpr(CaseExpr *caseexpr_node, bool *subtree_is_supported) {
+static List* GetAttrsFromCaseExpr(CaseExpr* caseexpr_node, bool* subtree_is_supported) {
   int args_count = list_length(caseexpr_node->args);
   if (args_count != 1) {
     elog(LOG, "Unexpected number of arguments in case when: %d", args_count);
     *subtree_is_supported = false;
     return NULL;
   }
-  CaseWhen *when_node = (CaseWhen *)(lfirst(list_head(caseexpr_node->args)));
-  List *if_part = GetAttrsFromNode((Node *)when_node->expr, subtree_is_supported);
-  List *then_part = GetAttrsFromNode((Node *)when_node->result, subtree_is_supported);
-  List *else_part = GetAttrsFromNode((Node *)when_node->result, subtree_is_supported);
+  CaseWhen* when_node = (CaseWhen*)(lfirst(list_head(caseexpr_node->args)));
+  List* if_part = GetAttrsFromNode((Node*)when_node->expr, subtree_is_supported);
+  List* then_part = GetAttrsFromNode((Node*)when_node->result, subtree_is_supported);
+  List* else_part = GetAttrsFromNode((Node*)when_node->result, subtree_is_supported);
   return list_concat(if_part, list_concat(then_part, else_part));
 }
 
-static List *GetAttrsFromNode(Node *node, bool *subtree_is_supported) {
+static List* GetAttrsFromNode(Node* node, bool* subtree_is_supported) {
   if (!(*subtree_is_supported)) {
     return NULL;
   }
@@ -333,25 +333,25 @@ static List *GetAttrsFromNode(Node *node, bool *subtree_is_supported) {
   NodeTag tag = nodeTag(node);
   switch (tag) {
     case T_Var:
-      return GetAttrsFromVar((Var *)node, subtree_is_supported);
+      return GetAttrsFromVar((Var*)node, subtree_is_supported);
     case T_Const:
-      return GetAttrsFromConst((Const *)node, subtree_is_supported);
+      return GetAttrsFromConst((Const*)node, subtree_is_supported);
     case T_FuncExpr:
-      return GetAttrsFromFuncExpr((FuncExpr *)node, subtree_is_supported);
+      return GetAttrsFromFuncExpr((FuncExpr*)node, subtree_is_supported);
     case T_OpExpr:
-      return GetAttrsFromOpExpr((OpExpr *)node, subtree_is_supported);
+      return GetAttrsFromOpExpr((OpExpr*)node, subtree_is_supported);
     case T_BoolExpr:
-      return GetAttrsFromBoolExpr((BoolExpr *)node, subtree_is_supported);
+      return GetAttrsFromBoolExpr((BoolExpr*)node, subtree_is_supported);
     case T_RelabelType:
-      return GetAttrsFromRelabelType((RelabelType *)node, subtree_is_supported);
+      return GetAttrsFromRelabelType((RelabelType*)node, subtree_is_supported);
     case T_NullTest:
-      return GetAttrsFromNullTest((NullTest *)node, subtree_is_supported);
+      return GetAttrsFromNullTest((NullTest*)node, subtree_is_supported);
     case T_CaseExpr:
-      return GetAttrsFromCaseExpr((CaseExpr *)node, subtree_is_supported);
+      return GetAttrsFromCaseExpr((CaseExpr*)node, subtree_is_supported);
     case T_ScalarArrayOpExpr:
-      return GetAttrsFromScalarArrayOpExpr((ScalarArrayOpExpr *)node, subtree_is_supported);
+      return GetAttrsFromScalarArrayOpExpr((ScalarArrayOpExpr*)node, subtree_is_supported);
     case T_CoalesceExpr:
-      return GetAttrsFromCoalesceExpr((CoalesceExpr *)node, subtree_is_supported);
+      return GetAttrsFromCoalesceExpr((CoalesceExpr*)node, subtree_is_supported);
     default:
       *subtree_is_supported = false;
       elog(LOG, "Selectdesc: node tag %d is not supported", tag);
@@ -362,27 +362,27 @@ static List *GetAttrsFromNode(Node *node, bool *subtree_is_supported) {
   return NULL;
 }
 
-static List *GetAttrsFromQuals(List *quals, bool *subtree_is_supported) {
-  ListCell *lc = NULL;
-  List *attributes = NIL;
+static List* GetAttrsFromQuals(List* quals, bool* subtree_is_supported) {
+  ListCell* lc = NULL;
+  List* attributes = NIL;
 
   if (list_length(quals) == 0) return NIL;
 
   foreach (lc, quals) {
-    Node *node = (Node *)lfirst(lc);
-    List *new_attributes = GetAttrsFromNode(node, subtree_is_supported);
+    Node* node = (Node*)lfirst(lc);
+    List* new_attributes = GetAttrsFromNode(node, subtree_is_supported);
     attributes = list_concat(attributes, new_attributes);
   }
 
   return attributes;
 }
 
-static bool GetVarnoFromQuals(Node *node, Index **varno) {
+static bool GetVarnoFromQuals(Node* node, Index** varno) {
   if (node == NULL) return false;
   NodeTag node_tag = nodeTag(node);
   switch (node_tag) {
     case T_Var: {
-      Var *variable = (Var *)node;
+      Var* variable = (Var*)node;
       *varno = &variable->varno;
       return true;
     }
@@ -395,16 +395,16 @@ static bool GetVarnoFromQuals(Node *node, Index **varno) {
     case T_CaseExpr:
     case T_ScalarArrayOpExpr:
     case T_List:
-      return expression_tree_walker(node, GetVarnoFromQuals, (void *)varno);
+      return expression_tree_walker(node, GetVarnoFromQuals, (void*)varno);
     default:
       return false;
   }
 }
 
-static bool GetVarnoFromTargetList(Node *node, Index **varno) {
+static bool GetVarnoFromTargetList(Node* node, Index** varno) {
   if (node == NULL) return false;
   if (IsA(node, Var)) {
-    Var *variable = (Var *)node;
+    Var* variable = (Var*)node;
     *varno = &variable->varno;
     return true;
   }
@@ -421,18 +421,18 @@ static bool GetVarnoFromTargetList(Node *node, Index **varno) {
   if (IsA(node, WindowRef))
 #endif
     return false;
-  return expression_tree_walker(node, GetVarnoFromTargetList, (void *)varno);
+  return expression_tree_walker(node, GetVarnoFromTargetList, (void*)varno);
 }
 
 typedef struct {
-  List *varattnos;
+  List* varattnos;
   Index varno;
 } PullVarattnosContext;
 
-static bool PullVarattnosWalker(Node *node, PullVarattnosContext *context) {
+static bool PullVarattnosWalker(Node* node, PullVarattnosContext* context) {
   if (node == NULL) return false;
   if (IsA(node, Var)) {
-    Var *var = (Var *)node;
+    Var* var = (Var*)node;
     if (var->varattno <= InvalidAttrNumber) {
       return false;
     }
@@ -444,11 +444,11 @@ static bool PullVarattnosWalker(Node *node, PullVarattnosContext *context) {
   /* Should not find an unplanned subquery */
   Assert(!IsA(node, Query));
 
-  return expression_tree_walker(node, PullVarattnosWalker, (void *)context);
+  return expression_tree_walker(node, PullVarattnosWalker, (void*)context);
 }
 
-static List *GetAttrsFromQualsWithVarno(List *quals, Index varno) {
-  List *attributes = NULL;
+static List* GetAttrsFromQualsWithVarno(List* quals, Index varno) {
+  List* attributes = NULL;
 
   if (list_length(quals) == 0) return NULL;
 
@@ -457,7 +457,7 @@ static List *GetAttrsFromQualsWithVarno(List *quals, Index varno) {
   context.varattnos = attributes;
   context.varno = varno;
 
-  (void)PullVarattnosWalker((Node *)quals, &context);
+  (void)PullVarattnosWalker((Node*)quals, &context);
 
   attributes = context.varattnos;
 

@@ -1,11 +1,11 @@
 #include "tea/gpext/tea_common.h"
 
-ReaderScanProjection MakeScanProjection(TupleDesc tupdesc, int ncolumns, int *column_attnums, bool *is_remote_only) {
+ReaderScanProjection MakeScanProjection(TupleDesc tupdesc, int ncolumns, int* column_attnums, bool* is_remote_only) {
   ReaderScanProjection projection;
   projection.ncolumns = ncolumns;
-  projection.columns = (ReaderScanColumn *)palloc0(sizeof(ReaderScanColumn) * ncolumns);
+  projection.columns = (ReaderScanColumn*)palloc0(sizeof(ReaderScanColumn) * ncolumns);
   for (int i = 0; i < ncolumns; ++i) {
-    ReaderScanColumn *column = projection.columns + i;
+    ReaderScanColumn* column = projection.columns + i;
     Form_pg_attribute attr = tupdesc->attrs[column_attnums[i]];
     column->index = column_attnums[i];
     column->name = attr->attname.data;

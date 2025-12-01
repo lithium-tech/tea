@@ -4,7 +4,7 @@ namespace tea {
 namespace {
 
 template <typename SignedType, typename UnsignedType, int MaxDigits>
-void ToNumericVar(SignedType val, int scale, NumericVar *var) {
+void ToNumericVar(SignedType val, int scale, NumericVar* var) {
   init_var(var, (MaxDigits) / DEC_DIGITS);
   UnsignedType uval;
   if (val < 0) {
@@ -20,7 +20,7 @@ void ToNumericVar(SignedType val, int scale, NumericVar *var) {
     var->weight = 0;
     return;
   }
-  NumericDigit *ptr = var->digits + var->ndigits;
+  NumericDigit* ptr = var->digits + var->ndigits;
   int rem_ddigits = scale % DEC_DIGITS;
   int ndigits = 0;
   int weight = -scale / DEC_DIGITS - 1;
@@ -59,7 +59,7 @@ void ToNumericVar(SignedType val, int scale, NumericVar *var) {
 }
 
 template <typename SignedType>
-bool FromNumericVar(const NumericVar *var, int scale, SignedType *result) {
+bool FromNumericVar(const NumericVar* var, int scale, SignedType* result) {
   int trailing_zero_digits;
   int rem_ddigits = scale % DEC_DIGITS;
   int full_digits = var->weight + scale / DEC_DIGITS + 1;
@@ -117,13 +117,13 @@ bool FromNumericVar(const NumericVar *var, int scale, SignedType *result) {
 
 }  // namespace
 
-void Int64ToNumericVar(int64_t val, int scale, NumericVar *var) {
+void Int64ToNumericVar(int64_t val, int scale, NumericVar* var) {
   ToNumericVar<int64_t, uint64_t, 20>(val, scale, var);
 }
 
-void Int128ToNumericVar(Int128 val, int scale, NumericVar *var) { ToNumericVar<Int128, UInt128, 40>(val, scale, var); }
+void Int128ToNumericVar(Int128 val, int scale, NumericVar* var) { ToNumericVar<Int128, UInt128, 40>(val, scale, var); }
 
-int NumericVarToInt64(NumericVar *var, int scale, int64_t *val) { return FromNumericVar(var, scale, val); }
+int NumericVarToInt64(NumericVar* var, int scale, int64_t* val) { return FromNumericVar(var, scale, val); }
 
-int NumericVarToInt128(NumericVar *var, int scale, Int128 *val) { return FromNumericVar(var, scale, val); }
+int NumericVarToInt128(NumericVar* var, int scale, Int128* val) { return FromNumericVar(var, scale, val); }
 }  // namespace tea

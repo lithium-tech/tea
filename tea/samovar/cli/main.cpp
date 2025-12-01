@@ -17,7 +17,7 @@
 #include "tea/samovar/utils.h"
 #include "tea/util/measure.h"
 
-std::shared_ptr<iceberg::IFileSystemProvider> MakeFileSystemProvider(const tea::Config &config) {
+std::shared_ptr<iceberg::IFileSystemProvider> MakeFileSystemProvider(const tea::Config& config) {
   iceberg::S3FileSystemGetter::Config s3_input_cfg;
   s3_input_cfg.access_key = config.s3.access_key;
   s3_input_cfg.secret_key = config.s3.secret_key;
@@ -41,7 +41,7 @@ std::shared_ptr<iceberg::IFileSystemProvider> MakeFileSystemProvider(const tea::
   return std::make_shared<iceberg::FileSystemProvider>(std::move(schema_to_fs_builder));
 }
 
-void PrintPlannerStats(const tea::PlannerStats &stats) {
+void PrintPlannerStats(const tea::PlannerStats& stats) {
   std::cout << "Stats:" << std::endl;
   std::cout << "  samovar_initial_tasks_count: " << stats.samovar_initial_tasks_count << std::endl;
   std::cout << "  samovar_splitted_tasks_count: " << stats.samovar_splitted_tasks_count << std::endl;
@@ -75,7 +75,7 @@ ABSL_FLAG(std::string, hms_db, "", "hms db name");
 
 ABSL_FLAG(bool, use_avro_reader_schema, false, "");
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
   try {
     absl::ParseCommandLine(argc, argv);
 
@@ -148,7 +148,7 @@ int main(int argc, char **argv) {
       } else {
         auto iceberg_result = tea::meta::access::FromIcebergWithLocation(
             nullptr, fs_provider, *real_location, 0,
-            [&](const iceberg::Schema &schema) { return use_avro_reader_schema; }, nullptr, cancel_token);
+            [&](const iceberg::Schema& schema) { return use_avro_reader_schema; }, nullptr, cancel_token);
 
         iceberg_meta = std::move(iceberg_result.first);
         stats = std::move(iceberg_result.second);
@@ -177,9 +177,9 @@ int main(int argc, char **argv) {
       std::cout << "Result usage memory in redis " << result.Get()->str << '\n';
     }
     return 0;
-  } catch (arrow::Status &s) {
+  } catch (arrow::Status& s) {
     std::cerr << s.ToString() << std::endl;
-  } catch (std::exception &e) {
+  } catch (std::exception& e) {
     std::cerr << e.what() << std::endl;
   }
   return 1;
