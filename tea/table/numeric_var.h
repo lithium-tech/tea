@@ -26,8 +26,8 @@ typedef struct NumericVar {
   int weight;                           /* weight of first digit */
   int sign;                             /* NUMERIC_POS, NUMERIC_NEG, or NUMERIC_NAN */
   int dscale;                           /* display scale */
-  NumericDigit *buf;                    /* start of space for digits[] */
-  NumericDigit *digits;                 /* base-NBASE digits */
+  NumericDigit* buf;                    /* start of space for digits[] */
+  NumericDigit* digits;                 /* base-NBASE digits */
   NumericDigit ndb[NUMERIC_LOCAL_NDIG]; /* local space for digits[] */
 } NumericVar;
 
@@ -48,9 +48,9 @@ typedef struct NumericVar {
 
 namespace tea {
 
-void Int64ToNumericVar(int64_t val, int scale, NumericVar *var);
-void Int128ToNumericVar(Int128 val, int scale, NumericVar *var);
-int NumericVarToInt64(NumericVar *var, int scale, int64_t *val);
-int NumericVarToInt128(NumericVar *var, int scale, Int128 *val);
+void Int64ToNumericVar(int64_t val, int scale, NumericVar* var);
+void Int128ToNumericVar(Int128 val, int scale, NumericVar* var);
+int NumericVarToInt64(NumericVar* var, int scale, int64_t* val);
+int NumericVarToInt128(NumericVar* var, int scale, Int128* val);
 
 }  // namespace tea

@@ -74,9 +74,9 @@ struct NumericData {
 #define NUMERIC_DIGITS(num) (NUMERIC_HEADER_IS_SHORT(num) ? (num)->choice.n_short.n_data : (num)->choice.n_long.n_data)
 #define NUMERIC_NDIGITS(num) ((VARSIZE(num) - NUMERIC_HEADER_SIZE(num)) / sizeof(NumericDigit))
 
-NumericData *tea::NumericVarToNumeric(NumericVar *var) {
-  NumericData *result;
-  NumericDigit *digits = var->digits;
+NumericData* tea::NumericVarToNumeric(NumericVar* var) {
+  NumericData* result;
+  NumericDigit* digits = var->digits;
   int weight = var->weight;
   int sign = var->sign;
   int n;
@@ -84,7 +84,7 @@ NumericData *tea::NumericVarToNumeric(NumericVar *var) {
   bool can_be_short;
 
   if (sign == NUMERIC_NAN) {
-    result = (NumericData *)palloc(NUMERIC_HDRSZ_SHORT);
+    result = (NumericData*)palloc(NUMERIC_HDRSZ_SHORT);
 
     SET_VARSIZE(result, NUMERIC_HDRSZ_SHORT);
     result->choice.n_header = NUMERIC_NAN;
@@ -114,7 +114,7 @@ NumericData *tea::NumericVarToNumeric(NumericVar *var) {
   /* Build the result */
   if (can_be_short) {
     len = NUMERIC_HDRSZ_SHORT + n * sizeof(NumericDigit);
-    result = (NumericData *)palloc(len);
+    result = (NumericData*)palloc(len);
     SET_VARSIZE(result, len);
     result->choice.n_short.n_header =
         (sign == NUMERIC_NEG ? (NUMERIC_SHORT | NUMERIC_SHORT_SIGN_MASK) : NUMERIC_SHORT) |
@@ -122,7 +122,7 @@ NumericData *tea::NumericVarToNumeric(NumericVar *var) {
         (weight & NUMERIC_SHORT_WEIGHT_MASK);
   } else {
     len = NUMERIC_HDRSZ + n * sizeof(NumericDigit);
-    result = (NumericData *)palloc(len);
+    result = (NumericData*)palloc(len);
     SET_VARSIZE(result, len);
     result->choice.n_long.n_sign_dscale = sign | (var->dscale & NUMERIC_DSCALE_MASK);
     result->choice.n_long.n_weight = weight;
@@ -143,19 +143,19 @@ NumericData *tea::NumericVarToNumeric(NumericVar *var) {
 #include "utils/numeric.h"
 
 #define NUMERIC_WEIGHT(num) ((num)->n_weight)
-#define NUMERIC_DIGITS(num) ((NumericDigit *)(num)->n_data)
+#define NUMERIC_DIGITS(num) ((NumericDigit*)(num)->n_data)
 #define NUMERIC_NDIGITS(num) ((VARSIZE(num) - NUMERIC_HDRSZ) / sizeof(NumericDigit))
 
-NumericData *tea::NumericVarToNumeric(NumericVar *var) {
-  NumericData *result;
-  NumericDigit *digits = var->digits;
+NumericData* tea::NumericVarToNumeric(NumericVar* var) {
+  NumericData* result;
+  NumericDigit* digits = var->digits;
   int weight = var->weight;
   int sign = var->sign;
   int n;
   Size len;
 
   if (sign == NUMERIC_NAN) {
-    result = (NumericData *)palloc(NUMERIC_HDRSZ);
+    result = (NumericData*)palloc(NUMERIC_HDRSZ);
 
     SET_VARSIZE(result, NUMERIC_HDRSZ);
     result->n_weight = 0;
@@ -183,7 +183,7 @@ NumericData *tea::NumericVarToNumeric(NumericVar *var) {
 
   /* Build the result */
   len = NUMERIC_HDRSZ + n * sizeof(NumericDigit);
-  result = (NumericData *)palloc(len);
+  result = (NumericData*)palloc(len);
   SET_VARSIZE(result, len);
   result->n_weight = weight;
   result->n_sign_dscale = sign | (var->dscale & NUMERIC_DSCALE_MASK);

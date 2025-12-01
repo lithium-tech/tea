@@ -39,7 +39,7 @@ class Reader {
     std::string row;
   };
 
-  explicit Reader(const Config &config, std::shared_ptr<iceberg::IFileSystemProvider> fs_provider);
+  explicit Reader(const Config& config, std::shared_ptr<iceberg::IFileSystemProvider> fs_provider);
   ~Reader();
 
   static arrow::Status Finalize();
@@ -49,7 +49,7 @@ class Reader {
  public:
   arrow::Result<std::optional<iceberg::BatchWithSelectionVector>> GetNextBatch();
 
-  arrow::Status Plan(meta::PlannedMeta meta, const Reader::SerializedFilter &filter, bool postfilter_on_gp);
+  arrow::Status Plan(meta::PlannedMeta meta, const Reader::SerializedFilter& filter, bool postfilter_on_gp);
 
   template <typename It>
   void SetColumns(It first, It last) {
@@ -64,7 +64,7 @@ class Reader {
  public:
   std::tuple<ReaderStats, iceberg::PositionalDeleteStats, iceberg::EqualityDeleteStats, S3Stats> GetStats() const;
 
-  const std::vector<ReaderColumn> &columns() const { return columns_; }
+  const std::vector<ReaderColumn>& columns() const { return columns_; }
 
   struct FilesystemStats {
     S3Stats s3_stats;

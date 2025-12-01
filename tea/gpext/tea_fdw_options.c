@@ -14,7 +14,7 @@
  * Describes the valid options for objects that use this wrapper.
  */
 struct TeaOption {
-  const char *optname;
+  const char* optname;
   /// Oid of catalog in which option may appear.
   Oid optcontext;
 };
@@ -27,15 +27,15 @@ struct TeaOption {
  * which should each be combined into a single DefElem listing all such
  * columns, since that's what COPY expects.
  */
-static List *get_tea_fdw_attribute_options(Oid relid) {
+static List* get_tea_fdw_attribute_options(Oid relid) {
   Relation rel;
   TupleDesc tupleDesc;
   AttrNumber natts;
   AttrNumber attnum;
-  List *fnncolumns = NIL;
-  List *fncolumns = NIL;
+  List* fnncolumns = NIL;
+  List* fncolumns = NIL;
 
-  List *options = NIL;
+  List* options = NIL;
 
   rel = heap_open(relid, AccessShareLock);
   tupleDesc = RelationGetDescr(rel);
@@ -44,25 +44,25 @@ static List *get_tea_fdw_attribute_options(Oid relid) {
   /* Retrieve FDW options for all user-defined attributes. */
   for (attnum = 1; attnum <= natts; attnum++) {
     Form_pg_attribute attr = tupleDesc->attrs[attnum - 1];
-    List *fc_options;
-    ListCell *lc;
+    List* fc_options;
+    ListCell* lc;
 
     /* Skip dropped attributes. */
     if (attr->attisdropped) continue;
 
     fc_options = GetForeignColumnOptions(relid, attnum);
     foreach (lc, fc_options) {
-      DefElem *def = (DefElem *)lfirst(lc);
+      DefElem* def = (DefElem*)lfirst(lc);
 
       if (strcmp(def->defname, "force_not_null") == 0) {
         if (defGetBoolean(def)) {
-          char *attname = pstrdup(NameStr(attr->attname));
+          char* attname = pstrdup(NameStr(attr->attname));
 
           fnncolumns = lappend(fnncolumns, makeString(attname));
         }
       } else if (strcmp(def->defname, "force_null") == 0) {
         if (defGetBoolean(def)) {
-          char *attname = pstrdup(NameStr(attr->attname));
+          char* attname = pstrdup(NameStr(attr->attname));
 
           fncolumns = lappend(fncolumns, makeString(attname));
         }
@@ -77,19 +77,19 @@ static List *get_tea_fdw_attribute_options(Oid relid) {
    * Return DefElem only when some column(s) have force_not_null /
    * force_null options set
    */
-  if (fnncolumns != NIL) options = lappend(options, makeDefElem("force_not_null", (Node *)fnncolumns));
+  if (fnncolumns != NIL) options = lappend(options, makeDefElem("force_not_null", (Node*)fnncolumns));
 
-  if (fncolumns != NIL) options = lappend(options, makeDefElem("force_null", (Node *)fncolumns));
+  if (fncolumns != NIL) options = lappend(options, makeDefElem("force_null", (Node*)fncolumns));
 
   return options;
 }
 
-char *TeaGetLocation(Oid foreigntableid) {
-  ForeignTable *table;
-  ForeignServer *server;
-  ForeignDataWrapper *wrapper;
-  List *options;
-  ListCell *lc;
+char* TeaGetLocation(Oid foreigntableid) {
+  ForeignTable* table;
+  ForeignServer* server;
+  ForeignDataWrapper* wrapper;
+  List* options;
+  ListCell* lc;
 
   /*
    * Extract options from FDW objects.  We ignore user mappings because
@@ -106,7 +106,7 @@ char *TeaGetLocation(Oid foreigntableid) {
   options = list_concat(options, get_tea_fdw_attribute_options(foreigntableid));
 
   foreach (lc, options) {
-    DefElem *def = (DefElem *)lfirst(lc);
+    DefElem* def = (DefElem*)lfirst(lc);
 
     if (strcmp(def->defname, "location") == 0) {
       return defGetString(def);

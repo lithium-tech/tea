@@ -9,7 +9,7 @@
 #include "cdb/cdbtm.h"
 #include "cdb/cdbvars.h"
 
-void GetScanSessionId(char *buf, int size) {
+void GetScanSessionId(char* buf, int size) {
   if (getDistributedTransactionIdentifier(buf)) {
     size_t txlen = strlen(buf);
     buf += txlen;

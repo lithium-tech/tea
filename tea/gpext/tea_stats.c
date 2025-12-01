@@ -16,18 +16,18 @@ typedef struct GetIcebergStatsCallContext {
   Relation rel;
   TupleDesc table_tupdesc;
   TeaContextPtr tea_ctx;
-  const char *table_location;
+  const char* table_location;
   int last_processed_attno;
 } GetIcebergStatsCallContext;
 
-void GetStatsPrepare(FunctionCallInfo fcinfo, FuncCallContext *funcctx) {
+void GetStatsPrepare(FunctionCallInfo fcinfo, FuncCallContext* funcctx) {
   if (get_call_result_type(fcinfo, NULL, &funcctx->tuple_desc) != TYPEFUNC_COMPOSITE) {
     ereport(ERROR, (errcode(ERRCODE_FEATURE_NOT_SUPPORTED), errmsg("function returning record called in context "
                                                                    "that cannot accept type record")));
   }
 
   funcctx->user_fctx = palloc0(sizeof(GetIcebergStatsCallContext));
-  GetIcebergStatsCallContext *user_ctx = (GetIcebergStatsCallContext *)funcctx->user_fctx;
+  GetIcebergStatsCallContext* user_ctx = (GetIcebergStatsCallContext*)funcctx->user_fctx;
   user_ctx->table_oid = PG_GETARG_OID(0);
   user_ctx->rel = heap_open(user_ctx->table_oid, AccessShareLock);
   user_ctx->table_tupdesc = RelationGetDescr(user_ctx->rel);
@@ -39,9 +39,9 @@ void GetStatsPrepare(FunctionCallInfo fcinfo, FuncCallContext *funcctx) {
   user_ctx->tea_ctx = TeaContextCreate(user_ctx->table_location);
 }
 
-ColumnStats GetColumnStats(FunctionCallInfo fcinfo, FuncCallContext *funcctx, int attrno_to_process) {
+ColumnStats GetColumnStats(FunctionCallInfo fcinfo, FuncCallContext* funcctx, int attrno_to_process) {
   ColumnStats result;
-  GetIcebergStatsCallContext *user_ctx = (GetIcebergStatsCallContext *)funcctx->user_fctx;
+  GetIcebergStatsCallContext* user_ctx = (GetIcebergStatsCallContext*)funcctx->user_fctx;
   char session_id[SESSION_ID_LEN];
   GetScanSessionId(session_id, SESSION_ID_LEN);
   TeaContextGetIcebergColumnStats(user_ctx->table_location, session_id,
@@ -55,7 +55,7 @@ ColumnStats GetColumnStats(FunctionCallInfo fcinfo, FuncCallContext *funcctx, in
 #define STAWIDTH_NUM 3
 #define STADISTINCT_NUM 4
 
-void ColumnStatsToDatumArray(ColumnStats *stats, Datum *values, bool *isnull, Oid table_oid, int attno) {
+void ColumnStatsToDatumArray(ColumnStats* stats, Datum* values, bool* isnull, Oid table_oid, int attno) {
   values[STARELID_NUM] = ObjectIdGetDatum(table_oid);
   values[STAATTNUM_NUM] = Int16GetDatum(attno);
   if (stats->null_count != -1 && stats->not_null_count != -1 && stats->null_count + stats->not_null_count != 0) {
@@ -81,7 +81,7 @@ void ColumnStatsToDatumArray(ColumnStats *stats, Datum *values, bool *isnull, Oi
 
 // tea_get_stats_from_iceberg(oid, location)
 Datum tea_get_stats_from_iceberg(PG_FUNCTION_ARGS) {
-  FuncCallContext *funcctx;
+  FuncCallContext* funcctx;
 
   if (SRF_IS_FIRSTCALL()) {
     MemoryContext oldcontext;
@@ -94,7 +94,7 @@ Datum tea_get_stats_from_iceberg(PG_FUNCTION_ARGS) {
 
   funcctx = SRF_PERCALL_SETUP();
 
-  GetIcebergStatsCallContext *user_ctx = (GetIcebergStatsCallContext *)funcctx->user_fctx;
+  GetIcebergStatsCallContext* user_ctx = (GetIcebergStatsCallContext*)funcctx->user_fctx;
   int attrno_to_process = funcctx->call_cntr + 1;
   if (attrno_to_process <= user_ctx->table_tupdesc->natts) {
     ColumnStats stats = GetColumnStats(fcinfo, funcctx, attrno_to_process);

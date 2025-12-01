@@ -9,7 +9,7 @@
 ABSL_FLAG(std::string, table_type, "", "Table type to test (external or foreign)");
 ABSL_FLAG(std::string, profile, "", "Profiles to test");
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
   ::testing::InitGoogleTest(&argc, argv);
   absl::ParseCommandLine(argc, argv);
   if (FLAGS_table_type.IsSpecifiedOnCommandLine()) {

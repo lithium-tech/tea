@@ -17,7 +17,7 @@
  * We create an integer List of the columns being retrieved, which is
  * returned to *retrieved_attrs.
  */
-extern void DeparseTargetList(const Relation rel, const Bitmapset *attrs_used, List **retrieved_attrs);
+extern void DeparseTargetList(const Relation rel, const Bitmapset* attrs_used, List** retrieved_attrs);
 
 /*
  * Identify which attributes will need to be retrieved from the remote
@@ -27,6 +27,6 @@ extern void DeparseTargetList(const Relation rel, const Bitmapset *attrs_used, L
  * sent to the remote and thus we wouldn't really need to retrieve the
  * columns used in them.  Doesn't seem worth detecting that case though.)
  */
-extern Bitmapset *GetUsedAttributesSet(RelOptInfo *baserel, List *local_conds);
+extern Bitmapset* GetUsedAttributesSet(RelOptInfo* baserel, List* local_conds);
 
 #endif  // TEA_FDW_H

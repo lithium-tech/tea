@@ -14,7 +14,7 @@ extern "C" {
 #include "tea/observability/ext_stats.h"
 #include "tea/table/gp_fwd.h"
 
-typedef void *InternalContextPtr;
+typedef void* InternalContextPtr;
 
 typedef struct TeaContext {
   InternalContextPtr ctx;
@@ -22,10 +22,10 @@ typedef struct TeaContext {
   ExtStats ext_stats;
 } TeaContext;
 
-typedef TeaContext *TeaContextPtr;
+typedef TeaContext* TeaContextPtr;
 
 typedef struct {
-  const char *session_id;
+  const char* session_id;
   int segment_id;
   int segment_count;
   ReaderScanProjection projection;
@@ -34,20 +34,20 @@ typedef struct {
 } ExternalScanParams;
 
 typedef struct {
-  const char *session_id;
+  const char* session_id;
   int segment_id;
   int segment_count;
   ReaderScanProjection projection;
-  const char *metadata;
+  const char* metadata;
   CSerializedFilter filter;
   bool postfilter_on_gp;
   int32_t slice_id;
 } ForeignScanParams;
 
 typedef struct {
-  const char *session_id;
+  const char* session_id;
   ReaderScanProjection projection;
-  const char *metadata;
+  const char* metadata;
 } AnalyzeParams;
 
 typedef struct ReaderRelationSize {
@@ -76,12 +76,12 @@ void TeaContextFinalize();
 /**
  * Create reader instance.
  */
-TeaContextPtr TeaContextCreate(const char *url);
+TeaContextPtr TeaContextCreate(const char* url);
 
 /**
  * Create reader instance. Does not to checks for initialization or tracks the instance for automatic deinitialization.
  */
-TeaContextPtr TeaContextCreateUntracked(const char *url);
+TeaContextPtr TeaContextCreateUntracked(const char* url);
 
 /**
  * Destroy reader instance.
@@ -96,14 +96,14 @@ void TeaContextDestroyUntracked(TeaContextPtr tea_ctx);
 /**
  * Initialize reading cursor. Match Greenplum schema with Iceberg.
  */
-void TeaContextPlanExternal(TeaContextPtr tea_ctx, const ExternalScanParams *params);
-void TeaContextPlanForeign(TeaContextPtr tea_ctx, const ForeignScanParams *params);
-void TeaContextPlanAnalyze(TeaContextPtr tea_ctx, const AnalyzeParams *params);
+void TeaContextPlanExternal(TeaContextPtr tea_ctx, const ExternalScanParams* params);
+void TeaContextPlanForeign(TeaContextPtr tea_ctx, const ForeignScanParams* params);
+void TeaContextPlanAnalyze(TeaContextPtr tea_ctx, const AnalyzeParams* params);
 
 /**
  * Make next tuple avaliable for reading.
  */
-void TeaContextPrepareTuple(TeaContextPtr tea_ctx, bool *has_next);
+void TeaContextPrepareTuple(TeaContextPtr tea_ctx, bool* has_next);
 /**
  * Skip next tuple without reading.
  */
@@ -111,30 +111,30 @@ void TeaContextSkipTuple(const TeaContextPtr tea_ctx);
 /**
  * Read next tuple.
  */
-void TeaContextFetchTuple(const TeaContextPtr tea_ctx, struct FmgrInfo *fcinfo, GpDatum *values, bool *isnull);
+void TeaContextFetchTuple(const TeaContextPtr tea_ctx, struct FmgrInfo* fcinfo, GpDatum* values, bool* isnull);
 
 /**
  * Get estimated size of the relation
  */
-void TeaContextGetRelationSize(const TeaContextPtr tea_ctx, const char *session_id, const ReaderScanProjection *proj,
-                               ReaderRelationSize *relsize);
+void TeaContextGetRelationSize(const TeaContextPtr tea_ctx, const char* session_id, const ReaderScanProjection* proj,
+                               ReaderRelationSize* relsize);
 
 /**
  * Get table metadata from Iceberg in form of serialized
  * MetadataResponseResult message.
  */
-void TeaContextGetScanMetadata(const TeaContextPtr tea_ctx, const char *session_id, const char *file_filter,
-                               char **metadata, int segment_count);
+void TeaContextGetScanMetadata(const TeaContextPtr tea_ctx, const char* session_id, const char* file_filter,
+                               char** metadata, int segment_count);
 
-void TeaContextGetIcebergColumnStats(const char *url, const char *session_id, const char *column_name,
-                                     ColumnStats *result);
+void TeaContextGetIcebergColumnStats(const char* url, const char* session_id, const char* column_name,
+                                     ColumnStats* result);
 
-void TeaContextGetOptions(TeaContextPtr tea_ctx, ReaderOptions *options);
+void TeaContextGetOptions(TeaContextPtr tea_ctx, ReaderOptions* options);
 
 /**
  * Format stats in the format accepted by the monitoring system.
  */
-void TeaContextLogStats(const TeaContextPtr tea_ctx, const char *event);
+void TeaContextLogStats(const TeaContextPtr tea_ctx, const char* event);
 
 #ifdef __cplusplus
 }

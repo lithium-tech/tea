@@ -8,10 +8,10 @@
 
 #define ATT_IS_PACKABLE(att) ((att)->attlen == -1 && (att)->attstorage != 'p')
 
-static Size tea_heap_compute_data_size(TupleDesc tupleDesc, Datum *values, bool *isnull,
-                                       const HeapFillTupleInfo *heap_fill_tuple_info) {
+static Size tea_heap_compute_data_size(TupleDesc tupleDesc, Datum* values, bool* isnull,
+                                       const HeapFillTupleInfo* heap_fill_tuple_info) {
   Size data_length = 0;
-  Form_pg_attribute *att = tupleDesc->attrs;
+  Form_pg_attribute* att = tupleDesc->attrs;
 
   for (uint32_t j = 0; j < heap_fill_tuple_info->retrieved_columns_indices_length; j++) {
     int i = heap_fill_tuple_info->retrieved_columns_indices[j];
@@ -36,13 +36,13 @@ static Size tea_heap_compute_data_size(TupleDesc tupleDesc, Datum *values, bool 
   return data_length;
 }
 
-static Size tea_heap_fill_tuple(TupleDesc tupleDesc, Datum *values, bool *isnull, char *data, Size data_size,
-                                uint16 *infomask, bits8 *bit, const HeapFillTupleInfo *heap_fill_tuple_info);
+static Size tea_heap_fill_tuple(TupleDesc tupleDesc, Datum* values, bool* isnull, char* data, Size data_size,
+                                uint16* infomask, bits8* bit, const HeapFillTupleInfo* heap_fill_tuple_info);
 
 // GP6: https://<>/gpdb/-/blob/6X_STABLE/src/backend/access/common/heaptuple.c#L716
 // GP5: https://<>/gpdb/-/blob/5.29.9/src/backend/access/common/heaptuple.c#L716
-HeapTuple TeaHeapFormTuple(TupleDesc tupleDescriptor, Datum *values, bool *isnull,
-                           const HeapFillTupleInfo *heap_fill_tuple_info) {
+HeapTuple TeaHeapFormTuple(TupleDesc tupleDescriptor, Datum* values, bool* isnull,
+                           const HeapFillTupleInfo* heap_fill_tuple_info) {
   HeapTuple tuple;    /* return tuple */
   HeapTupleHeader td; /* tuple data */
   Size actual_len;
@@ -113,7 +113,7 @@ HeapTuple TeaHeapFormTuple(TupleDesc tupleDescriptor, Datum *values, bool *isnul
    * Allocate and zero the space needed.  Note that the tuple body and
    * HeapTupleData management structure are allocated in one chunk.
    */
-  tuple->t_data = td = (HeapTupleHeader)((char *)tuple + HEAPTUPLESIZE);
+  tuple->t_data = td = (HeapTupleHeader)((char*)tuple + HEAPTUPLESIZE);
 
   /*
    * And fill in the information.  Note we fill the Datum fields even though
@@ -133,7 +133,7 @@ HeapTuple TeaHeapFormTuple(TupleDesc tupleDescriptor, Datum *values, bool *isnul
   if (tupleDescriptor->tdhasoid) /* else leave infomask = 0 */
     td->t_infomask = HEAP_HASOID;
 
-  actual_len = tea_heap_fill_tuple(tupleDescriptor, values, isnull, (char *)td + hoff, data_len, &td->t_infomask,
+  actual_len = tea_heap_fill_tuple(tupleDescriptor, values, isnull, (char*)td + hoff, data_len, &td->t_infomask,
                                    (hasnull ? td->t_bits : NULL), heap_fill_tuple_info);
 
   (void)(actual_len);
@@ -158,11 +158,11 @@ HeapTuple TeaHeapFormTuple(TupleDesc tupleDescriptor, Datum *values, bool *isnul
  * @param bit should be non-NULL (refer to td->t_bits) if isnull is set and contains non-null values
  */
 // tea: bit == NULL <=> isnull has null
-static Size tea_heap_fill_tuple(TupleDesc tupleDesc, Datum *values, bool *isnull, char *data, Size data_size,
-                                uint16 *infomask, bits8 *bit, const HeapFillTupleInfo *heap_fill_tuple_info) {
-  bits8 *bitP;
-  Form_pg_attribute *att = tupleDesc->attrs;
-  char *start = data;
+static Size tea_heap_fill_tuple(TupleDesc tupleDesc, Datum* values, bool* isnull, char* data, Size data_size,
+                                uint16* infomask, bits8* bit, const HeapFillTupleInfo* heap_fill_tuple_info) {
+  bits8* bitP;
+  Form_pg_attribute* att = tupleDesc->attrs;
+  char* start = data;
 
   *infomask &= ~(HEAP_HASNULL | HEAP_HASVARWIDTH | HEAP_HASEXTERNAL);
   if (bit != NULL) {
@@ -192,7 +192,7 @@ static Size tea_heap_fill_tuple(TupleDesc tupleDesc, Datum *values, bool *isnull
 
     if (att[i]->attbyval) {
       /* pass-by-value */
-      data = (char *)att_align_nominal(data, att[i]->attalign);
+      data = (char*)att_align_nominal(data, att[i]->attalign);
       store_att_byval(data, values[i], att[i]->attlen);
       data_length = att[i]->attlen;
     } else if (att[i]->attlen == -1) {
@@ -216,7 +216,7 @@ static Size tea_heap_fill_tuple(TupleDesc tupleDesc, Datum *values, bool *isnull
         memcpy(data + 1, VARDATA(val), data_length - 1);
       } else {
         /* full 4-byte header varlena */
-        data = (char *)att_align_nominal(data, att[i]->attalign);
+        data = (char*)att_align_nominal(data, att[i]->attalign);
         data_length = VARSIZE(val);
         memcpy(data, val, data_length);
       }
@@ -228,7 +228,7 @@ static Size tea_heap_fill_tuple(TupleDesc tupleDesc, Datum *values, bool *isnull
       memcpy(data, DatumGetPointer(values[i]), data_length);
     } else {
       /* fixed-length pass-by-reference */
-      data = (char *)att_align_nominal(data, att[i]->attalign);
+      data = (char*)att_align_nominal(data, att[i]->attalign);
       Assert(att[i]->attlen > 0);
       data_length = att[i]->attlen;
       memcpy(data, DatumGetPointer(values[i]), data_length);
@@ -242,7 +242,7 @@ static Size tea_heap_fill_tuple(TupleDesc tupleDesc, Datum *values, bool *isnull
   return data - start;
 }
 
-void InitHeapFormTupleInfo(HeapFillTupleInfo *result, int *columns, int ncolumns) {
+void InitHeapFormTupleInfo(HeapFillTupleInfo* result, int* columns, int ncolumns) {
   result->retrieved_columns_indices = columns;
   result->retrieved_columns_indices_length = ncolumns;
 }

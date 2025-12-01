@@ -90,48 +90,48 @@ void SetError(std::string_view message) {
   is_call_successful = false;
 }
 
-void SetArrowError(const arrow::Status &status) { SetError(status.message()); }
+void SetArrowError(const arrow::Status& status) { SetError(status.message()); }
 
 template <typename T>
-void SetArrowError(const arrow::Result<T> &result) {
+void SetArrowError(const arrow::Result<T>& result) {
   SetArrowError(result.status());
 }
 
 // TODO(hvintus): this function is called with C++ non-trivial object on stack (string temporaries) and calls
 // palloc, that could do long jumps. This could at very least leak memory. Replace with other ways of passing
 // data.
-char *StringToPostgres(const std::string_view s) {
-  char *text = (char *)palloc(s.size() + 1);
+char* StringToPostgres(const std::string_view s) {
+  char* text = (char*)palloc(s.size() + 1);
   std::memcpy(text, s.data(), s.size());
   text[s.size()] = '\0';
   return text;
 }
 
 template <typename F>
-void Invoke(F &&func) noexcept {
+void Invoke(F&& func) noexcept {
   try {
     std::invoke(std::forward<F>(func));
-  } catch (const ::parquet::ParquetStatusException &e) {
+  } catch (const ::parquet::ParquetStatusException& e) {
     tea::SetArrowError(e.status());
-  } catch (const ::parquet::ParquetException &e) {
+  } catch (const ::parquet::ParquetException& e) {
     tea::SetArrowError(::arrow::Status::IOError(e.what()));
-  } catch (const ::arrow::Status &e) {
+  } catch (const ::arrow::Status& e) {
     tea::SetArrowError(e);
-  } catch (const ::std::exception &e) {
+  } catch (const ::std::exception& e) {
     tea::SetError(e.what());
   } catch (...) {
     tea::SetError("Unexpected exception.");
   }
 }
 
-static tea::ThreadPool *thread_pool = nullptr;
+static tea::ThreadPool* thread_pool = nullptr;
 
 class BatchGetter {
  public:
   enum class Policy { kBlockingMainThread, kBlockingHelperThread, kPrefetchingHelperThread };
   explicit BatchGetter(Policy policy) : policy_(policy) {}
 
-  arrow::Result<std::optional<iceberg::BatchWithSelectionVector>> GetBatch(tea::Reader &reader) {
+  arrow::Result<std::optional<iceberg::BatchWithSelectionVector>> GetBatch(tea::Reader& reader) {
     if (policy_ == Policy::kBlockingMainThread) {
       return reader.GetNextBatch();
     }
@@ -154,7 +154,7 @@ class BatchGetter {
     return arrow::Status::ExecutionError("BatchGetter: unexpected policy ", static_cast<int>(policy_));
   }
 
-  void MaybePrefetch(tea::Reader &reader) {
+  void MaybePrefetch(tea::Reader& reader) {
     if (policy_ == Policy::kPrefetchingHelperThread) {
       FetchBatch(reader);
     }
@@ -181,7 +181,7 @@ class BatchGetter {
 
   std::optional<std::future<TaskResult>> task_;
 
-  void FetchBatch(tea::Reader &reader) {
+  void FetchBatch(tea::Reader& reader) {
     task_ = tea::thread_pool->Submit(
         [&reader,
          timer = &this->prefetching_timer_]() -> arrow::Result<std::optional<iceberg::BatchWithSelectionVector>> {
@@ -228,21 +228,21 @@ struct InternalContext {
 
 void PrintLogs() {
   auto logs = GetLogs();
-  for (const auto &msg : logs) {
+  for (const auto& msg : logs) {
     elog(LOG, "%s", msg.c_str());  // TODO(gmusya): this function may not return, causing memory leak. Fix
   }
 }
 
 arrow::Result<std::string> ReadFile(std::shared_ptr<iceberg::IFileSystemProvider> fs_provider,
-                                    const std::string &path) {
+                                    const std::string& path) {
   ARROW_ASSIGN_OR_RAISE(auto fs, fs_provider->GetFileSystem(path));
   return iceberg::ice_tea::ReadFile(fs, path);
 }
 
-uint64_t CountDataFiles(const iceberg::ice_tea::ScanMetadata &scan_metadata) {
+uint64_t CountDataFiles(const iceberg::ice_tea::ScanMetadata& scan_metadata) {
   uint64_t result = 0;
-  for (const auto &partition : scan_metadata.partitions) {
-    for (const auto &layer : partition) {
+  for (const auto& partition : scan_metadata.partitions) {
+    for (const auto& layer : partition) {
       result += layer.data_entries_.size();
     }
   }
@@ -250,10 +250,10 @@ uint64_t CountDataFiles(const iceberg::ice_tea::ScanMetadata &scan_metadata) {
   return result;
 }
 
-uint64_t CountPositionalDeleteFiles(const iceberg::ice_tea::ScanMetadata &scan_metadata) {
+uint64_t CountPositionalDeleteFiles(const iceberg::ice_tea::ScanMetadata& scan_metadata) {
   uint64_t result = 0;
-  for (const auto &partition : scan_metadata.partitions) {
-    for (const auto &layer : partition) {
+  for (const auto& partition : scan_metadata.partitions) {
+    for (const auto& layer : partition) {
       result += layer.positional_delete_entries_.size();
     }
   }
@@ -266,7 +266,7 @@ uint64_t CountPositionalDeleteFiles(const iceberg::ice_tea::ScanMetadata &scan_m
 
 #define TEA_RETURN_ARROW_NOT_OK(status_or_value_expr)                                  \
   do {                                                                                 \
-    if (const auto &status_or_value = (status_or_value_expr); !status_or_value.ok()) { \
+    if (const auto& status_or_value = (status_or_value_expr); !status_or_value.ok()) { \
       tea::SetArrowError(status_or_value);                                             \
       return;                                                                          \
     }                                                                                  \
@@ -322,8 +322,8 @@ uint64_t CountPositionalDeleteFiles(const iceberg::ice_tea::ScanMetadata &scan_m
 
 namespace get {
 
-auto ContextPtr(const TeaContextPtr context) { return static_cast<tea::InternalContext *>(context->ctx); }
-auto &Context(const TeaContextPtr context) { return *static_cast<tea::InternalContext *>(context->ctx); }
+auto ContextPtr(const TeaContextPtr context) { return static_cast<tea::InternalContext*>(context->ctx); }
+auto& Context(const TeaContextPtr context) { return *static_cast<tea::InternalContext*>(context->ctx); }
 
 auto Reader(const TeaContextPtr context) { return Context(context).reader; }
 auto Converter(const TeaContextPtr context) { return Context(context).converter; }
@@ -331,18 +331,18 @@ auto TimerTicks(const TeaContextPtr context) { return Context(context).timer_tic
 auto TimerClock(const TeaContextPtr context) { return Context(context).timer_clock; }
 auto ExtStats(const TeaContextPtr context) { return &context->ext_stats; }
 auto BatchGetter(const TeaContextPtr context) { return Context(context).batch_getter; }
-tea::PlannerStats &PlannerStats(const TeaContextPtr context) { return Context(context).planner_stats; }
+tea::PlannerStats& PlannerStats(const TeaContextPtr context) { return Context(context).planner_stats; }
 auto FileSystemProvider(const TeaContextPtr context) { return Context(context).fs_provider; }
 int ScanIdentifier(const TeaContextPtr context) { return Context(context).scan_identifier; }
-std::string &SessionId(const TeaContextPtr context) { return Context(context).session_id; }
-const tea::TableConfig &TableConfig(const TeaContextPtr context) { return Context(context).table_config; }
-const tea::Config &Config(const TeaContextPtr context) { return TableConfig(context).config; }
-const tea::SamovarConfig &SamovarConfig(const TeaContextPtr context) { return Config(context).samovar_config; }
-const tea::TableSource &Source(const TeaContextPtr context) { return Context(context).table_config.source; }
-tea::CancelToken &CancelToken(const TeaContextPtr context) { return Context(context).cancel_token; }
+std::string& SessionId(const TeaContextPtr context) { return Context(context).session_id; }
+const tea::TableConfig& TableConfig(const TeaContextPtr context) { return Context(context).table_config; }
+const tea::Config& Config(const TeaContextPtr context) { return TableConfig(context).config; }
+const tea::SamovarConfig& SamovarConfig(const TeaContextPtr context) { return Config(context).samovar_config; }
+const tea::TableSource& Source(const TeaContextPtr context) { return Context(context).table_config.source; }
+tea::CancelToken& CancelToken(const TeaContextPtr context) { return Context(context).cancel_token; }
 }  // namespace get
 
-void WaitTaskWithInterrupts(std::future<void> &task, tea::CancelToken &cancel_token) {
+void WaitTaskWithInterrupts(std::future<void>& task, tea::CancelToken& cancel_token) {
   constexpr std::chrono::milliseconds kPollInterval{100};
   while (task.wait_for(kPollInterval) == std::future_status::timeout) {
     if (InterruptPending && (ProcDiePending || QueryCancelPending)) {
@@ -353,7 +353,7 @@ void WaitTaskWithInterrupts(std::future<void> &task, tea::CancelToken &cancel_to
   task.get();
 }
 
-std::shared_ptr<iceberg::IFileSystemProvider> MakeFileSystemProvider(const tea::Config &config) {
+std::shared_ptr<iceberg::IFileSystemProvider> MakeFileSystemProvider(const tea::Config& config) {
   iceberg::S3FileSystemGetter::Config s3_input_cfg;
   s3_input_cfg.access_key = config.s3.access_key;
   s3_input_cfg.secret_key = config.s3.secret_key;
@@ -384,8 +384,8 @@ std::shared_ptr<iceberg::IFileSystemProvider> MakeFileSystemProvider(const tea::
   return std::make_shared<iceberg::FileSystemProvider>(std::move(schema_to_fs_builder));
 }
 
-void UpdateConfig(const std::string &profile_to_tables_path, std::shared_ptr<iceberg::IFileSystemProvider> fs_provider,
-                  const std::string &table_url, tea::TableConfig &config) {
+void UpdateConfig(const std::string& profile_to_tables_path, std::shared_ptr<iceberg::IFileSystemProvider> fs_provider,
+                  const std::string& table_url, tea::TableConfig& config) {
   arrow::Result<std::string> maybe_file_content = tea::ReadFile(fs_provider, profile_to_tables_path);
   if (!maybe_file_content.ok()) {
     std::string message = "Failed to read profile-to-tables config: " + maybe_file_content.status().message();
@@ -403,7 +403,7 @@ void UpdateConfig(const std::string &profile_to_tables_path, std::shared_ptr<ice
       std::unordered_map<std::string, std::string> table_to_profile = maybe_table_to_profile.MoveValueUnsafe();
 
       std::optional<std::string> table_id = [&]() -> std::optional<std::string> {
-        const auto &source = config.source;
+        const auto& source = config.source;
         if (std::holds_alternative<tea::TeapotTable>(source)) {
           return std::get<tea::TeapotTable>(source).table_id.ToString();
         }
@@ -420,16 +420,16 @@ void UpdateConfig(const std::string &profile_to_tables_path, std::shared_ptr<ice
   }
 }
 
-void LogSourceType(const tea::TableSource &source) {
-  if (auto *iceberg_table = std::get_if<tea::IcebergTable>(&source); iceberg_table != nullptr) {
+void LogSourceType(const tea::TableSource& source) {
+  if (auto* iceberg_table = std::get_if<tea::IcebergTable>(&source); iceberg_table != nullptr) {
     TEA_LOG("Iceberg table: " + iceberg_table->table_id.ToString());
-  } else if (auto *teapot_table = std::get_if<tea::TeapotTable>(&source); teapot_table != nullptr) {
+  } else if (auto* teapot_table = std::get_if<tea::TeapotTable>(&source); teapot_table != nullptr) {
     TEA_LOG("Teapot table: " + teapot_table->table_id.ToString());
-  } else if (auto *file_table = std::get_if<tea::FileTable>(&source); file_table != nullptr) {
+  } else if (auto* file_table = std::get_if<tea::FileTable>(&source); file_table != nullptr) {
     TEA_LOG("File table: " + file_table->url);
-  } else if (auto *special_table = std::get_if<tea::EmptyTable>(&source); special_table != nullptr) {
+  } else if (auto* special_table = std::get_if<tea::EmptyTable>(&source); special_table != nullptr) {
     TEA_LOG("Empty table");
-  } else if (auto *total_metrics_table = std::get_if<tea::IcebergMetricsTable>(&source);
+  } else if (auto* total_metrics_table = std::get_if<tea::IcebergMetricsTable>(&source);
              total_metrics_table != nullptr) {
     TEA_LOG("Total metrics table");
   } else {
@@ -437,7 +437,7 @@ void LogSourceType(const tea::TableSource &source) {
   }
 }
 
-TeaContextPtr TeaContextCreateUntracked(const char *url) {
+TeaContextPtr TeaContextCreateUntracked(const char* url) {
   TeaContextPtr result = nullptr;
   TEA_INVOKE_IN_HELPER_THREAD(
       ERROR, ([url, &result]() {
@@ -454,10 +454,10 @@ TeaContextPtr TeaContextCreateUntracked(const char *url) {
         internal_ctx->timer_clock = std::make_shared<tea::TimerClock>();
         internal_ctx->timer_ticks = std::make_shared<tea::TimerTicks>();
 
-        const auto &cfg = internal_ctx->table_config.config;
+        const auto& cfg = internal_ctx->table_config.config;
         internal_ctx->fs_provider = MakeFileSystemProvider(cfg);
 
-        const std::string &profile_to_tables_path = internal_ctx->table_config.config.profile_to_tables_path;
+        const std::string& profile_to_tables_path = internal_ctx->table_config.config.profile_to_tables_path;
         if (!profile_to_tables_path.empty()) {
           UpdateConfig(profile_to_tables_path, internal_ctx->fs_provider, url, internal_ctx->table_config);
         }
@@ -528,7 +528,7 @@ void TeaContextInitialize(int db_encoding) {
   TEA_INVOKE_IN_HELPER_THREAD(ERROR, [=] { TEA_RETURN_ARROW_NOT_OK(tea::Reader::Initialize(db_encoding)); });
 }
 
-static tea::TableType TableTypeFromSource(const tea::TableSource &source) {
+static tea::TableType TableTypeFromSource(const tea::TableSource& source) {
   if (std::holds_alternative<tea::IcebergTable>(source)) {
     return tea::TableType::kIceberg;
   } else if (std::holds_alternative<tea::TeapotTable>(source)) {
@@ -547,7 +547,7 @@ static std::string CommonFilterToTeapotFileFilter(std::string serialized_filter)
 }
 
 static std::shared_ptr<tea::samovar::SingleQueueClient> CreateSamovarClient(TeaContextPtr tea_ctx,
-                                                                            const std::string &queue_name,
+                                                                            const std::string& queue_name,
                                                                             int segment_id, int segment_count,
                                                                             tea::samovar::SamovarRole role) {
   TEA_LOG("Creating samovar client with queue " + queue_name);
@@ -556,7 +556,7 @@ static std::shared_ptr<tea::samovar::SingleQueueClient> CreateSamovarClient(TeaC
 }
 
 // invoked on segment
-void TeaContextPlanForeign(TeaContextPtr tea_ctx, const ForeignScanParams *params) {
+void TeaContextPlanForeign(TeaContextPtr tea_ctx, const ForeignScanParams* params) {
   TEA_INVOKE_IN_HELPER_THREAD(ERROR, [=] {
     get::SessionId(tea_ctx) = params->session_id;
 
@@ -598,10 +598,10 @@ void TeaContextPlanForeign(TeaContextPtr tea_ctx, const ForeignScanParams *param
   });
 }
 
-static iceberg::ice_tea::ScanMetadata GetMetaFromTeapot(TeaContextPtr tea_ctx, const tea::TableConfig &table_config,
+static iceberg::ice_tea::ScanMetadata GetMetaFromTeapot(TeaContextPtr tea_ctx, const tea::TableConfig& table_config,
                                                         int segment_id, int segment_count,
-                                                        const std::string &session_id,
-                                                        const std::string &extracted_filter) {
+                                                        const std::string& session_id,
+                                                        const std::string& extracted_filter) {
   auto res_with_stats = tea::meta::access::FromTeapot(
       table_config.config, std::get<tea::TeapotTable>(table_config.source).table_id.ToString(), session_id, segment_id,
       segment_count, CommonFilterToTeapotFileFilter(extracted_filter));
@@ -609,9 +609,9 @@ static iceberg::ice_tea::ScanMetadata GetMetaFromTeapot(TeaContextPtr tea_ctx, c
   return (std::move(res_with_stats.first));
 }
 
-static iceberg::ice_tea::ScanMetadata GetMetaFromIceberg(TeaContextPtr tea_ctx, const tea::TableConfig &table_config,
-                                                         const std::string &extracted_filter,
-                                                         const tea::CancelToken &cancel_token) {
+static iceberg::ice_tea::ScanMetadata GetMetaFromIceberg(TeaContextPtr tea_ctx, const tea::TableConfig& table_config,
+                                                         const std::string& extracted_filter,
+                                                         const tea::CancelToken& cancel_token) {
   auto filter = iceberg::filter::StringToFilter(extracted_filter);
   auto res_with_stats = tea::meta::access::FromIceberg(
       table_config.config, std::get<tea::IcebergTable>(table_config.source).table_id, filter,
@@ -621,10 +621,10 @@ static iceberg::ice_tea::ScanMetadata GetMetaFromIceberg(TeaContextPtr tea_ctx, 
   return std::move(res_with_stats.first);
 }
 
-static iceberg::ice_tea::ScanMetadata GetMetadataForSegment(TeaContextPtr tea_ctx, const tea::TableConfig &table_config,
+static iceberg::ice_tea::ScanMetadata GetMetadataForSegment(TeaContextPtr tea_ctx, const tea::TableConfig& table_config,
                                                             int segment_id, int segment_count,
-                                                            const std::string &session_id,
-                                                            const std::string &extracted_filter) {
+                                                            const std::string& session_id,
+                                                            const std::string& extracted_filter) {
   auto access_type = TableTypeFromSource(get::Source(tea_ctx));
   switch (access_type) {
     case tea::TableType::kIceberg:
@@ -646,9 +646,9 @@ static iceberg::ice_tea::ScanMetadata GetMetadataForSegment(TeaContextPtr tea_ct
   }
 }
 
-static iceberg::ice_tea::ScanMetadata GetAllMetadata(TeaContextPtr tea_ctx, const tea::TableConfig &table_config,
-                                                     const std::string &session_id, const std::string &extracted_filter,
-                                                     const tea::CancelToken &cancel_token) {
+static iceberg::ice_tea::ScanMetadata GetAllMetadata(TeaContextPtr tea_ctx, const tea::TableConfig& table_config,
+                                                     const std::string& session_id, const std::string& extracted_filter,
+                                                     const tea::CancelToken& cancel_token) {
   auto access_type = TableTypeFromSource(get::Source(tea_ctx));
   if (access_type == tea::TableType::kIceberg) {
     return GetMetaFromIceberg(tea_ctx, table_config, extracted_filter, cancel_token);
@@ -658,7 +658,7 @@ static iceberg::ice_tea::ScanMetadata GetAllMetadata(TeaContextPtr tea_ctx, cons
 
 using ResultType = arrow::Result<std::pair<tea::meta::PlannedMeta, tea::PlannerStats>>;
 
-inline std::string GetLocation(TeaContextPtr tea_ctx, const ExternalScanParams *params) {
+inline std::string GetLocation(TeaContextPtr tea_ctx, const ExternalScanParams* params) {
   iceberg::filter::NodePtr filter =
       iceberg::filter::StringToFilter(params->filter.all_extracted ? params->filter.all_extracted : "");
   iceberg::Ensure(filter != nullptr, "IcebergMetricsTable: filter must be 'location = <location>'");
@@ -702,7 +702,7 @@ inline tea::TableId GetTableId(std::string location) {
   return tea::TableId::FromString(components.location);
 }
 
-void TeaContextPrepareTotalMetricsTable(TeaContextPtr tea_ctx, const ExternalScanParams *params) {
+void TeaContextPrepareTotalMetricsTable(TeaContextPtr tea_ctx, const ExternalScanParams* params) {
   if (params->segment_id != 0) {
     return;
   }
@@ -760,7 +760,7 @@ void TeaContextPrepareTotalMetricsTable(TeaContextPtr tea_ctx, const ExternalSca
 }
 
 // invoked on segment
-void TeaContextPlanExternal(TeaContextPtr tea_ctx, const ExternalScanParams *params) {
+void TeaContextPlanExternal(TeaContextPtr tea_ctx, const ExternalScanParams* params) {
   TEA_INVOKE_IN_HELPER_THREAD_WITH_INTERRUPTS(ERROR, [=] {
     get::SessionId(tea_ctx) = params->session_id;
 
@@ -794,7 +794,7 @@ void TeaContextPlanExternal(TeaContextPtr tea_ctx, const ExternalScanParams *par
 
       TEA_LOG("Samovar coordinator for query is " + std::to_string(target_coordinator));
 
-      const auto &cfg = get::Config(tea_ctx).samovar_config;
+      const auto& cfg = get::Config(tea_ctx).samovar_config;
       const int slice_id = params->slice_id;
       const int first_slice_to_sleep = cfg.first_slice_to_sleep;
 
@@ -880,7 +880,7 @@ void TeaContextPlanExternal(TeaContextPtr tea_ctx, const ExternalScanParams *par
 }
 
 // invoked on master
-void TeaContextPlanAnalyze(TeaContextPtr tea_ctx, const AnalyzeParams *params) {
+void TeaContextPlanAnalyze(TeaContextPtr tea_ctx, const AnalyzeParams* params) {
   TEA_INVOKE_IN_HELPER_THREAD(ERROR, [=] {
     get::SessionId(tea_ctx) = params->session_id;
 
@@ -901,7 +901,7 @@ void TeaContextPlanAnalyze(TeaContextPtr tea_ctx, const AnalyzeParams *params) {
   });
 }
 
-void TeaContextPrepareTuple(TeaContextPtr tea_ctx, bool *has_row) {
+void TeaContextPrepareTuple(TeaContextPtr tea_ctx, bool* has_row) {
   *has_row = false;
 
   auto converter = get::Converter(tea_ctx);
@@ -948,7 +948,7 @@ void TeaContextSkipTuple(const TeaContextPtr tea_ctx) {
   });
 }
 
-void TeaContextFetchTuple(const TeaContextPtr tea_ctx, struct FmgrInfo *fcinfo, GpDatum *values, bool *isnull) {
+void TeaContextFetchTuple(const TeaContextPtr tea_ctx, struct FmgrInfo* fcinfo, GpDatum* values, bool* isnull) {
   tea::ScopedTimerTicks timer(get::ExtStats(tea_ctx)->convert_duration_ticks);
   // hot path
   TEA_INVOKE_WO_PRINT_LOGS(ERROR, [=] {
@@ -958,8 +958,8 @@ void TeaContextFetchTuple(const TeaContextPtr tea_ctx, struct FmgrInfo *fcinfo, 
   });
 }
 
-void TeaContextGetRelationSize(TeaContextPtr tea_ctx, const char *session_id, const ReaderScanProjection *projection,
-                               ReaderRelationSize *relsize) {
+void TeaContextGetRelationSize(TeaContextPtr tea_ctx, const char* session_id, const ReaderScanProjection* projection,
+                               ReaderRelationSize* relsize) {
   TEA_INVOKE_IN_HELPER_THREAD(ERROR, [=] {
     tea::ReaderProperties reader_properties(get::Config(tea_ctx));
     auto fs_provider = get::FileSystemProvider(tea_ctx);
@@ -983,8 +983,8 @@ void TeaContextGetRelationSize(TeaContextPtr tea_ctx, const char *session_id, co
 
 #ifdef TEA_BUILD_STATS
 // TODO(gmusya): semantic of this function is weird, fix it
-void TeaContextGetIcebergColumnStats(const char *url, const char *session_id, const char *column_name,
-                                     ColumnStats *result) {
+void TeaContextGetIcebergColumnStats(const char* url, const char* session_id, const char* column_name,
+                                     ColumnStats* result) {
   TEA_INVOKE_IN_HELPER_THREAD(ERROR, [=] {
     tea::TableConfig table_config = tea::ConfigSource::GetTableConfig(url);
 
@@ -1004,7 +1004,7 @@ void TeaContextGetIcebergColumnStats(const char *url, const char *session_id, co
 }
 #endif
 
-static void SetOptions(ReaderOptions *options, const tea::Config &config) {
+static void SetOptions(ReaderOptions* options, const tea::Config& config) {
   options->use_custom_heap_form_tuple = config.features.use_custom_heap_form_tuple;
   options->ext_table_filter_walker_for_projection = config.features.ext_table_filter_walker_for_projection;
   options->use_virtual_tuple = config.features.use_virtual_tuple;
@@ -1017,16 +1017,16 @@ static void SetOptions(ReaderOptions *options, const tea::Config &config) {
   options->ignored_exprs.op_exprs.len = config.features.filter_ignored_op_exprs.size();
 }
 
-void TeaContextGetOptions(TeaContextPtr tea_ctx, ReaderOptions *options) {
+void TeaContextGetOptions(TeaContextPtr tea_ctx, ReaderOptions* options) {
   TEA_INVOKE_IN_HELPER_THREAD(ERROR, ([tea_ctx, options] {
-                                const tea::Config &config = get::Config(tea_ctx);
+                                const tea::Config& config = get::Config(tea_ctx);
                                 SetOptions(options, config);
                               }));
 }
 
 // invoked on master
-void TeaContextGetScanMetadata(const TeaContextPtr tea_ctx, const char *session_id, const char *file_filter,
-                               char **metadata, int segment_count) {
+void TeaContextGetScanMetadata(const TeaContextPtr tea_ctx, const char* session_id, const char* file_filter,
+                               char** metadata, int segment_count) {
   TEA_INVOKE_IN_HELPER_THREAD(
       ERROR, ([tea_ctx, session_id, &metadata, file_filter, segment_count] {
         iceberg::ice_tea::ScanMetadata all_meta = GetAllMetadata(
@@ -1063,7 +1063,7 @@ void TeaContextGetScanMetadata(const TeaContextPtr tea_ctx, const char *session_
       }));
 }
 
-void TeaContextLogStats(const TeaContextPtr tea_ctx, const char *event) {
+void TeaContextLogStats(const TeaContextPtr tea_ctx, const char* event) {
   TEA_INVOKE_IN_HELPER_THREAD(
       ERROR, ([tea_ctx, event] {
         if (std::holds_alternative<tea::IcebergMetricsTable>(get::Source(tea_ctx))) {
