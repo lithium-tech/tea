@@ -2,6 +2,7 @@
 
 #include <cstdint>
 
+#include "tea/common/iceberg_fs.h"
 #include "tea/util/measure.h"
 
 namespace tea {
@@ -45,5 +46,12 @@ struct PlannerStats {
     catalog_connections_established += other.catalog_connections_established;
   }
 };
+
+inline void UpdatePlannerStats(tea::PlannerStats& stats, const IcebergMetrics& metrics) {
+  stats.iceberg_fs_duration += metrics.filesystem_duration;
+  stats.iceberg_bytes_read += metrics.bytes_read;
+  stats.iceberg_files_read += metrics.files_opened;
+  stats.iceberg_requests += metrics.requests;
+}
 
 }  // namespace tea

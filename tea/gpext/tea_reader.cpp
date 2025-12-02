@@ -10,13 +10,19 @@
 #include <iceberg/filter/representation/function.h>
 #include <iceberg/filter/representation/node.h>
 #include <iceberg/filter/representation/value.h>
+#include <iceberg/filter/stats_filter/stats_filter.h>
+#include <iceberg/manifest_entry.h>
+#include <iceberg/manifest_file.h>
 #include <iceberg/result.h>
 #include <iceberg/schema.h>
+#include <iceberg/snapshot.h>
+#include <iceberg/table_metadata.h>
 
 #include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <cstddef>
+#include <deque>
 #include <future>
 #include <map>
 #include <memory>
@@ -38,7 +44,9 @@
 #include "iceberg/tea_scan.h"
 #include "iceberg/uuid.h"
 
+#include "tea/common/cancel.h"
 #include "tea/common/config.h"
+#include "tea/common/iceberg_fs.h"
 #include "tea/common/iceberg_json.h"
 #include "tea/common/reader_properties.h"
 #include "tea/common/utils.h"
@@ -48,6 +56,7 @@
 #include "tea/metadata/access_file.h"
 #include "tea/metadata/access_iceberg.h"
 #include "tea/metadata/access_teapot.h"
+#include "tea/metadata/entries_stream_config.h"
 #include "tea/metadata/estimator.h"
 #include "tea/metadata/planner.h"
 #include "tea/observability/planner_stats.h"
@@ -577,7 +586,8 @@ void TeaContextPlanForeign(TeaContextPtr tea_ctx, const ForeignScanParams* param
 
         auto result =
             tea::samovar::FromSamovar(get::Config(tea_ctx), params->segment_id, meta_message.scan_metadata_identifier,
-                                      is_metadata_already_written, samovar_data_client);
+                                      is_metadata_already_written, samovar_data_client,
+                                      get::FileSystemProvider(tea_ctx), get::CancelToken(tea_ctx));
         return result;
       } else {
         tea::ScanMetadataMessage meta = std::move(meta_message);
@@ -759,6 +769,205 @@ void TeaContextPrepareTotalMetricsTable(TeaContextPtr tea_ctx, const ExternalSca
   iceberg::Ensure(converter->Prepare(std::move(iceberg_batch)));
 }
 
+bool UseDistributedMetadataParsing(const std::deque<iceberg::ManifestFile>& manifests,
+                                   uint64_t singlenode_parsing_files_threshold) {
+  uint64_t total_data_files = 0;
+
+  for (auto& elem : manifests) {
+    if (elem.content == iceberg::ManifestContent::kDeletes) {
+      TEA_LOG("Using single node metadata parsing because of deletes");
+      return false;
+    }
+    total_data_files += elem.added_files_count + elem.existing_files_count + elem.deleted_files_count;
+  }
+
+  if (manifests.size() < 2) {
+    TEA_LOG("Using single node metadata parsing because manifests.size() = " + std::to_string(manifests.size()));
+    return false;
+  }
+
+  if (total_data_files >= singlenode_parsing_files_threshold) {
+    TEA_LOG("Using distributed metadata parsing because total_data_files = " + std::to_string(total_data_files) +
+            " (threshold is " + std::to_string(singlenode_parsing_files_threshold) + ")");
+    return true;
+  } else {
+    TEA_LOG("Using single node metadata parsing because total_data_files = " + std::to_string(total_data_files) +
+            " (threshold is " + std::to_string(singlenode_parsing_files_threshold) + ")");
+    return false;
+  }
+}
+
+std::deque<iceberg::ManifestFile> GetManifestFiles(std::shared_ptr<iceberg::IFileSystemProvider> fs_provider,
+                                                   std::shared_ptr<iceberg::TableMetadataV2> table_metadata,
+                                                   std::shared_ptr<iceberg::filter::StatsFilter> stats_filter,
+                                                   tea::PlannerStats& stats) {
+  auto fs = iceberg::ValueSafe(fs_provider->GetFileSystem(table_metadata->GetCurrentManifestListPathOrFail()));
+  auto metrics = std::make_shared<tea::IcebergMetrics>();
+  fs = std::make_shared<tea::IcebergLoggingFileSystem>(fs, metrics);
+
+  const std::string manifest_metadatas_content =
+      iceberg::ValueSafe(iceberg::ice_tea::ReadFile(fs, table_metadata->GetCurrentManifestListPathOrFail()));
+
+  std::stringstream ss(manifest_metadatas_content);
+
+  std::vector<iceberg::ManifestFile> manifest_metadatas = iceberg::ice_tea::ReadManifestList(ss);
+
+  auto schema = table_metadata->GetCurrentSchema();
+
+  try {
+    if (stats_filter != nullptr && schema != nullptr) {
+      std::vector<bool> can_skip =
+          iceberg::ice_tea::FilterManifests(stats_filter, schema, table_metadata->partition_specs, manifest_metadatas);
+      std::deque<iceberg::ManifestFile> result;
+      for (size_t i = 0; i < manifest_metadatas.size(); ++i) {
+        if (!can_skip.at(i)) {
+          result.push_back(manifest_metadatas[i]);
+        }
+      }
+
+      UpdatePlannerStats(stats, *metrics);
+      return result;
+    }
+  } catch (std::exception& e) {
+    // if we failed to apply filter than fallback to parsing metadata completely
+    // TODO(gmusya): add logging
+  } catch (arrow::Status& e) {
+  }
+
+  UpdatePlannerStats(stats, *metrics);
+  return std::deque<iceberg::ManifestFile>(std::make_move_iterator(manifest_metadatas.begin()),
+                                           std::make_move_iterator(manifest_metadatas.end()));
+}
+
+void ValidateAllMetadata(const tea::Config& config, const iceberg::ice_tea::ScanMetadata& all_meta) {
+  {
+    uint64_t positional_delete_count = tea::CountPositionalDeleteFiles(all_meta);
+    uint64_t limit = config.limits.samovar_max_total_positional_delete_files;
+    if (positional_delete_count > limit) {
+      throw std::runtime_error("There are " + std::to_string(positional_delete_count) +
+                               " positional delete files in plan (limit is " + std::to_string(limit) +
+                               "). Call compaction or use more selective filter");
+    }
+  }
+
+  {
+    uint64_t data_files_count = tea::CountDataFiles(all_meta);
+    uint64_t limit = config.limits.samovar_max_total_data_files;
+    if (data_files_count > limit) {
+      throw std::runtime_error("There are " + std::to_string(data_files_count) + " data files in plan (limit is " +
+                               std::to_string(limit) + "). Call compaction or use more selective filter");
+    }
+  }
+}
+
+std::shared_ptr<iceberg::TableMetadataV2> GetTableMetadataNonNull(TeaContextPtr tea_ctx, tea::PlannerStats& stats) {
+  const auto& config = get::TableConfig(tea_ctx);
+
+  std::string table_metadata_location =
+      tea::meta::access::GetIcebergTableLocation(config.config, std::get<tea::IcebergTable>(config.source).table_id);
+  ++stats.catalog_connections_established;
+
+  std::shared_ptr<arrow::fs::FileSystem> fs =
+      iceberg::ValueSafe(get::FileSystemProvider(tea_ctx)->GetFileSystem(table_metadata_location));
+  auto metrics = std::make_shared<tea::IcebergMetrics>();
+  fs = std::make_shared<tea::IcebergLoggingFileSystem>(fs, metrics);
+
+  auto data = iceberg::ValueSafe(iceberg::ice_tea::ReadFile(fs, table_metadata_location));
+  std::shared_ptr<iceberg::TableMetadataV2> table_metadata = iceberg::ice_tea::ReadTableMetadataV2(data);
+  if (!table_metadata) {
+    throw arrow::Status::ExecutionError("GetScanMetadata: failed to parse metadata " + table_metadata_location);
+  }
+
+  tea::UpdatePlannerStats(stats, *metrics);
+  return table_metadata;
+}
+
+std::shared_ptr<tea::samovar::SingleQueueClient> SamovarMakePlan(TeaContextPtr tea_ctx,
+                                                                 tea::Reader::SerializedFilter filter,
+                                                                 std::string queue_name, int segment_id,
+                                                                 int segment_count) {
+  TEA_LOG("I am samovar coordinator");
+
+  tea::PlannerStats& stats = get::PlannerStats(tea_ctx);
+
+  std::optional<tea::ScopedTimerTicks> timer = tea::ScopedTimerTicks(stats.plan_duration);
+
+  const auto& config = get::TableConfig(tea_ctx);
+  {
+    std::shared_ptr<iceberg::TableMetadataV2> table_metadata = GetTableMetadataNonNull(tea_ctx, stats);
+
+    std::shared_ptr<iceberg::filter::StatsFilter> stats_filter;
+
+    auto node_filter = iceberg::filter::StringToFilter(filter.extracted);
+    if (node_filter) {
+      stats_filter =
+          std::make_shared<iceberg::filter::StatsFilter>(node_filter, iceberg::filter::StatsFilter::Settings{});
+    }
+
+    {
+      std::shared_ptr<iceberg::Schema> schema = table_metadata->GetCurrentSchema();
+
+      std::deque<iceberg::ManifestFile> manifest_files_queue =
+          GetManifestFiles(get::FileSystemProvider(tea_ctx), table_metadata, stats_filter, get::PlannerStats(tea_ctx));
+
+      if (UseDistributedMetadataParsing(manifest_files_queue,
+                                        config.config.limits.samovar_distributed_metadata_parsing_files_threshold)) {
+        std::shared_ptr<tea::samovar::SingleQueueClient> samovar_client =
+            CreateSamovarClient(tea_ctx, queue_name, segment_id, segment_count, tea::samovar::SamovarRole::kFollower);
+        auto maybe_stats = tea::samovar::FillSamovarWithManifests(get::Config(tea_ctx), schema, manifest_files_queue,
+                                                                  segment_count, samovar_client);
+        get::PlannerStats(tea_ctx).Combine(iceberg::ValueSafe(maybe_stats));
+
+        return samovar_client;
+      } else {
+        const bool use_reader_schema =
+            config.config.UseReaderSchema(table_metadata->GetCurrentSchema()->Columns().size());
+
+        std::shared_ptr<arrow::fs::FileSystem> fs =
+            iceberg::ValueSafe(get::FileSystemProvider(tea_ctx)->GetFileSystem(table_metadata->location));
+        auto metrics = std::make_shared<tea::IcebergMetrics>();
+        fs = std::make_shared<tea::IcebergLoggingFileSystem>(fs, metrics);
+
+        std::shared_ptr<iceberg::ice_tea::IcebergEntriesStream> entries_stream =
+            std::make_shared<iceberg::ice_tea::AllEntriesStream>(
+                fs, std::queue(std::move(manifest_files_queue)), use_reader_schema, table_metadata->partition_specs,
+                schema,
+                node_filter ? tea::MakeScanDeserializerConfigWithFilter() : tea::MakeFullScanDeserializerConfig());
+        entries_stream = std::make_shared<tea::CancellingStream>(entries_stream, get::CancelToken(tea_ctx));
+
+        auto logger = std::make_shared<tea::Logger>();
+        logger->SetHandler("metrics:plan:data_files",
+                           [&](const tea::Logger::Message& msg) { stats.data_files_planned += std::stoll(msg); });
+        logger->SetHandler("metrics:plan:positional_files",
+                           [&](const tea::Logger::Message& msg) { stats.positional_files_planned += std::stoll(msg); });
+        logger->SetHandler("metrics:plan:equality_files",
+                           [&](const tea::Logger::Message& msg) { stats.equality_files_planned += std::stoll(msg); });
+        logger->SetHandler("metrics:plan:dangling_positional_files", [&](const tea::Logger::Message& msg) {
+          stats.dangling_positional_files += std::stoll(msg);
+        });
+
+        iceberg::ice_tea::ScanMetadata all_meta =
+            iceberg::ValueSafe(iceberg::ice_tea::GetScanMetadata(*entries_stream, *table_metadata, logger));
+
+        ValidateAllMetadata(get::Config(tea_ctx), all_meta);
+
+        std::shared_ptr<tea::samovar::SingleQueueClient> samovar_client =
+            CreateSamovarClient(tea_ctx, queue_name, segment_id, segment_count, tea::samovar::SamovarRole::kFollower);
+
+        tea::UpdatePlannerStats(stats, *metrics);
+
+        TEA_LOG("Filling queue " + queue_name);
+        auto maybe_stats =
+            tea::samovar::FillSamovar(get::Config(tea_ctx), std::move(all_meta), segment_count, samovar_client);
+        TEA_LOG("Queue filled " + queue_name);
+        stats.Combine(iceberg::ValueSafe(maybe_stats));
+
+        return samovar_client;
+      }
+    }
+  }
+}
+
 // invoked on segment
 void TeaContextPlanExternal(TeaContextPtr tea_ctx, const ExternalScanParams* params) {
   TEA_INVOKE_IN_HELPER_THREAD_WITH_INTERRUPTS(ERROR, [=] {
@@ -809,39 +1018,8 @@ void TeaContextPlanExternal(TeaContextPtr tea_ctx, const ExternalScanParams* par
       }
 
       if (is_coordinator) {
-        TEA_LOG("I am samovar coordinator");
-        iceberg::ice_tea::ScanMetadata all_meta = GetAllMetadata(
-            tea_ctx, get::TableConfig(tea_ctx), get::SessionId(tea_ctx), filter.extracted, get::CancelToken(tea_ctx));
-
-        {
-          uint64_t positional_delete_count = tea::CountPositionalDeleteFiles(all_meta);
-          uint64_t limit = get::Config(tea_ctx).limits.samovar_max_total_positional_delete_files;
-          if (positional_delete_count > limit) {
-            throw std::runtime_error("There are " + std::to_string(positional_delete_count) +
-                                     " positional delete files in plan (limit is " + std::to_string(limit) +
-                                     "). Call compaction or use more selective filter");
-          }
-        }
-
-        {
-          uint64_t data_files_count = tea::CountDataFiles(all_meta);
-          uint64_t limit = get::Config(tea_ctx).limits.samovar_max_total_data_files;
-          if (data_files_count > limit) {
-            throw std::runtime_error("There are " + std::to_string(data_files_count) +
-                                     " data files in plan (limit is " + std::to_string(limit) +
-                                     "). Call compaction or use more selective filter");
-          }
-        }
-
-        samovar_client = CreateSamovarClient(tea_ctx, queue_name, params->segment_id, params->segment_count,
-                                             tea::samovar::SamovarRole::kFollower);
-
-        TEA_LOG("Filling queue " + queue_name);
-        auto maybe_stats =
-            tea::samovar::FillSamovar(get::Config(tea_ctx), std::move(all_meta), params->segment_count, samovar_client);
-        TEA_RETURN_ARROW_NOT_OK(maybe_stats);
-        TEA_LOG("Queue filled " + queue_name);
-        get::PlannerStats(tea_ctx).Combine(maybe_stats.MoveValueUnsafe());
+        samovar_client =
+            SamovarMakePlan(tea_ctx, filter, make_samovar_queue_name(), params->segment_id, params->segment_count);
       } else {
         TEA_LOG("I am samovar follower");
       }
@@ -862,8 +1040,9 @@ void TeaContextPlanExternal(TeaContextPtr tea_ctx, const ExternalScanParams* par
                                                tea::samovar::SamovarRole::kFollower);
         }
 
-        auto result = tea::samovar::FromSamovar(get::Config(tea_ctx), params->segment_id, queue_name,
-                                                is_metadata_already_written, samovar_client);
+        auto result =
+            tea::samovar::FromSamovar(get::Config(tea_ctx), params->segment_id, queue_name, is_metadata_already_written,
+                                      samovar_client, get::FileSystemProvider(tea_ctx), get::CancelToken(tea_ctx));
         return result;
       } else {
         auto meta_for_me = GetMetadataForSegment(tea_ctx, get::TableConfig(tea_ctx), params->segment_id,

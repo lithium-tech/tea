@@ -9,6 +9,7 @@
 #include <parquet/metadata.h>
 
 #include <algorithm>
+#include <deque>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -411,9 +412,24 @@ void SendDataEntries(const std::shared_ptr<ISamovarClient> client,
   }
 }
 
+void SendManifestLists(const std::shared_ptr<ISamovarClient> client,
+                       const std::vector<samovar::ManifestList>& manifests, const std::string& queue_id,
+                       std::chrono::seconds ttl_seconds) {
+  bool ttl_updated = false;
+  for (const auto& entry : manifests) {
+    auto serialized = entry.SerializeAsString();
+    client->PushQueue(queue_id, serialized);
+    if (!ttl_updated) {
+      ttl_updated = true;
+      client->UpdateTTL(queue_id, ttl_seconds);
+    }
+  }
+}
+
 samovar::ScanMetadata ClearDataEntries(const samovar::ScanMetadata& scan_metadata) {
   samovar::ScanMetadata result;
   *result.mutable_schema() = scan_metadata.schema();
+  result.set_use_distributed_metadata_processing(scan_metadata.use_distributed_metadata_processing());
   for (int i = 0; i < scan_metadata.partitions_size(); ++i) {
     const auto& partition = scan_metadata.partitions()[i];
     auto* new_partititon = result.add_partitions();
@@ -430,6 +446,20 @@ samovar::ScanMetadata ClearDataEntries(const samovar::ScanMetadata& scan_metadat
       }
     }
   }
+  return result;
+}
+
+std::vector<samovar::ManifestList> ConvertToSamovarManifestLists(const std::deque<iceberg::ManifestFile>& manifests) {
+  std::vector<samovar::ManifestList> result;
+  result.reserve(manifests.size());
+
+  for (const auto& elem : manifests) {
+    samovar::ManifestList new_entry;
+    new_entry.set_file_path(elem.path);
+
+    result.emplace_back(std::move(new_entry));
+  }
+
   return result;
 }
 

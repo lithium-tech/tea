@@ -10,7 +10,6 @@
 #include "tea/observability/tea_log.h"
 #include "tea/samovar/network_layer/backoff.h"
 #include "tea/samovar/network_layer/samovar_client.h"
-#include "tea/samovar/planner.h"
 #include "tea/samovar/proto/samovar.pb.h"
 #include "tea/samovar/utils.h"
 #include "tea/util/measure.h"
@@ -19,7 +18,7 @@ namespace tea::samovar {
 
 namespace {
 void SyncSegments(std::shared_ptr<ISamovarClient> client, const std::string& cell_name, int segment_count,
-                  std::shared_ptr<IBackoff> backoff) {
+                  std::shared_ptr<IBackoff> backoff, const std::string& msg) {
   DoWithRetries<std::monostate>(
       [&]() -> std::optional<std::monostate> {
         std::optional<int> result = client->GetNumericCell(cell_name);
@@ -28,7 +27,7 @@ void SyncSegments(std::shared_ptr<ISamovarClient> client, const std::string& cel
         }
         return std::nullopt;
       },
-      backoff, "sync_segments");
+      backoff, msg);
 }
 }  // namespace
 
@@ -58,6 +57,15 @@ SingleQueueClient::SingleQueueClient(std::shared_ptr<ISamovarClient> client, std
   }
 }
 
+void SingleQueueClient::WaitForManifestsQueue() {
+  client_->IncreaseNumericCell(GetManifestsSyncScanCell());
+  client_->UpdateTTL(GetManifestsSyncScanCell(), ttl_seconds_);
+
+  ScopedTimerTicks timer(total_sync_time_);
+
+  SyncSegments(client_, GetManifestsSyncScanCell(), segment_count_, metadata_backoff_, "wait_for_manifests_queue");
+}
+
 std::optional<samovar::AnnotatedDataEntry> SingleQueueClient::GetNextDataEntry() {
   client_->UpdateTTL(std::vector{queue_id_, GetMetadataCell()}, ttl_seconds_);
 
@@ -82,6 +90,22 @@ std::optional<samovar::AnnotatedDataEntry> SingleQueueClient::GetNextDataEntry()
   return result;
 }
 
+std::optional<samovar::ManifestList> SingleQueueClient::GetNextManifest() {
+  client_->UpdateTTL(std::vector{queue_id_, GetMetadataCell()}, ttl_seconds_);
+
+  auto responses = client_->PopQueue(GetManifestCell(), 1);
+  if (responses.empty()) {
+    return std::nullopt;
+  }
+  if (responses.size() >= 2) {
+    throw std::runtime_error(std::string(__PRETTY_FUNCTION__) + ": internal error");
+  }
+  samovar::ManifestList list;
+  list.ParseFromString(responses.at(0));
+
+  return list;
+}
+
 const samovar::ScanMetadata& SingleQueueClient::GetPlannedMetadata() {
   if (cached_result_metadata.has_value()) {
     return cached_result_metadata.value();
@@ -90,7 +114,7 @@ const samovar::ScanMetadata& SingleQueueClient::GetPlannedMetadata() {
   if (role_ == SamovarRole::kFollower && need_sync_on_init_) {
     ScopedTimerTicks timer(total_sync_time_);
 
-    SyncSegments(client_, GetInitScanCell(), segment_count_, sync_backoff_);
+    SyncSegments(client_, GetInitScanCell(), segment_count_, sync_backoff_, "sync_segments");
   }
 
   samovar::ScanMetadata result_metadata;
@@ -98,7 +122,6 @@ const samovar::ScanMetadata& SingleQueueClient::GetPlannedMetadata() {
                                              "wait_meta_from_coordinator");
   result_metadata.ParseFromString(response);
 
-  client_->UpdateTTL(std::vector{queue_id_, GetMetadataCell(), GetFileListCell(), GetCheckpointCell()}, ttl_seconds_);
   cached_result_metadata = std::move(result_metadata);
   return cached_result_metadata.value();
 }
@@ -115,26 +138,44 @@ const samovar::FileList& SingleQueueClient::GetFileList() {
   return file_list.value();
 }
 
-void SingleQueueClient::FillSessionQueue(samovar::ScanMetadata&& scan_metadata, const samovar::FileList& all_file_list,
-                                         const std::vector<samovar::AnnotatedDataEntry>& additional_data_entries) {
+void SingleQueueClient::FillCommonInfo(samovar::ScanMetadata&& scan_metadata, samovar::FileList&& file_list_to_send) {
+  auto serialized_metadata = ClearDataEntries(scan_metadata).SerializeAsString();
+  auto serialized_file_list = file_list_to_send.SerializeAsString();
+
+  compressor->Compress(serialized_file_list);
+
+  client_->SetCell(GetMetadataCell(), serialized_metadata, ttl_seconds_);
+  TEA_LOG("Set serialized data at cell " + GetMetadataCell() + " with data size " +
+          std::to_string(serialized_metadata.size()));
+  client_->SetCell(GetFileListCell(), serialized_file_list, ttl_seconds_);
+  TEA_LOG("Set file list at cell " + GetFileListCell() + " with data size " +
+          std::to_string(serialized_file_list.size()));
+}
+
+void SingleQueueClient::AppendToFilesQueue(std::vector<samovar::AnnotatedDataEntry>&& additional_data_entries) {
   SendDataEntries(client_, additional_data_entries, queue_id_, ttl_seconds_);
+}
 
-  {
-    auto serialized_metadata = ClearDataEntries(scan_metadata).SerializeAsString();
-    auto serialized_file_list = all_file_list.SerializeAsString();
+void SingleQueueClient::FillFilesQueue(samovar::ScanMetadata&& scan_metadata, samovar::FileList&& all_file_list,
+                                       std::vector<samovar::AnnotatedDataEntry>&& additional_data_entries) {
+  AppendToFilesQueue(std::move(additional_data_entries));
 
-    file_list = all_file_list;
-    compressor->Compress(serialized_file_list);
+  FillCommonInfo(ClearDataEntries(scan_metadata), std::move(all_file_list));
 
-    client_->SetCell(GetMetadataCell(), serialized_metadata, ttl_seconds_);
-    TEA_LOG("Set serialized data at cell " + GetMetadataCell() + " with data size " +
-            std::to_string(serialized_metadata.size()));
-    client_->SetCell(GetFileListCell(), serialized_file_list, ttl_seconds_);
-    TEA_LOG("Set file list at cell " + GetFileListCell() + " with data size " +
-            std::to_string(serialized_file_list.size()));
+  client_->UpdateTTL(std::vector{queue_id_, GetMetadataCell(), GetFileListCell(), GetCheckpointCell()}, ttl_seconds_);
+  OnProcessingStart(GetCheckpointCell());
+}
 
-    client_->UpdateTTL(std::vector{queue_id_, GetMetadataCell(), GetFileListCell(), GetCheckpointCell()}, ttl_seconds_);
-  }
+void SingleQueueClient::FillManifestsQueue(samovar::ScanMetadata&& scan_metadata,
+                                           const std::vector<samovar::ManifestList>& manifests) {
+  SendManifestLists(client_, manifests, GetManifestCell(), ttl_seconds_);
+
+  scan_metadata.set_use_distributed_metadata_processing(true);
+
+  FillCommonInfo(std::move(scan_metadata), samovar::FileList{});
+
+  client_->UpdateTTL(std::vector{GetManifestCell(), GetMetadataCell(), GetFileListCell(), GetCheckpointCell()},
+                     ttl_seconds_);
   OnProcessingStart(GetCheckpointCell());
 }
 
@@ -158,6 +199,9 @@ std::string SingleQueueClient::GetMetadataCell() {
   }
   return *metadata_cell_;
 }
+
+std::string SingleQueueClient::GetManifestsSyncScanCell() { return manifest_sync_prefix + queue_id_; }
+std::string SingleQueueClient::GetManifestCell() { return manifest_queue_prefix + queue_id_; }
 
 std::string SingleQueueClient::GetFileListCell() {
   if (!file_list_cell_) {

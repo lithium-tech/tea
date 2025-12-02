@@ -79,6 +79,7 @@ struct Limits {
   uint64_t grpc_max_message_size = 16ull << 20;
   uint64_t json_max_message_size_on_master = 32ull << 20;
 
+  uint64_t samovar_distributed_metadata_parsing_files_threshold = 10'000;
   uint64_t samovar_max_total_data_files = 100'000;
   uint64_t samovar_max_total_positional_delete_files = 500;
 
@@ -185,6 +186,8 @@ struct Debug {
 struct Config {
   bool must_read_profile_to_tables_file = true;
   std::string profile_to_tables_path;
+
+  bool UseReaderSchema(uint64_t columns) const { return columns >= features.use_avro_projection_minimum_columns; }
 
   S3Config s3;
   CatalogConfig catalog;

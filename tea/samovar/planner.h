@@ -1,7 +1,9 @@
 #pragma once
 
+#include <iceberg/common/fs/filesystem_provider.h>
 #include <iceberg/tea_scan.h>
 
+#include <deque>
 #include <memory>
 #include <string>
 #include <utility>
@@ -24,8 +26,13 @@ std::shared_ptr<SingleQueueClient> MakeSamovarDataClient(const SamovarConfig& co
 arrow::Result<PlannerStats> FillSamovar(const Config& config, iceberg::ice_tea::ScanMetadata&& meta, int segment_count,
                                         std::shared_ptr<SingleQueueClient> samovar_client);
 
+arrow::Result<PlannerStats> FillSamovarWithManifests(const Config& config, std::shared_ptr<iceberg::Schema> schema,
+                                                     std::deque<iceberg::ManifestFile>, int segment_count,
+                                                     std::shared_ptr<SingleQueueClient> samovar_client);
+
 arrow::Result<std::pair<meta::PlannedMeta, PlannerStats>> FromSamovar(
     const Config& config, int segment_id, const std::string& queue_name, bool is_metadata_already_written,
-    std::shared_ptr<SingleQueueClient> samovar_client);
+    std::shared_ptr<SingleQueueClient> samovar_client, std::shared_ptr<iceberg::IFileSystemProvider> fs_provider,
+    const CancelToken& cancel_token);
 
 }  // namespace tea::samovar

@@ -431,12 +431,12 @@ std::shared_ptr<Logger> Reader::InitializeLogger() {
   std::shared_ptr<Logger> logger = std::make_shared<Logger>();
 
   logger->SetHandler("metrics:equality:deleted_rows", [&](const Logger::Message& message) {
-    stats_.rows_skipped_equality_delete += std::stoi(message);
+    stats_.rows_skipped_equality_delete += std::stoll(message);
   });
   logger->SetHandler("metrics:equality:files_read",
-                     [&](const Logger::Message& message) { equality_delete_stats_.files_read += std::stoi(message); });
+                     [&](const Logger::Message& message) { equality_delete_stats_.files_read += std::stoll(message); });
   logger->SetHandler("metrics:equality:rows_read",
-                     [&](const Logger::Message& message) { equality_delete_stats_.rows_read += std::stoi(message); });
+                     [&](const Logger::Message& message) { equality_delete_stats_.rows_read += std::stoll(message); });
   logger->SetHandler("metrics:equality:current_materialized_rows", [&](const Logger::Message& message) {
     equality_delete_stats_.max_rows_materialized =
         std::max(equality_delete_stats_.max_rows_materialized, static_cast<uint64_t>(std::stoull(message)));
@@ -447,49 +447,51 @@ std::shared_ptr<Logger> Reader::InitializeLogger() {
   });
 
   logger->SetHandler("metrics:positional:deleted_rows", [&](const Logger::Message& message) {
-    stats_.rows_skipped_positional_delete += std::stoi(message);
+    stats_.rows_skipped_positional_delete += std::stoll(message);
   });
-  logger->SetHandler("metrics:positional:rows_read",
-                     [&](const Logger::Message& message) { positional_delete_stats_.rows_read += std::stoi(message); });
+  logger->SetHandler("metrics:positional:rows_read", [&](const Logger::Message& message) {
+    positional_delete_stats_.rows_read += std::stoll(message);
+  });
   logger->SetHandler("metrics:positional:files_read", [&](const Logger::Message& message) {
-    positional_delete_stats_.files_read += std::stoi(message);
+    positional_delete_stats_.files_read += std::stoll(message);
   });
   logger->SetHandler("metrics:positional:rows_skipped", [&](const Logger::Message& message) {
-    stats_.positional_delete_rows_ignored += std::stoi(message);
+    stats_.positional_delete_rows_ignored += std::stoll(message);
   });
 
   logger->SetHandler("data_stream:metrics:row_groups:read",
-                     [&](const Logger::Message& message) { stats_.row_groups_read += std::stoi(message); });
+                     [&](const Logger::Message& message) { stats_.row_groups_read += std::stoll(message); });
   logger->SetHandler("metrics:row_groups:skipped",
-                     [&](const Logger::Message& message) { stats_.row_groups_skipped_filter += std::stoi(message); });
+                     [&](const Logger::Message& message) { stats_.row_groups_skipped_filter += std::stoll(message); });
 
   logger->SetHandler("metrics:row_filter:deleted_rows",
-                     [&](const Logger::Message& message) { stats_.rows_skipped_filter += std::stoi(message); });
+                     [&](const Logger::Message& message) { stats_.rows_skipped_filter += std::stoll(message); });
 
   logger->SetHandler("metrics:data:files_read",
-                     [&](const Logger::Message& message) { stats_.data_files_read += std::stoi(message); });
+                     [&](const Logger::Message& message) { stats_.data_files_read += std::stoll(message); });
 
   logger->SetHandler("metrics:data:columns_equality_delete", [&](const Logger::Message& message) {
-    stats_.columns_equality_delete = std::max(stats_.columns_equality_delete, static_cast<int64_t>(std::stoi(message)));
+    stats_.columns_equality_delete =
+        std::max(stats_.columns_equality_delete, static_cast<int64_t>(std::stoll(message)));
   });
   logger->SetHandler("metrics:data:columns_only_equality_delete", [&](const Logger::Message& message) {
     stats_.columns_only_for_equality_delete =
-        std::max(stats_.columns_only_for_equality_delete, static_cast<int64_t>(std::stoi(message)));
+        std::max(stats_.columns_only_for_equality_delete, static_cast<int64_t>(std::stoll(message)));
   });
   logger->SetHandler("data_stream:metrics:data:columns_read", [&, used = 0](const Logger::Message& message) mutable {
     if (!used) {
       used = 1;
-      stats_.columns_read += std::stoi(message);
+      stats_.columns_read += std::stoll(message);
     }
   });
   logger->SetHandler("filter_stream:metrics:data:columns_read", [&, used = 0](const Logger::Message& message) mutable {
     if (!used) {
       used = 1;
-      stats_.columns_read += std::stoi(message);
+      stats_.columns_read += std::stoll(message);
     }
   });
   logger->SetHandler("metrics:rows:filtered_out", [&](const Logger::Message& message) mutable {
-    stats_.rows_skipped_prefilter += std::stoi(message);
+    stats_.rows_skipped_prefilter += std::stoll(message);
   });
 
   logger->SetHandler("events:positional:start_batch",
