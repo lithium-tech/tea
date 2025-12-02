@@ -22,7 +22,9 @@
 #include "iceberg/tea_rest_catalog.h"
 #include "iceberg/tea_scan.h"
 
+#include "tea/common/cancel.h"
 #include "tea/common/config.h"
+#include "tea/common/iceberg_fs.h"
 #include "tea/metadata/entries_stream_config.h"
 #include "tea/observability/planner_stats.h"
 #include "tea/observability/tea_log.h"
@@ -30,63 +32,6 @@
 #include "tea/util/measure.h"
 
 namespace tea::meta::access {
-namespace {
-
-struct IcebergMetrics {
-  uint64_t requests = 0;
-  uint64_t bytes_read = 0;
-  uint64_t files_opened = 0;
-
-  DurationTicks filesystem_duration = 0;
-};
-
-class LoggingInputFile : public iceberg::InputFileWrapper {
- public:
-  LoggingInputFile(std::shared_ptr<arrow::io::RandomAccessFile> file, std::shared_ptr<IcebergMetrics> metrics)
-      : InputFileWrapper(file), metrics_(metrics) {}
-
-  arrow::Result<int64_t> ReadAt(int64_t position, int64_t nbytes, void* out) override {
-    ScopedTimerTicks timer(metrics_->filesystem_duration);
-    TakeRequestIntoAccount(nbytes);
-    return InputFileWrapper::ReadAt(position, nbytes, out);
-  }
-
-  arrow::Result<int64_t> Read(int64_t nbytes, void* out) override {
-    ScopedTimerTicks timer(metrics_->filesystem_duration);
-    TakeRequestIntoAccount(nbytes);
-    return InputFileWrapper::Read(nbytes, out);
-  }
-
-  arrow::Result<std::shared_ptr<arrow::Buffer>> Read(int64_t nbytes) override {
-    ScopedTimerTicks timer(metrics_->filesystem_duration);
-    TakeRequestIntoAccount(nbytes);
-    return InputFileWrapper::Read(nbytes);
-  }
-
- private:
-  void TakeRequestIntoAccount(int64_t bytes) {
-    ++metrics_->requests;
-    metrics_->bytes_read += bytes;
-  }
-
-  std::shared_ptr<IcebergMetrics> metrics_;
-};
-
-class IcebergLoggingFileSystem : public iceberg::FileSystemWrapper {
- public:
-  IcebergLoggingFileSystem(std::shared_ptr<arrow::fs::FileSystem> fs, std::shared_ptr<IcebergMetrics> metrics)
-      : FileSystemWrapper(fs), metrics_(metrics) {}
-
-  arrow::Result<std::shared_ptr<arrow::io::RandomAccessFile>> OpenInputFile(const std::string& path) override {
-    ++metrics_->files_opened;
-    ARROW_ASSIGN_OR_RAISE(auto file, FileSystemWrapper::OpenInputFile(path));
-    return std::make_shared<LoggingInputFile>(file, metrics_);
-  }
-
- private:
-  std::shared_ptr<IcebergMetrics> metrics_;
-};
-}  // namespace
 
 std::shared_ptr<iceberg::ice_tea::RemoteCatalog> GetCatalog(const Config& config) {
   if (!config.hms_catalog.hms_endpoints.empty()) {
@@ -173,23 +118,6 @@ std::string GetIcebergTableLocation(const Config& config, TableId table_id) {
 }
 
 namespace {
-class CancellingStream : public iceberg::ice_tea::IcebergEntriesStream {
- public:
-  CancellingStream(std::shared_ptr<iceberg::ice_tea::IcebergEntriesStream> stream, const CancelToken& cancel_token)
-      : stream_(stream), cancel_token_(cancel_token) {}
-
-  std::optional<iceberg::ManifestEntry> ReadNext() override {
-    if (cancel_token_.IsCancelled()) {
-      throw std::runtime_error(std::string(__PRETTY_FUNCTION__) + ": query is cancelled");
-    }
-    return stream_->ReadNext();
-  }
-
- private:
-  std::shared_ptr<iceberg::ice_tea::IcebergEntriesStream> stream_;
-  const CancelToken& cancel_token_;
-};
-
 class EmptyIcebergStream : public iceberg::ice_tea::IcebergEntriesStream {
  public:
   std::optional<iceberg::ManifestEntry> ReadNext() override { return std::nullopt; }
@@ -210,18 +138,18 @@ std::pair<iceberg::ice_tea::ScanMetadata, PlannerStats> FromIcebergWithLocation(
     throw maybe_fs.status();
   }
   std::shared_ptr<arrow::fs::FileSystem> fs = maybe_fs.ValueUnsafe();
-  auto metrics = std::make_shared<IcebergMetrics>(IcebergMetrics{});
+  auto metrics = std::make_shared<tea::IcebergMetrics>();
   fs = std::make_shared<IcebergLoggingFileSystem>(fs, metrics);
 
   auto logger = std::make_shared<Logger>();
   logger->SetHandler("metrics:plan:data_files",
-                     [&](const Logger::Message& msg) { stats.data_files_planned += std::stoi(msg); });
+                     [&](const Logger::Message& msg) { stats.data_files_planned += std::stoll(msg); });
   logger->SetHandler("metrics:plan:positional_files",
-                     [&](const Logger::Message& msg) { stats.positional_files_planned += std::stoi(msg); });
+                     [&](const Logger::Message& msg) { stats.positional_files_planned += std::stoll(msg); });
   logger->SetHandler("metrics:plan:equality_files",
-                     [&](const Logger::Message& msg) { stats.equality_files_planned += std::stoi(msg); });
+                     [&](const Logger::Message& msg) { stats.equality_files_planned += std::stoll(msg); });
   logger->SetHandler("metrics:plan:dangling_positional_files",
-                     [&](const Logger::Message& msg) { stats.dangling_positional_files += std::stoi(msg); });
+                     [&](const Logger::Message& msg) { stats.dangling_positional_files += std::stoll(msg); });
 
   auto result = [&]() -> arrow::Result<iceberg::ice_tea::ScanMetadata> {
     ARROW_ASSIGN_OR_RAISE(auto data, iceberg::ice_tea::ReadFile(fs, location));

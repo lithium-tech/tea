@@ -1,9 +1,11 @@
 #include "tea/samovar/planner.h"
 
+#include <iceberg/common/fs/filesystem_provider.h>
 #include <iceberg/streams/iceberg/data_entries_meta_stream.h>
 
 #include <algorithm>
 #include <chrono>
+#include <deque>
 #include <memory>
 #include <random>
 #include <stdexcept>
@@ -12,11 +14,16 @@
 #include <utility>
 #include <vector>
 
+#include "arrow/filesystem/filesystem.h"
 #include "arrow/result.h"
 #include "arrow/status.h"
+#include "iceberg/manifest_entry.h"
+#include "iceberg/schema.h"
 #include "iceberg/tea_scan.h"
 
+#include "tea/common/cancel.h"
 #include "tea/common/config.h"
+#include "tea/common/iceberg_fs.h"
 #include "tea/common/utils.h"
 #include "tea/metadata/metadata.h"
 #include "tea/metadata/planner.h"
@@ -30,6 +37,8 @@
 #include "tea/samovar/proto/samovar.pb.h"
 #include "tea/samovar/single_queue_client.h"
 #include "tea/samovar/utils.h"
+#include "tea/test_utils/common.h"
+#include "tea/util/cancel.h"
 #include "tea/util/measure.h"
 
 namespace tea::samovar {
@@ -59,6 +68,23 @@ std::shared_ptr<SingleQueueClient> MakeSamovarDataClient(const SamovarConfig& co
   }
 
   return samovar_data_client_;
+}
+
+arrow::Result<PlannerStats> FillSamovarWithManifests(const Config& config, std::shared_ptr<iceberg::Schema> schema,
+                                                     std::deque<iceberg::ManifestFile> manifests, int segment_count,
+                                                     std::shared_ptr<SingleQueueClient> samovar_client) {
+  PlannerStats stats;
+  std::optional<ScopedTimerTicks> timer = ScopedTimerTicks(stats.plan_duration);
+
+  samovar::ScanMetadata result;
+  *result.mutable_schema() = IcebergSchemaToTeapotSchema(schema);
+
+  std::vector<samovar::ManifestList> samovar_manifests = ConvertToSamovarManifestLists(manifests);
+
+  samovar_client->FillManifestsQueue(std::move(result), samovar_manifests);
+
+  timer.reset();
+  return stats;
 }
 
 arrow::Result<PlannerStats> FillSamovar(const Config& config, iceberg::ice_tea::ScanMetadata&& meta, int segment_count,
@@ -100,8 +126,8 @@ arrow::Result<PlannerStats> FillSamovar(const Config& config, iceberg::ice_tea::
     }
   }
 
-  samovar_client->FillSessionQueue(std::move(samovar_representation), split_result.file_list,
-                                   split_result.data_entries);
+  samovar_client->FillFilesQueue(std::move(samovar_representation), std::move(split_result.file_list),
+                                 std::move(split_result.data_entries));
 
   timer.reset();
   return stats;
@@ -213,9 +239,104 @@ static std::chrono::milliseconds CalculateSleepTime(std::chrono::milliseconds mi
   return std::chrono::milliseconds(gen(rnd));
 }
 
+static std::vector<samovar::AnnotatedDataEntry> ConvertToDataEntries(const iceberg::ManifestEntry& entry) {
+  std::vector<samovar::AnnotatedDataEntry> data_files_to_process;
+
+  constexpr uint64_t kLengthUntillEndOfFile = 0;
+
+  std::vector<std::pair<uint64_t, uint64_t>> group_info;
+  if (!entry.data_file.split_offsets.empty()) {
+    const auto& offsets = entry.data_file.split_offsets;
+    group_info.reserve(offsets.empty());
+    for (size_t i = 0; i < offsets.size(); ++i) {
+      uint64_t first_byte = offsets[i];
+      uint64_t length = i + 1 == offsets.size() ? kLengthUntillEndOfFile : offsets[i + 1] - offsets[i];
+
+      group_info.emplace_back(first_byte, length);
+    }
+  } else {
+    constexpr uint64_t kParquetMagicBytesCount = 4;
+    group_info = {{kParquetMagicBytesCount, kLengthUntillEndOfFile}};
+  }
+
+  for (const auto& [first_byte, length] : group_info) {
+    samovar::AnnotatedDataEntry data_file_info;
+    data_file_info.set_layer_id(0);
+    data_file_info.set_partition_id(0);
+    data_file_info.mutable_data_entry()->mutable_entry()->set_file_path(entry.data_file.file_path);
+
+    auto segment = data_file_info.mutable_data_entry()->add_segments();
+    segment->set_length(length);
+    segment->set_offset(first_byte);
+
+    data_files_to_process.push_back(std::move(data_file_info));
+  }
+
+  return data_files_to_process;
+}
+
+static std::vector<samovar::AnnotatedDataEntry> GetDataEntries(
+    std::shared_ptr<iceberg::ice_tea::IcebergEntriesStream> stream, PlannerStats& stats) {
+  std::vector<samovar::AnnotatedDataEntry> result;
+
+  while (true) {
+    std::optional<iceberg::ManifestEntry> maybe_entry = stream->ReadNext();
+    if (!maybe_entry) {
+      break;
+    }
+
+    ++stats.samovar_initial_tasks_count;
+
+    std::vector<samovar::AnnotatedDataEntry> current_entries_to_process = ConvertToDataEntries(maybe_entry.value());
+    result.insert(result.end(), current_entries_to_process.begin(), current_entries_to_process.end());
+  }
+
+  return result;
+}
+
+static arrow::Result<std::vector<samovar::AnnotatedDataEntry>> ManifestListToDataEntries(
+    const samovar::ManifestList& manifest_list, std::shared_ptr<iceberg::IFileSystemProvider> fs_provider,
+    std::shared_ptr<IcebergMetrics> metrics, PlannerStats& stats, const CancelToken& cancel_token) {
+  const std::string& file_path = manifest_list.file_path();
+
+  ARROW_ASSIGN_OR_RAISE(std::shared_ptr<arrow::fs::FileSystem> fs, fs_provider->GetFileSystem(file_path));
+  fs = std::make_shared<IcebergLoggingFileSystem>(fs, metrics);
+
+  ARROW_ASSIGN_OR_RAISE(std::string content, iceberg::ice_tea::ReadFile(fs, file_path));
+
+  iceberg::ice_tea::ManifestEntryDeserializerConfig cfg;
+  cfg.datafile_config.extract_partition_tuple = false;
+  std::shared_ptr<iceberg::ice_tea::IcebergEntriesStream> entries =
+      iceberg::ice_tea::make::ManifestEntriesStream(content, {}, cfg, true, false);
+  entries = std::make_shared<tea::CancellingStream>(entries, cancel_token);
+
+  return GetDataEntries(entries, stats);
+}
+
+static arrow::Result<std::vector<samovar::AnnotatedDataEntry>> ManifestsToDataEntries(
+    std::shared_ptr<SingleQueueClient> samovar_client, std::shared_ptr<iceberg::IFileSystemProvider> fs_provider,
+    std::shared_ptr<IcebergMetrics> metrics, PlannerStats& stats, const CancelToken& cancel_token) {
+  std::vector<samovar::AnnotatedDataEntry> result;
+  while (true) {
+    std::optional<samovar::ManifestList> maybe_next_manifest = samovar_client->GetNextManifest();
+    if (!maybe_next_manifest.has_value()) {
+      break;
+    }
+
+    const samovar::ManifestList& next_manifest = maybe_next_manifest.value();
+    ARROW_ASSIGN_OR_RAISE(std::vector<samovar::AnnotatedDataEntry> data_files_to_process,
+                          ManifestListToDataEntries(next_manifest, fs_provider, metrics, stats, cancel_token));
+
+    result.insert(result.end(), data_files_to_process.begin(), data_files_to_process.end());
+  }
+
+  return result;
+}
+
 arrow::Result<std::pair<meta::PlannedMeta, PlannerStats>> FromSamovar(
     const Config& config, int segment_id, const std::string& queue_name, bool is_metadata_already_written,
-    std::shared_ptr<SingleQueueClient> samovar_client) {
+    std::shared_ptr<SingleQueueClient> samovar_client, std::shared_ptr<iceberg::IFileSystemProvider> fs_provider,
+    const CancelToken& cancel_token) {
   // Followers should wait for some time (at least 3x the average s3 request latency) since no progress is
   // impossible until the coordinator writes the metadata to Samovar.
   // The coordinator does not have to wait because the metadata has already been written by him.
@@ -228,15 +349,48 @@ arrow::Result<std::pair<meta::PlannedMeta, PlannerStats>> FromSamovar(
   }
 
   auto response = samovar_client->GetPlannedMetadata();
-  auto response_file_list = samovar_client->GetFileList();
-  auto total_scan_metadata = ConvertSamovarRepresentationToScanMeta(response, response_file_list);
-
-  auto sched = std::make_shared<SamovarMetadataScheduler>(config, samovar_client);
-  auto meta =
-      meta::PlannedMeta(std::make_shared<meta::AnnotatedDataEntryStream>(sched), std::move(total_scan_metadata));
 
   PlannerStats stats;
-  return std::make_pair(std::move(meta), stats);
+  std::optional<ScopedTimerTicks> timer = ScopedTimerTicks(stats.plan_duration);
+
+  if (response.use_distributed_metadata_processing()) {
+    auto metrics = std::make_shared<IcebergMetrics>();
+
+    // read and parse some manifests
+    ARROW_ASSIGN_OR_RAISE(std::vector<samovar::AnnotatedDataEntry> result,
+                          ManifestsToDataEntries(samovar_client, fs_provider, metrics, stats, cancel_token));
+
+    if (!result.empty()) {
+      // write tasks to the entries queue
+      stats.samovar_splitted_tasks_count += result.size();
+      samovar_client->AppendToFilesQueue(std::move(result));
+    }
+
+    // wait for each segment to write its tasks to the entries queue
+    samovar_client->WaitForManifestsQueue();
+
+    iceberg::ice_tea::ScanMetadata metadata;
+    metadata.schema = TeapotSchemaToIcebergSchema(response.schema());
+
+    // process tasks from the entries queue
+    auto sched = std::make_shared<SamovarMetadataScheduler>(config, samovar_client);
+    auto meta = meta::PlannedMeta(std::make_shared<meta::AnnotatedDataEntryStream>(sched), std::move(metadata));
+
+    timer.reset();
+
+    UpdatePlannerStats(stats, *metrics);
+    return std::make_pair(std::move(meta), stats);
+  } else {
+    auto response_file_list = samovar_client->GetFileList();
+
+    auto total_scan_metadata = ConvertSamovarRepresentationToScanMeta(response, response_file_list);
+
+    auto sched = std::make_shared<SamovarMetadataScheduler>(config, samovar_client);
+    auto meta =
+        meta::PlannedMeta(std::make_shared<meta::AnnotatedDataEntryStream>(sched), std::move(total_scan_metadata));
+
+    return std::make_pair(std::move(meta), stats);
+  }
 }
 
 }  // namespace tea::samovar

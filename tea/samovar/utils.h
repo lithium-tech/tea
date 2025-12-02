@@ -2,6 +2,7 @@
 
 #include <iceberg/streams/iceberg/data_entries_meta_stream.h>
 
+#include <deque>
 #include <memory>
 #include <string>
 #include <vector>
@@ -32,6 +33,12 @@ std::vector<iceberg::ice_tea::DataEntry> SplitFileBySplitOffsets(iceberg::ice_te
 
 arrow::Result<SplitResult> SplitPartitions(const std::vector<iceberg::ice_tea::ScanMetadata::Partition>& partitions,
                                            const Config& config);
+
+std::vector<samovar::ManifestList> ConvertToSamovarManifestLists(const std::deque<iceberg::ManifestFile>& manifest);
+
+void SendManifestLists(const std::shared_ptr<ISamovarClient> client,
+                       const std::vector<samovar::ManifestList>& manifests, const std::string& queue_id,
+                       std::chrono::seconds ttl_seconds);
 
 iceberg::AnnotatedDataPath ConvertSamovarAnnotatedDataEntryToAnnotatedDataEntry(
     const samovar::AnnotatedDataEntry& additional_data_entry, const samovar::FileList& file_list);

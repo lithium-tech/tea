@@ -122,6 +122,11 @@ class IcebergMetadataWriter : public IMetadataWriter {
   arrow::Status AddFiles(const std::vector<iceberg::FilePath>& paths, iceberg::ContentFile::FileContent file_content,
                          const std::vector<int32_t>& field_ids = {},
                          iceberg::ContentFile::PartitionTuple partition_tuple = {}) {
+    if (file_content == iceberg::ContentFile::FileContent::kData) {
+      data_files_count_ += paths.size();
+    } else {
+      delete_files_count_ += paths.size();
+    }
     iceberg::Manifest manifest;
     for (const auto& path : paths) {
       if (!some_data_path_.has_value()) {
@@ -167,6 +172,11 @@ class IcebergMetadataWriter : public IMetadataWriter {
     }
     ++current_sequence_number_;
     iceberg::ManifestFile file;
+    if (file_content == iceberg::ContentFile::FileContent::kData) {
+      file.content = iceberg::ManifestContent::kData;
+    } else {
+      file.content = iceberg::ManifestContent::kDeletes;
+    }
     ARROW_ASSIGN_OR_RAISE(auto schema, GetSchema());
     auto partition_keys = GetFieldsFromPartitionSpec(partition_spec_, schema);
     if (!partition_keys) {
@@ -336,6 +346,8 @@ class IcebergMetadataWriter : public IMetadataWriter {
       ARROW_RETURN_NOT_OK(os->Write(data));
 
       snapshot.manifest_list_location = "file://" + local_fs_path;
+      snapshot.summary["total-data-files"] = std::to_string(data_files_count_);
+      snapshot.summary["total-delete-files"] = std::to_string(delete_files_count_);
     }
 
     std::string local_fs_path = metadata_directory_.path().string() + "/snap" + std::to_string(file_number_++);
@@ -394,6 +406,9 @@ class IcebergMetadataWriter : public IMetadataWriter {
   std::optional<iceberg::FilePath> some_data_path_;
   const std::string profile_;
   const iceberg::PartitionSpec partition_spec_;
+
+  uint64_t data_files_count_ = 0;
+  uint64_t delete_files_count_ = 0;
 };
 
 }  // namespace tea

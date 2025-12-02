@@ -392,6 +392,11 @@ arrow::Status ReadValues(Source* src, Config* config, std::string_view section_p
   Get(src, section_prefix, "limits", "grpc_max_message_size", &config->limits.grpc_max_message_size);
   Get(src, section_prefix, "limits", "json_max_message_size_on_master",
       &config->limits.json_max_message_size_on_master);
+  Get(src, section_prefix, "limits", "samovar_distributed_metadata_parsing_files_threshold",
+      &config->limits.samovar_distributed_metadata_parsing_files_threshold);
+  Get(src, section_prefix, "limits", "samovar_max_total_data_files", &config->limits.samovar_max_total_data_files);
+  Get(src, section_prefix, "limits", "samovar_max_total_positional_delete_files",
+      &config->limits.samovar_max_total_positional_delete_files);
 
   Get(src, section_prefix, "experimental_features", "prefetch", &config->features.prefetch);
   Get(src, section_prefix, "experimental_features", "read_in_multiple_threads",

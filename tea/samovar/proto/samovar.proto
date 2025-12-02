@@ -15,6 +15,10 @@ enum ContentType {
   kEqualityDeletes = 2;
 }
 
+message ManifestList {
+  string file_path = 1;
+}
+
 message ManifestEntry {
   oneof file {
     string file_path = 1;
@@ -40,6 +44,8 @@ message Partition { repeated Layer layers = 1; }
 message ScanMetadata {
   repeated Partition partitions = 1;
   teapot.Schema schema = 2;
+
+  bool use_distributed_metadata_processing = 3;
 }
 
 message AnnotatedDataEntry {

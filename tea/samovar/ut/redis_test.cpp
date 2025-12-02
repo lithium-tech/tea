@@ -178,7 +178,7 @@ TEST(RedisClient, Test1) {
                                   GetQueueName(), 1, std::string(compression::kIdentityCompressorName),
                                   SamovarRole::kCoordinator, backoff, backoff, true);
 
-  client.FillSessionQueue({}, {}, {});
+  client.FillFilesQueue({}, {}, {});
   EXPECT_FALSE(client.GetNextDataEntry());
   KillRedis();
 }
@@ -228,7 +228,7 @@ TEST(RedisClient, MultiThreading) {
           }
           samovar::FileList file_list;
           file_list.add_filenames("aaaaaa");
-          client.FillSessionQueue(std::move(scan_metadata), file_list, data_entries);
+          client.FillFilesQueue(std::move(scan_metadata), std::move(file_list), std::move(data_entries));
           CheckQueueIdentifiers();
         }
 
@@ -394,8 +394,9 @@ TEST(RedisClient, FailServer) {
 
           samovar::FileList file_list;
           file_list.add_filenames("aaaaaa");
-          if (do_with_kill_check(
-                  [&]() { client->FillSessionQueue(std::move(scan_metadata), file_list, data_entries); })) {
+          if (do_with_kill_check([&]() {
+                client->FillFilesQueue(std::move(scan_metadata), std::move(file_list), std::move(data_entries));
+              })) {
             return;
           }
         }
