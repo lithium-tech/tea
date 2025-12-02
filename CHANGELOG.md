@@ -1,3 +1,9 @@
+### Tea release 1.76.0, 2025-12-02
+
+### Improvements
+* [Samovar] Implement distributed metadata processing for large tables
+* [Samovar] Do not block the coordinator (as a writer) during the sync phase
+
 ### Tea release 1.75.0, 2025-11-18
 
 ### Improvements
