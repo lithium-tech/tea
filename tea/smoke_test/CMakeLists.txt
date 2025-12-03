@@ -30,6 +30,7 @@ set(smoke_test_sources
   positional_delete_test.cpp
   potential_rg_filter_test.cpp
   delete_test.cpp
+  deleted_files_test.cpp
   encoding_test.cpp
   filter_tests/all_any_test.cpp
   filter_tests/arithmetic_test.cpp
