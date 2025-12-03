@@ -36,7 +36,7 @@ T DoWithRetries(std::function<std::optional<T>()> operation, std::shared_ptr<IBa
 
 class ISamovarClient {
  public:
-  virtual void PushQueue(const std::string& queue_name, const std::string& message) = 0;
+  virtual void PushQueue(const std::string& queue_name, const std::vector<std::string>& elements) = 0;
   virtual std::vector<std::string> PopQueue(const std::string& queue_name, int num_elements) = 0;
 
   virtual void SetCell(const std::string& cell_name, const std::string& message, std::chrono::seconds ttl) = 0;
