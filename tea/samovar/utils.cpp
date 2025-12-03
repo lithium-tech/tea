@@ -9,6 +9,7 @@
 #include <parquet/metadata.h>
 
 #include <algorithm>
+#include <cstdint>
 #include <deque>
 #include <stdexcept>
 #include <string>
@@ -398,32 +399,48 @@ bool ContainsPositionalDeletes(const samovar::ScanMetadata& scan_metadata) {
   return false;
 }
 
-void SendDataEntries(const std::shared_ptr<ISamovarClient> client,
-                     const std::vector<samovar::AnnotatedDataEntry>& additional_data_entries,
-                     const std::string& queue_id, std::chrono::seconds ttl_seconds) {
-  bool ttl_updated = false;
-  for (const auto& additional_data_entry : additional_data_entries) {
-    auto serialized = additional_data_entry.SerializeAsString();
-    client->PushQueue(queue_id, serialized);
+template <typename Element>
+void SendArray(const std::shared_ptr<ISamovarClient> client, const std::vector<Element>& elements,
+               const std::string& queue_id, std::chrono::seconds ttl_seconds, uint32_t batch_size) {
+  batch_size = std::max(batch_size, 1u);
+
+  auto push = [&client, &queue_id, &ttl_seconds, ttl_updated = false](std::vector<std::string>&& entries) mutable {
+    if (entries.empty()) {
+      return;
+    }
+
+    client->PushQueue(queue_id, entries);
+
     if (!ttl_updated) {
       ttl_updated = true;
       client->UpdateTTL(queue_id, ttl_seconds);
     }
+  };
+
+  std::vector<std::string> serialized_entries;
+  for (const auto& elem : elements) {
+    auto serialized = elem.SerializeAsString();
+    serialized_entries.emplace_back(std::move(serialized));
+
+    if (serialized_entries.size() == batch_size) {
+      push(std::move(serialized_entries));
+      serialized_entries.clear();
+    }
   }
+
+  push(std::move(serialized_entries));
+}
+
+void SendDataEntries(const std::shared_ptr<ISamovarClient> client,
+                     const std::vector<samovar::AnnotatedDataEntry>& additional_data_entries,
+                     const std::string& queue_id, std::chrono::seconds ttl_seconds, uint32_t batch_size) {
+  SendArray(client, additional_data_entries, queue_id, ttl_seconds, batch_size);
 }
 
 void SendManifestLists(const std::shared_ptr<ISamovarClient> client,
                        const std::vector<samovar::ManifestList>& manifests, const std::string& queue_id,
-                       std::chrono::seconds ttl_seconds) {
-  bool ttl_updated = false;
-  for (const auto& entry : manifests) {
-    auto serialized = entry.SerializeAsString();
-    client->PushQueue(queue_id, serialized);
-    if (!ttl_updated) {
-      ttl_updated = true;
-      client->UpdateTTL(queue_id, ttl_seconds);
-    }
-  }
+                       std::chrono::seconds ttl_seconds, uint32_t batch_size) {
+  SendArray(client, manifests, queue_id, ttl_seconds, batch_size);
 }
 
 samovar::ScanMetadata ClearDataEntries(const samovar::ScanMetadata& scan_metadata) {

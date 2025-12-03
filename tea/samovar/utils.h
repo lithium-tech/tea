@@ -38,7 +38,7 @@ std::vector<samovar::ManifestList> ConvertToSamovarManifestLists(const std::dequ
 
 void SendManifestLists(const std::shared_ptr<ISamovarClient> client,
                        const std::vector<samovar::ManifestList>& manifests, const std::string& queue_id,
-                       std::chrono::seconds ttl_seconds);
+                       std::chrono::seconds ttl_seconds, uint32_t batch_size);
 
 iceberg::AnnotatedDataPath ConvertSamovarAnnotatedDataEntryToAnnotatedDataEntry(
     const samovar::AnnotatedDataEntry& additional_data_entry, const samovar::FileList& file_list);
@@ -51,7 +51,7 @@ bool ContainsPositionalDeletes(const samovar::ScanMetadata& scan_metadata);
 
 void SendDataEntries(const std::shared_ptr<ISamovarClient> client,
                      const std::vector<samovar::AnnotatedDataEntry>& additional_data_entries,
-                     const std::string& queue_id, std::chrono::seconds ttl_seconds);
+                     const std::string& queue_id, std::chrono::seconds ttl_seconds, uint32_t batch_size);
 
 samovar::ScanMetadata ClearDataEntries(const samovar::ScanMetadata& scan_metadata);
 

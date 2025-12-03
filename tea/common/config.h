@@ -166,6 +166,8 @@ struct SamovarConfig {
   bool need_sync_on_init = true;
   bool allow_static_balancing = true;
 
+  int32_t queue_push_batch_size = 1000;
+
   int32_t first_slice_to_sleep = 100;
   std::chrono::milliseconds sleep_per_slice_ms = std::chrono::milliseconds(10);
   std::chrono::milliseconds max_sleep_time_ms = std::chrono::milliseconds(10000);

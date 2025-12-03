@@ -31,7 +31,7 @@ class SingleQueueClient {
                              std::chrono::seconds ttl_seconds, const std::string& queue_id, int segment_count,
                              const std::string& compressor_name, SamovarRole role,
                              std::shared_ptr<IBackoff> sync_backoff, std::shared_ptr<IBackoff> metadata_backoff,
-                             bool need_sync_on_init);
+                             bool need_sync_on_init, uint32_t queue_push_batch_size);
 
   std::optional<samovar::AnnotatedDataEntry> GetNextDataEntry();
   std::optional<samovar::ManifestList> GetNextManifest();
@@ -99,6 +99,8 @@ class SingleQueueClient {
   int segment_count_ = 0;
   bool cleared_ = false;
   bool started_ = false;
+
+  const uint32_t queue_push_batch_size_ = 1;
 };
 
 }  // namespace tea::samovar

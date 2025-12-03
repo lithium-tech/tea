@@ -176,7 +176,7 @@ TEST(RedisClient, Test1) {
   auto batcher = std::make_shared<Batcher>(redis_client, batch_size_scheduler);
   auto client = SingleQueueClient(redis_client, batcher, std::chrono::seconds(std::numeric_limits<int32_t>::max()),
                                   GetQueueName(), 1, std::string(compression::kIdentityCompressorName),
-                                  SamovarRole::kCoordinator, backoff, backoff, true);
+                                  SamovarRole::kCoordinator, backoff, backoff, true, 1);
 
   client.FillFilesQueue({}, {}, {});
   EXPECT_FALSE(client.GetNextDataEntry());
@@ -209,7 +209,7 @@ TEST(RedisClient, MultiThreading) {
         auto client =
             SingleQueueClient(redis_client, batcher, std::chrono::seconds(std::numeric_limits<int32_t>::max()),
                               GetQueueName(test_iter), num_segments, std::string(compression::kIdentityCompressorName),
-                              SamovarRole::kCoordinator, backoff, backoff, true);
+                              SamovarRole::kCoordinator, backoff, backoff, true, 1);
 
         if (segment_id == 0) {
           samovar::ScanMetadata scan_metadata;
@@ -369,7 +369,7 @@ TEST(RedisClient, FailServer) {
           client = std::make_shared<SingleQueueClient>(
               redis_client, batcher, std::chrono::seconds(std::numeric_limits<int32_t>::max()), GetQueueName(),
               num_segments, std::string(compression::kIdentityCompressorName), SamovarRole::kCoordinator, backoff,
-              backoff, true);
+              backoff, true, 1);
         } catch (const std::runtime_error& ex) {
           std::lock_guard lock(kill_mutex);
           EXPECT_TRUE(was_killed);

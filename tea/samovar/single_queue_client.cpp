@@ -35,7 +35,7 @@ SingleQueueClient::SingleQueueClient(std::shared_ptr<ISamovarClient> client, std
                                      std::chrono::seconds ttl_seconds, const std::string& queue_id, int segment_count,
                                      const std::string& compressor_name, SamovarRole role,
                                      std::shared_ptr<IBackoff> sync_backoff, std::shared_ptr<IBackoff> metadata_backoff,
-                                     bool need_sync_on_init)
+                                     bool need_sync_on_init, uint32_t queue_push_batch_size)
     : client_(client),
       batcher_(batcher),
       ttl_seconds_(ttl_seconds),
@@ -45,7 +45,8 @@ SingleQueueClient::SingleQueueClient(std::shared_ptr<ISamovarClient> client, std
       metadata_backoff_(metadata_backoff),
       need_sync_on_init_(need_sync_on_init),
       sync_backoff_(sync_backoff),
-      segment_count_(segment_count) {
+      segment_count_(segment_count),
+      queue_push_batch_size_(queue_push_batch_size) {
   // role semantics in context of SingleQueueClient class:
   // kCoordinator means that segment will write metadata
   // kFollower means that:
@@ -153,7 +154,7 @@ void SingleQueueClient::FillCommonInfo(samovar::ScanMetadata&& scan_metadata, sa
 }
 
 void SingleQueueClient::AppendToFilesQueue(std::vector<samovar::AnnotatedDataEntry>&& additional_data_entries) {
-  SendDataEntries(client_, additional_data_entries, queue_id_, ttl_seconds_);
+  SendDataEntries(client_, additional_data_entries, queue_id_, ttl_seconds_, queue_push_batch_size_);
 }
 
 void SingleQueueClient::FillFilesQueue(samovar::ScanMetadata&& scan_metadata, samovar::FileList&& all_file_list,
@@ -168,7 +169,7 @@ void SingleQueueClient::FillFilesQueue(samovar::ScanMetadata&& scan_metadata, sa
 
 void SingleQueueClient::FillManifestsQueue(samovar::ScanMetadata&& scan_metadata,
                                            const std::vector<samovar::ManifestList>& manifests) {
-  SendManifestLists(client_, manifests, GetManifestCell(), ttl_seconds_);
+  SendManifestLists(client_, manifests, GetManifestCell(), ttl_seconds_, queue_push_batch_size_);
 
   scan_metadata.set_use_distributed_metadata_processing(true);
 

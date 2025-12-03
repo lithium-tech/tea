@@ -62,7 +62,7 @@ class SamovarRedisClient : public ISamovarClient {
   explicit SamovarRedisClient(const std::vector<Endpoint>& endpoints, std::chrono::milliseconds request_timeout,
                               std::chrono::milliseconds connection_timeout);
 
-  void PushQueue(const std::string& queue_name, const std::string& message) override;
+  void PushQueue(const std::string& queue_name, const std::vector<std::string>& elements) override;
   std::vector<std::string> PopQueue(const std::string& queue_name, int num_elements) override;
 
   void SetCell(const std::string& cell_name, const std::string& message, std::chrono::seconds ttl) override;

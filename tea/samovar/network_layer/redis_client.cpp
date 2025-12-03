@@ -115,8 +115,10 @@ int64_t RedisClient::GetRequestCount() const { return requests_count_; }
 
 int64_t RedisClient::GetErrorCount() const { return error_count_; }
 
-void SamovarRedisClient::PushQueue(const std::string& queue_name, const std::string& message) {
-  auto reply = underground_client_->SendRequest({"LPUSH", queue_name, message});
+void SamovarRedisClient::PushQueue(const std::string& queue_name, const std::vector<std::string>& elements) {
+  std::vector<std::string> args{"LPUSH", queue_name};
+  args.insert(args.end(), elements.begin(), elements.end());
+  auto reply = underground_client_->SendRequest(args);
   auto reply_repr = reply.Get();
   if (ErrorOnMessage(reply_repr)) {
     throw std::runtime_error("Redis cluster is unavailable " + underground_client_->GetErrorMessage());
