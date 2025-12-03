@@ -119,9 +119,17 @@ class IcebergMetadataWriter : public IMetadataWriter {
     return partition_fields;
   }
 
+  arrow::Status AddDeletedFiles(const std::vector<iceberg::FilePath>& paths,
+                                iceberg::ContentFile::FileContent file_content,
+                                const std::vector<int32_t>& field_ids = {},
+                                iceberg::ContentFile::PartitionTuple partition_tuple = {}) {
+    return AddFiles(paths, file_content, field_ids, partition_tuple, iceberg::ManifestEntry::Status::kDeleted);
+  }
+
   arrow::Status AddFiles(const std::vector<iceberg::FilePath>& paths, iceberg::ContentFile::FileContent file_content,
                          const std::vector<int32_t>& field_ids = {},
-                         iceberg::ContentFile::PartitionTuple partition_tuple = {}) {
+                         iceberg::ContentFile::PartitionTuple partition_tuple = {},
+                         iceberg::ManifestEntry::Status file_status = iceberg::ManifestEntry::Status::kAdded) {
     if (file_content == iceberg::ContentFile::FileContent::kData) {
       data_files_count_ += paths.size();
     } else {
@@ -137,7 +145,7 @@ class IcebergMetadataWriter : public IMetadataWriter {
       entry.data_file.content = file_content;
       entry.sequence_number = current_sequence_number_;
       entry.file_sequence_number = current_sequence_number_;
-      entry.status = iceberg::ManifestEntry::Status::kAdded;
+      entry.status = file_status;
       entry.data_file.partition_tuple = std::move(partition_tuple);
 
       {

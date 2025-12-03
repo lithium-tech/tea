@@ -284,6 +284,9 @@ static std::vector<samovar::AnnotatedDataEntry> GetDataEntries(
     if (!maybe_entry) {
       break;
     }
+    if (maybe_entry->status == iceberg::ManifestEntry::Status::kDeleted) {
+      continue;
+    }
 
     ++stats.samovar_initial_tasks_count;
 
