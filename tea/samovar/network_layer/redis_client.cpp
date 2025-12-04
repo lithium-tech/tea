@@ -219,6 +219,17 @@ int SamovarRedisClient::DecreaseNumericCell(const std::string& cell_name) {
 }
 
 void SamovarRedisClient::UpdateTTL(const std::string& object, std::chrono::seconds ttl) {
+  std::chrono::seconds current_ts =
+      std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch());
+  if (object_to_last_update_in_seconds_.contains(object)) {
+    const auto& last_update = object_to_last_update_in_seconds_.at(object);
+    if (2 * (current_ts - last_update) < ttl) {
+      return;
+    }
+  }
+
+  object_to_last_update_in_seconds_[object] = current_ts;
+
   auto ttl_str = std::to_string(ttl.count());
   auto reply = underground_client_->SendRequest({"EXPIRE", object, ttl_str}).Get();
   if (ErrorOnMessage(reply)) {
