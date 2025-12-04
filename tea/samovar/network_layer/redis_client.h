@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <cstdint>
+#include <map>
 #include <memory>
 #include <string>
 #include <utility>
@@ -93,6 +94,7 @@ class SamovarRedisClient : public ISamovarClient {
   bool ErrorOnMessage(std::shared_ptr<redisReply> reply) const;
 
   std::shared_ptr<RedisClient> underground_client_;
+  std::map<std::string, std::chrono::seconds> object_to_last_update_in_seconds_;
 };
 
 }  // namespace tea::samovar
