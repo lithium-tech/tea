@@ -53,6 +53,8 @@ SingleQueueClient::SingleQueueClient(std::shared_ptr<ISamovarClient> client, std
   // * segment will write write and read metadata
   // * or segment will read metadata
   if (role == SamovarRole::kFollower) {
+    client_->IncreaseNumericCell(GetCheckpointCell());
+    client_->UpdateTTL(GetCheckpointCell(), ttl_seconds_);
     client_->IncreaseNumericCell(GetInitScanCell());
     client_->UpdateTTL(GetInitScanCell(), ttl_seconds_);
   }
@@ -68,11 +70,11 @@ void SingleQueueClient::WaitForManifestsQueue() {
 }
 
 std::optional<samovar::AnnotatedDataEntry> SingleQueueClient::GetNextDataEntry() {
-  client_->UpdateTTL(std::vector{queue_id_, GetMetadataCell()}, ttl_seconds_);
+  client_->UpdateTTL(std::vector{queue_id_, GetCheckpointCell()}, ttl_seconds_);
 
   auto result = batcher_->GetNextDataEntry(queue_id_);
   if (!result) {
-    OnProcessingEnd(GetCheckpointCell(), {queue_id_, GetMetadataCell(), GetCheckpointCell(), GetFileListCell()});
+    OnProcessingEnd();
   }
 
   if (result) {
@@ -92,7 +94,7 @@ std::optional<samovar::AnnotatedDataEntry> SingleQueueClient::GetNextDataEntry()
 }
 
 std::optional<samovar::ManifestList> SingleQueueClient::GetNextManifest() {
-  client_->UpdateTTL(std::vector{queue_id_, GetMetadataCell()}, ttl_seconds_);
+  client_->UpdateTTL(std::vector{GetManifestCell(), GetCheckpointCell()}, ttl_seconds_);
 
   auto responses = client_->PopQueue(GetManifestCell(), 1);
   if (responses.empty()) {
@@ -162,9 +164,6 @@ void SingleQueueClient::FillFilesQueue(samovar::ScanMetadata&& scan_metadata, sa
   AppendToFilesQueue(std::move(additional_data_entries));
 
   FillCommonInfo(ClearDataEntries(scan_metadata), std::move(all_file_list));
-
-  client_->UpdateTTL(std::vector{queue_id_, GetMetadataCell(), GetFileListCell(), GetCheckpointCell()}, ttl_seconds_);
-  OnProcessingStart(GetCheckpointCell());
 }
 
 void SingleQueueClient::FillManifestsQueue(samovar::ScanMetadata&& scan_metadata,
@@ -174,10 +173,6 @@ void SingleQueueClient::FillManifestsQueue(samovar::ScanMetadata&& scan_metadata
   scan_metadata.set_use_distributed_metadata_processing(true);
 
   FillCommonInfo(std::move(scan_metadata), samovar::FileList{});
-
-  client_->UpdateTTL(std::vector{GetManifestCell(), GetMetadataCell(), GetFileListCell(), GetCheckpointCell()},
-                     ttl_seconds_);
-  OnProcessingStart(GetCheckpointCell());
 }
 
 std::string SingleQueueClient::GetInitScanCell() {
@@ -231,42 +226,31 @@ int64_t SingleQueueClient::GetMetricValue(SamovarMetrics metric) const {
 }
 
 SingleQueueClient::~SingleQueueClient() {
-  if (role_ != SamovarRole::kCoordinator) {
+  if (role_ == SamovarRole::kFollower) {
     try {
-      OnProcessingEnd(GetCheckpointCell(), {queue_id_, GetMetadataCell(), GetCheckpointCell(), GetFileListCell()});
+      OnProcessingEnd();
     } catch (...) {
       TEA_LOG("Can not clear redis - it will be dirty.");
     }
   }
 }
 
-void SingleQueueClient::OnProcessingStart(const std::string& checkpoint_cell) {
-  started_ = true;
-  client_->SetNumericCell(checkpoint_cell, segment_count_ + 1, ttl_seconds_);
+std::vector<std::string> SingleQueueClient::AllCells() {
+  return {queue_id_,           GetMetadataCell(), GetInitScanCell(), GetManifestsSyncScanCell(),
+          GetCheckpointCell(), GetFileListCell(), GetManifestCell()};
 }
 
-void SingleQueueClient::OnProcessingEnd(const std::string& checkpoint_cell,
-                                        const std::vector<std::string>& cells_to_clear) {
-  if (cleared_ || !started_) {
+void SingleQueueClient::OnProcessingEnd() {
+  if (cleared_) {
     return;
   }
   cleared_ = true;
-  std::optional<int> value_after_change = client_->DecreaseNumericCell(checkpoint_cell);
-  if (!value_after_change) {
-    TEA_LOG("Can not decrement cell, redis cluster will be unclear");
-    return;
-  }
-  if (value_after_change == 1) {
-    for (const auto& cell : cells_to_clear) {
-      client_->DeleteCell(cell);
-    }
-  }
 
-  if (value_after_change <= 0) {
-    for (const auto& cell : cells_to_clear) {
+  int value_after_change = client_->DecreaseNumericCell(GetCheckpointCell());
+  if (value_after_change == 0) {
+    for (const auto& cell : AllCells()) {
       client_->DeleteCell(cell);
     }
-    throw std::runtime_error("redis cluster state was flushed due query execution - checkpoint cell result mismatched");
   }
 }
 
