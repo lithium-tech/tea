@@ -53,10 +53,11 @@ class SingleQueueClient {
 
   ~SingleQueueClient();
 
-  void OnProcessingStart(const std::string& checkpoint_cell);
-  void OnProcessingEnd(const std::string& checkpoint_cell, const std::vector<std::string>& cells_to_clear);
-
  private:
+  std::vector<std::string> AllCells();
+
+  void OnProcessingEnd();
+
   void FillCommonInfo(samovar::ScanMetadata&& scan_metadata, samovar::FileList&& file_list);
 
   mutable std::shared_ptr<ISamovarClient> client_;
@@ -96,9 +97,8 @@ class SingleQueueClient {
   std::shared_ptr<IBackoff> sync_backoff_;
   DurationTicks total_sync_time_ = 0;
 
-  int segment_count_ = 0;
   bool cleared_ = false;
-  bool started_ = false;
+  int segment_count_ = 0;
 
   const uint32_t queue_push_batch_size_ = 1;
 };
