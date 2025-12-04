@@ -25,6 +25,7 @@
 #include "tea/common/cancel.h"
 #include "tea/common/config.h"
 #include "tea/common/iceberg_fs.h"
+#include "tea/common/iceberg_stats_filter.h"
 #include "tea/metadata/entries_stream_config.h"
 #include "tea/observability/planner_stats.h"
 #include "tea/observability/tea_log.h"
@@ -74,37 +75,6 @@ std::shared_ptr<iceberg::ice_tea::RemoteCatalog> GetCatalog(const Config& config
   }
   throw std::runtime_error("No any correct endpoint for iceberg catalog were provided");
 }
-
-class FilteringEntriesStream : public iceberg::ice_tea::IcebergEntriesStream {
- public:
-  FilteringEntriesStream(std::shared_ptr<iceberg::ice_tea::IcebergEntriesStream> input, iceberg::filter::NodePtr expr,
-                         std::shared_ptr<iceberg::Schema> schema, int64_t timestamp_to_timestamptz_shift_us)
-      : input_(input),
-        filter_(expr, iceberg::filter::StatsFilter::Settings{.timestamp_to_timestamptz_shift_us =
-                                                                 timestamp_to_timestamptz_shift_us}),
-        schema_(schema) {}
-
-  std::optional<iceberg::ManifestEntry> ReadNext() override {
-    while (true) {
-      auto maybe_entry = input_->ReadNext();
-      if (!maybe_entry.has_value()) {
-        return std::nullopt;
-      }
-
-      iceberg::ManifestEntryStatsGetter stats_getter(maybe_entry.value(), schema_);
-      if (filter_.ApplyFilter(stats_getter) == iceberg::filter::MatchedRows::kNone) {
-        continue;
-      }
-
-      return maybe_entry.value();
-    }
-  }
-
- private:
-  std::shared_ptr<iceberg::ice_tea::IcebergEntriesStream> input_;
-  iceberg::filter::StatsFilter filter_;
-  std::shared_ptr<iceberg::Schema> schema_;
-};
 
 std::string GetIcebergTableLocation(const Config& config, TableId table_id) {
   auto catalog = GetCatalog(config);

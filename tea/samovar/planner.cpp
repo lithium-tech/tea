@@ -24,6 +24,7 @@
 #include "tea/common/cancel.h"
 #include "tea/common/config.h"
 #include "tea/common/iceberg_fs.h"
+#include "tea/common/iceberg_stats_filter.h"
 #include "tea/common/utils.h"
 #include "tea/metadata/metadata.h"
 #include "tea/metadata/planner.h"
@@ -299,7 +300,9 @@ static std::vector<samovar::AnnotatedDataEntry> GetDataEntries(
 
 static arrow::Result<std::vector<samovar::AnnotatedDataEntry>> ManifestListToDataEntries(
     const samovar::ManifestList& manifest_list, std::shared_ptr<iceberg::IFileSystemProvider> fs_provider,
-    std::shared_ptr<IcebergMetrics> metrics, PlannerStats& stats, const CancelToken& cancel_token) {
+    std::shared_ptr<IcebergMetrics> metrics, PlannerStats& stats, const CancelToken& cancel_token,
+    iceberg::filter::NodePtr filter_expr, std::shared_ptr<iceberg::Schema> schema,
+    int64_t timestamp_to_timestamptz_shift_us) {
   const std::string& file_path = manifest_list.file_path();
 
   ARROW_ASSIGN_OR_RAISE(std::shared_ptr<arrow::fs::FileSystem> fs, fs_provider->GetFileSystem(file_path));
@@ -312,13 +315,19 @@ static arrow::Result<std::vector<samovar::AnnotatedDataEntry>> ManifestListToDat
   std::shared_ptr<iceberg::ice_tea::IcebergEntriesStream> entries =
       iceberg::ice_tea::make::ManifestEntriesStream(content, {}, cfg, true, false);
   entries = std::make_shared<tea::CancellingStream>(entries, cancel_token);
+  if (filter_expr) {
+    entries =
+        std::make_shared<tea::FilteringEntriesStream>(entries, filter_expr, schema, timestamp_to_timestamptz_shift_us);
+  }
 
   return GetDataEntries(entries, stats);
 }
 
 static arrow::Result<std::vector<samovar::AnnotatedDataEntry>> ManifestsToDataEntries(
     std::shared_ptr<SingleQueueClient> samovar_client, std::shared_ptr<iceberg::IFileSystemProvider> fs_provider,
-    std::shared_ptr<IcebergMetrics> metrics, PlannerStats& stats, const CancelToken& cancel_token) {
+    std::shared_ptr<IcebergMetrics> metrics, PlannerStats& stats, const CancelToken& cancel_token,
+    iceberg::filter::NodePtr filter_expr, std::shared_ptr<iceberg::Schema> schema,
+    int64_t timestamp_to_timestamptz_shift_us) {
   std::vector<samovar::AnnotatedDataEntry> result;
   while (true) {
     std::optional<samovar::ManifestList> maybe_next_manifest = samovar_client->GetNextManifest();
@@ -328,7 +337,8 @@ static arrow::Result<std::vector<samovar::AnnotatedDataEntry>> ManifestsToDataEn
 
     const samovar::ManifestList& next_manifest = maybe_next_manifest.value();
     ARROW_ASSIGN_OR_RAISE(std::vector<samovar::AnnotatedDataEntry> data_files_to_process,
-                          ManifestListToDataEntries(next_manifest, fs_provider, metrics, stats, cancel_token));
+                          ManifestListToDataEntries(next_manifest, fs_provider, metrics, stats, cancel_token,
+                                                    filter_expr, schema, timestamp_to_timestamptz_shift_us));
 
     result.insert(result.end(), data_files_to_process.begin(), data_files_to_process.end());
   }
@@ -339,7 +349,7 @@ static arrow::Result<std::vector<samovar::AnnotatedDataEntry>> ManifestsToDataEn
 arrow::Result<std::pair<meta::PlannedMeta, PlannerStats>> FromSamovar(
     const Config& config, int segment_id, const std::string& queue_name, bool is_metadata_already_written,
     std::shared_ptr<SingleQueueClient> samovar_client, std::shared_ptr<iceberg::IFileSystemProvider> fs_provider,
-    const CancelToken& cancel_token) {
+    const CancelToken& cancel_token, iceberg::filter::NodePtr filter_expr, int64_t timestamp_to_timestamptz_shift_us) {
   // Followers should wait for some time (at least 3x the average s3 request latency) since no progress is
   // impossible until the coordinator writes the metadata to Samovar.
   // The coordinator does not have to wait because the metadata has already been written by him.
@@ -359,9 +369,12 @@ arrow::Result<std::pair<meta::PlannedMeta, PlannerStats>> FromSamovar(
   if (response.use_distributed_metadata_processing()) {
     auto metrics = std::make_shared<IcebergMetrics>();
 
+    std::shared_ptr<iceberg::Schema> schema = TeapotSchemaToIcebergSchema(response.schema());
+
     // read and parse some manifests
     ARROW_ASSIGN_OR_RAISE(std::vector<samovar::AnnotatedDataEntry> result,
-                          ManifestsToDataEntries(samovar_client, fs_provider, metrics, stats, cancel_token));
+                          ManifestsToDataEntries(samovar_client, fs_provider, metrics, stats, cancel_token, filter_expr,
+                                                 schema, timestamp_to_timestamptz_shift_us));
 
     if (!result.empty()) {
       // write tasks to the entries queue

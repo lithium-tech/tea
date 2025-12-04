@@ -48,6 +48,7 @@
 #include "tea/common/config.h"
 #include "tea/common/iceberg_fs.h"
 #include "tea/common/iceberg_json.h"
+#include "tea/common/iceberg_stats_filter.h"
 #include "tea/common/reader_properties.h"
 #include "tea/common/utils.h"
 #include "tea/debug/stats_to_proto.h"
@@ -584,10 +585,12 @@ void TeaContextPlanForeign(TeaContextPtr tea_ctx, const ForeignScanParams* param
             CreateSamovarClient(tea_ctx, meta_message.scan_metadata_identifier, params->segment_id,
                                 params->segment_count, tea::samovar::SamovarRole::kFollower);
 
-        auto result =
-            tea::samovar::FromSamovar(get::Config(tea_ctx), params->segment_id, meta_message.scan_metadata_identifier,
-                                      is_metadata_already_written, samovar_data_client,
-                                      get::FileSystemProvider(tea_ctx), get::CancelToken(tea_ctx));
+        // We currencly do not use distributed metadata processing in FDW, so filter_expr is never used
+        // TODO(gmusya): set filter expr
+        auto result = tea::samovar::FromSamovar(
+            get::Config(tea_ctx), params->segment_id, meta_message.scan_metadata_identifier,
+            is_metadata_already_written, samovar_data_client, get::FileSystemProvider(tea_ctx),
+            get::CancelToken(tea_ctx), nullptr, tea::TimestampToTimestamptzShiftUs());
         return result;
       } else {
         tea::ScanMetadataMessage meta = std::move(meta_message);
@@ -934,6 +937,10 @@ std::shared_ptr<tea::samovar::SingleQueueClient> SamovarMakePlan(TeaContextPtr t
                 schema,
                 node_filter ? tea::MakeScanDeserializerConfigWithFilter() : tea::MakeFullScanDeserializerConfig());
         entries_stream = std::make_shared<tea::CancellingStream>(entries_stream, get::CancelToken(tea_ctx));
+        if (node_filter) {
+          entries_stream = std::make_shared<tea::FilteringEntriesStream>(
+              entries_stream, node_filter, table_metadata->GetCurrentSchema(), tea::TimestampToTimestamptzShiftUs());
+        }
 
         auto logger = std::make_shared<tea::Logger>();
         logger->SetHandler("metrics:plan:data_files",
@@ -1040,9 +1047,10 @@ void TeaContextPlanExternal(TeaContextPtr tea_ctx, const ExternalScanParams* par
                                                tea::samovar::SamovarRole::kFollower);
         }
 
-        auto result =
-            tea::samovar::FromSamovar(get::Config(tea_ctx), params->segment_id, queue_name, is_metadata_already_written,
-                                      samovar_client, get::FileSystemProvider(tea_ctx), get::CancelToken(tea_ctx));
+        auto result = tea::samovar::FromSamovar(
+            get::Config(tea_ctx), params->segment_id, queue_name, is_metadata_already_written, samovar_client,
+            get::FileSystemProvider(tea_ctx), get::CancelToken(tea_ctx),
+            iceberg::filter::StringToFilter(filter.extracted), tea::TimestampToTimestamptzShiftUs());
         return result;
       } else {
         auto meta_for_me = GetMetadataForSegment(tea_ctx, get::TableConfig(tea_ctx), params->segment_id,
