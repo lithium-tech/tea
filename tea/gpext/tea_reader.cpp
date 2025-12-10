@@ -447,16 +447,34 @@ void LogSourceType(const tea::TableSource& source) {
   }
 }
 
+static uint32_t GetScanId(const char* session_id) {
+  constexpr uint32_t kMaxSessionIdLen = 100;  // >= SESSION_ID_LEN in "tea/gpext/tea_import.h"
+  static char last_session_id[kMaxSessionIdLen + 1] = {};
+  static uint32_t scan_identifier = 0;
+
+  if (std::strlen(session_id) > kMaxSessionIdLen) {
+    throw std::runtime_error(std::string(__PRETTY_FUNCTION__) + ": internal error in Tea. session id contains " +
+                             std::to_string(std::strlen(session_id)) + " characters, but limit is " +
+                             std::to_string(kMaxSessionIdLen));
+  }
+
+  if (std::strcmp(last_session_id, session_id) != 0) {
+    scan_identifier = 0;
+    if (int val = std::snprintf(last_session_id, sizeof(last_session_id), "%s", session_id); val < 0) {
+      throw std::runtime_error(std::string(__PRETTY_FUNCTION__) + ": snprintf return value is " + std::to_string(val));
+    }
+  }
+
+  return ++scan_identifier;
+}
+
 TeaContextPtr TeaContextCreateUntracked(const char* url) {
   TeaContextPtr result = nullptr;
   TEA_INVOKE_IN_HELPER_THREAD(
       ERROR, ([url, &result]() {
-        static uint32_t scan_identifier = 0;
-
         result = new TeaContext();
 
         auto internal_ctx = new tea::InternalContext();
-        internal_ctx->scan_identifier = ++scan_identifier;
         internal_ctx->table_config = tea::ConfigSource::GetTableConfig(url);
 
         result->ctx = internal_ctx;
@@ -569,6 +587,7 @@ static std::shared_ptr<tea::samovar::SingleQueueClient> CreateSamovarClient(TeaC
 void TeaContextPlanForeign(TeaContextPtr tea_ctx, const ForeignScanParams* params) {
   TEA_INVOKE_IN_HELPER_THREAD(ERROR, [=] {
     get::SessionId(tea_ctx) = params->session_id;
+    get::Context(tea_ctx).scan_identifier = GetScanId(params->session_id);
 
     auto reader = get::Reader(tea_ctx);
     reader->SetColumns(params->projection.columns, params->projection.columns + params->projection.ncolumns);
@@ -982,6 +1001,7 @@ std::shared_ptr<tea::samovar::SingleQueueClient> SamovarMakePlan(TeaContextPtr t
 void TeaContextPlanExternal(TeaContextPtr tea_ctx, const ExternalScanParams* params) {
   TEA_INVOKE_IN_HELPER_THREAD_WITH_INTERRUPTS(ERROR, [=] {
     get::SessionId(tea_ctx) = params->session_id;
+    get::Context(tea_ctx).scan_identifier = GetScanId(params->session_id);
 
     auto reader = get::Reader(tea_ctx);
     reader->SetColumns(params->projection.columns, params->projection.columns + params->projection.ncolumns);
@@ -1073,6 +1093,7 @@ void TeaContextPlanExternal(TeaContextPtr tea_ctx, const ExternalScanParams* par
 void TeaContextPlanAnalyze(TeaContextPtr tea_ctx, const AnalyzeParams* params) {
   TEA_INVOKE_IN_HELPER_THREAD(ERROR, [=] {
     get::SessionId(tea_ctx) = params->session_id;
+    get::Context(tea_ctx).scan_identifier = GetScanId(params->session_id);
 
     auto reader = get::Reader(tea_ctx);
     reader->SetColumns(params->projection.columns, params->projection.columns + params->projection.ncolumns);
