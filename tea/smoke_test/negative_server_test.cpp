@@ -115,7 +115,7 @@ TEST_F(NegativeServer, NoSuchTable) {
 }
 
 TEST_F(OtherEngineGeneratedTable, NoS3) {
-  if (Environment::GetMetadataType() != MetadataType::kIceberg) {
+  if (Environment::GetMetadataType() != MetadataType::kIceberg || Environment::GetProfile() != "") {
     return;
   }
   auto prev_profile = Environment::GetProfile();

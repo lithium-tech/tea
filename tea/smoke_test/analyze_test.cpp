@@ -163,6 +163,9 @@ TEST_F(AnalyzeTest, OneColumn) {
 }
 
 TEST_F(OtherEngineGeneratedTable, Analyze) {
+  if (Environment::GetTableType() != TestTableType::kForeign) {
+    GTEST_SKIP();
+  }
   CreateTable("gperov", "test",
               std::vector<GreenplumColumnInfo>{GreenplumColumnInfo{.name = "a", .type = "int8"},
                                                GreenplumColumnInfo{.name = "b", .type = "int8"}});
