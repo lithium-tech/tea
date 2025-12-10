@@ -804,6 +804,9 @@ std::deque<iceberg::ManifestFile> GetManifestFiles(std::shared_ptr<iceberg::IFil
                                                    std::shared_ptr<iceberg::TableMetadataV2> table_metadata,
                                                    std::shared_ptr<iceberg::filter::StatsFilter> stats_filter,
                                                    tea::PlannerStats& stats) {
+  if (table_metadata->current_snapshot_id.value_or(-1) == -1) {
+    return {};
+  }
   auto fs = iceberg::ValueSafe(fs_provider->GetFileSystem(table_metadata->GetCurrentManifestListPathOrFail()));
   auto metrics = std::make_shared<tea::IcebergMetrics>();
   fs = std::make_shared<tea::IcebergLoggingFileSystem>(fs, metrics);

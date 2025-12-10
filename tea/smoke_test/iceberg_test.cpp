@@ -23,9 +23,15 @@ TEST_F(OtherEngineGeneratedTable, SanityCheck) {
   uint32_t rows_expected = 10'000 - 1;
   EXPECT_EQ(rows_retrieved, rows_expected);
 
+  uint32_t total_files_read = 0;
   for (const auto& stat : stats_state_->GetStats(false)) {
-    EXPECT_GE(stat.data().data_files_read(), 1);
+    if (Environment::GetProfile() != "samovar") {
+      EXPECT_GE(stat.data().data_files_read(), 1);
+    }
+    total_files_read += stat.data().data_files_read();
   }
+
+  EXPECT_EQ(total_files_read, 6);
 }
 
 TEST_F(OtherEngineGeneratedTable, EmptyTable) {
