@@ -112,6 +112,9 @@ ScanResult LazyScanResult::ToScanResult() const {
 
 arrow::Result<ScanResult> Query::Run(PGconnWrapper& conn) {
   PGresultWrapper select_result(PQexec(conn.Ptr(), query_.c_str()));
+  if (PQresultStatus(select_result.Ptr()) == PGRES_COMMAND_OK) {
+    return ScanResult({}, {});
+  }
   if (PQresultStatus(select_result.Ptr()) != PGRES_TUPLES_OK) {
     return arrow::Status::ExecutionError("Query failed: ", PQerrorMessage(conn.Ptr()));
   }
