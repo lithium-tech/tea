@@ -1,3 +1,37 @@
+### Tea release 1.77.0, 2025-12-15
+
+### Improvements
+
+* [Teapotless][Samovar] Optimize position delete pruning
+
+### Bug Fix
+
+* [Teapotless][Samovar] Fix reading empty Iceberg tables when using External table
+* [Samovar] Fix samovar queue name handling
+
+### Tea release 1.76.3, 2025-12-05
+
+### Improvements
+
+* [Samovar] Do not update TTL too often
+
+### Bug Fix
+
+* [Samovar] Clear metadata after query completes
+
+### Tea release 1.76.2, 2025-12-04
+
+### Bug Fix
+* [Samovar] Return metadata filtering
+
+### Tea release 1.76.1, 2025-12-03
+
+### Improvements
+* [Samovar] Batch data files before pushing to Redis
+
+### Bug Fix
+* [Samovar] Ignore deleted files when using distributed metadata processing
+
 ### Tea release 1.76.0, 2025-12-02
 
 ### Improvements
