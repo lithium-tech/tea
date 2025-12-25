@@ -67,6 +67,7 @@ set(smoke_test_sources
   mismatching_types_test.cpp
   part_of_file_test.cpp
   negative_server_test.cpp
+  nested_loop_join_test.cpp
 )
 
 add_executable(smoke_test ${smoke_test_sources})
