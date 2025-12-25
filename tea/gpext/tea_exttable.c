@@ -250,15 +250,9 @@ Datum teaformat_import(PG_FUNCTION_ARGS) {
     elog(ERROR, "Tea error: teaformat_import not called by formatter");
   }
 
-  TeaFormatterData* formatter_data = (TeaFormatterData*)FORMATTER_GET_USER_CTX(fcinfo);
-  if (formatter_data == NULL) {
-    elog(DEBUG1, "teaformat_import first call");
+  TeaFormatterData* formatter_data = LoadContextFromFormatterData(fcinfo);
+  FORMATTER_SET_USER_CTX(fcinfo, formatter_data);
 
-    formatter_data = LoadContextFromFormatterData(fcinfo);
-    FORMATTER_SET_USER_CTX(fcinfo, formatter_data);
-
-    elog(DEBUG1, "import_format initialized");
-  }
   return formatter_data->fetch_next_tuple_callback(fcinfo);
 }
 
