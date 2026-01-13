@@ -81,6 +81,7 @@ struct Limits {
 
   uint64_t samovar_distributed_metadata_parsing_files_threshold = 10'000;
   uint64_t samovar_max_total_data_files = 100'000;
+  uint64_t samovar_max_total_data_files_in_distributed_mode = 1'000'000;
   uint64_t samovar_max_total_positional_delete_files = 500;
 
   bool operator==(const Limits&) const = default;

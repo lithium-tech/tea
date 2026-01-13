@@ -885,14 +885,15 @@ void ValidateAllMetadata(const tea::Config& config, const iceberg::ice_tea::Scan
   }
 }
 
-void ValidateFilesCount(const tea::Config& config, const std::deque<iceberg::ManifestFile>& manifests) {
+void ValidateFilesCountInDistributedMode(const tea::Config& config,
+                                         const std::deque<iceberg::ManifestFile>& manifests) {
   uint64_t total_files = 0;
 
   for (auto& elem : manifests) {
     total_files += elem.added_files_count + elem.existing_files_count;
   }
 
-  if (total_files > config.limits.samovar_max_total_data_files) {
+  if (total_files > config.limits.samovar_max_total_data_files_in_distributed_mode) {
     throw std::runtime_error("There are " + std::to_string(total_files) + " files in plan (limit is " +
                              std::to_string(total_files) + "). Call compaction or use more selective filter");
   }
@@ -952,7 +953,7 @@ std::shared_ptr<tea::samovar::SingleQueueClient> SamovarMakePlan(TeaContextPtr t
                                         config.config.limits.samovar_distributed_metadata_parsing_files_threshold)) {
         // validation is done after partition pruning but before applying min/max filters
         // SinglenodeMetadataParsing mode uses its own validation which is performed after applying min/max filters
-        ValidateFilesCount(config.config, manifest_files_queue);
+        ValidateFilesCountInDistributedMode(config.config, manifest_files_queue);
 
         std::shared_ptr<tea::samovar::SingleQueueClient> samovar_client =
             CreateSamovarClient(tea_ctx, queue_name, segment_id, segment_count, tea::samovar::SamovarRole::kFollower);
