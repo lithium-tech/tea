@@ -60,6 +60,8 @@ class ISamovarClient {
   virtual void RemoveFromSet(const std::string& set_key, const std::string& value) = 0;
   virtual bool ContainsInSet(const std::string& set_key, const std::string& value) = 0;
 
+  virtual size_t GetQueueLen(const std::string& queue_id) = 0;
+
   virtual ~ISamovarClient() = default;
 };
 

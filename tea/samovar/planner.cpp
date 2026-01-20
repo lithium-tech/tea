@@ -135,6 +135,12 @@ arrow::Result<PlannerStats> FillSamovar(const Config& config, iceberg::ice_tea::
 }
 
 namespace {
+struct EmptyMetadataScheduler final : public meta::IMetadataScheduler {
+  std::vector<iceberg::AnnotatedDataPath> GetNextMetadata(size_t num_data_files) override { return {}; };
+
+  void UpdateMetrics(ReaderStats& stats) override {}
+};
+
 class SamovarMetadataScheduler final : public meta::IMetadataScheduler {
  public:
   SamovarMetadataScheduler(const Config& config, std::shared_ptr<SingleQueueClient> samovar_data_client)
@@ -155,6 +161,7 @@ class SamovarMetadataScheduler final : public meta::IMetadataScheduler {
         result.emplace_back(
             ConvertSamovarAnnotatedDataEntryToAnnotatedDataEntry(*request_result, samovar_data_client_->GetFileList()));
         if (enable_static_balancing_ && request_result->last_task_for_segment()) {
+          samovar_data_client_->OnStaticBalancingProcessingEnd();
           CloseConnection();
         }
       }
@@ -362,6 +369,15 @@ arrow::Result<std::pair<meta::PlannedMeta, PlannerStats>> FromSamovar(
   }
 
   auto response = samovar_client->GetPlannedMetadata();
+  if (response.scan_already_finished()) {
+    iceberg::ice_tea::ScanMetadata metadata;
+    metadata.schema = TeapotSchemaToIcebergSchema(response.schema());
+
+    auto sched = std::make_shared<EmptyMetadataScheduler>();
+
+    auto meta = meta::PlannedMeta(std::make_shared<meta::AnnotatedDataEntryStream>(sched), std::move(metadata));
+    return std::make_pair(std::move(meta), PlannerStats{});
+  }
 
   PlannerStats stats;
   std::optional<ScopedTimerTicks> timer = ScopedTimerTicks(stats.plan_duration);

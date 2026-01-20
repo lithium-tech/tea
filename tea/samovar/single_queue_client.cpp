@@ -240,6 +240,38 @@ std::vector<std::string> SingleQueueClient::AllCells() {
           GetCheckpointCell(), GetFileListCell(), GetManifestCell()};
 }
 
+void SingleQueueClient::ClearCells() {
+  for (const auto& cell : AllCells()) {
+    if (cell == GetMetadataCell() && !need_sync_on_init_) {
+      samovar::ScanMetadata new_metadata;
+      new_metadata.set_scan_already_finished(true);
+
+      client_->SetCell(GetMetadataCell(), new_metadata.SerializeAsString(), ttl_seconds_);
+    } else {
+      client_->DeleteCell(cell);
+    }
+  }
+}
+
+void SingleQueueClient::OnStaticBalancingProcessingEnd() {
+  if (need_sync_on_init_) {
+    OnProcessingEnd();
+    return;
+  }
+  if (cleared_) {
+    return;
+  }
+  cleared_ = true;
+
+  int value_after_change = client_->DecreaseNumericCell(GetCheckpointCell());
+  if (value_after_change == 0) {
+    // Metadata must only be removed after all tasks have been completed.
+    if (client_->GetQueueLen(queue_id_) == 0) {
+      ClearCells();
+    }
+  }
+}
+
 void SingleQueueClient::OnProcessingEnd() {
   if (cleared_) {
     return;
@@ -248,9 +280,7 @@ void SingleQueueClient::OnProcessingEnd() {
 
   int value_after_change = client_->DecreaseNumericCell(GetCheckpointCell());
   if (value_after_change == 0) {
-    for (const auto& cell : AllCells()) {
-      client_->DeleteCell(cell);
-    }
+    ClearCells();
   }
 }
 

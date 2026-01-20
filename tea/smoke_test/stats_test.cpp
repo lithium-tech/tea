@@ -685,7 +685,7 @@ TEST_F(StatsTest, Redis) {
   EXPECT_EQ(samovar_splitted_tasks_count, tasks_after_splitting);
   EXPECT_EQ(samovar_fetched_tasks_count, tasks_after_splitting);
   EXPECT_GT(samovar_total_response_duration_ticks, 0.00001);
-  EXPECT_GT(samovar_sync_duration, 0.00001);
+  EXPECT_EQ(samovar_sync_duration, 0);  // need_sync_on_init is disabled
   EXPECT_GE(request_count, 1);
   /// Some errors due to incorrect first host in config (to test failover).
   EXPECT_GE(errors_count, 1);
