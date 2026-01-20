@@ -1,3 +1,21 @@
+### Tea release 1.77.3, 2025-01-20
+
+### Bug Fix
+
+* [Samovar] Fix samovar without sync phase
+
+### Tea release 1.77.2, 2025-01-13
+
+### Bug Fix
+
+* Fix segfault when rescan happens
+
+### Tea release 1.77.1, 2025-12-17
+
+### Improvements
+
+* [Teapotless][Samovar] Add file limit for distributed metadata parsing
+
 ### Tea release 1.77.0, 2025-12-15
 
 ### Improvements
