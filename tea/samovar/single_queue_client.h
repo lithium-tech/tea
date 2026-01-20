@@ -53,8 +53,12 @@ class SingleQueueClient {
 
   ~SingleQueueClient();
 
+  void OnStaticBalancingProcessingEnd();
+
  private:
   std::vector<std::string> AllCells();
+
+  void ClearCells();
 
   void OnProcessingEnd();
 

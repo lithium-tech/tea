@@ -81,13 +81,14 @@ class SamovarRedisClient : public ISamovarClient {
   int64_t GetRequestCount() const override;
   int64_t GetErrorsCount() const override;
 
+  size_t GetQueueLen(const std::string& queue_id) override;
+
   void AddIntoSet(const std::string& set_key, const std::string& value) override;
   void RemoveFromSet(const std::string& set_key, const std::string& value) override;
   bool ContainsInSet(const std::string& set_key, const std::string& value) override;
 
   /// Note: methods below are useful only for tests.
   std::vector<std::string> GetAllKeys();
-  size_t GetQueueLen(const std::string& queue_id);
   void Clear();
 
  private:

@@ -46,6 +46,7 @@ message ScanMetadata {
   teapot.Schema schema = 2;
 
   bool use_distributed_metadata_processing = 3;
+  bool scan_already_finished = 4;
 }
 
 message AnnotatedDataEntry {
