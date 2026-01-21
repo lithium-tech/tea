@@ -893,9 +893,10 @@ void ValidateFilesCountInDistributedMode(const tea::Config& config,
     total_files += elem.added_files_count + elem.existing_files_count;
   }
 
-  if (total_files > config.limits.samovar_max_total_data_files_in_distributed_mode) {
+  const uint64_t limit = config.limits.samovar_max_total_data_files_in_distributed_mode;
+  if (total_files > limit) {
     throw std::runtime_error("There are " + std::to_string(total_files) + " files in plan (limit is " +
-                             std::to_string(total_files) + "). Call compaction or use more selective filter");
+                             std::to_string(limit) + "). Call compaction or use more selective filter");
   }
 }
 
