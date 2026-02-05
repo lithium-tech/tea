@@ -598,8 +598,6 @@ void TeaContextPlanForeign(TeaContextPtr tea_ctx, const ForeignScanParams* param
     auto maybe_plan_meta = [&]() {
       bool from_samovar = get::SamovarConfig(tea_ctx).turn_on_samovar;
       if (from_samovar) {
-        const bool is_metadata_already_written = true;
-
         auto samovar_data_client =
             CreateSamovarClient(tea_ctx, meta_message.scan_metadata_identifier, params->segment_id,
                                 params->segment_count, tea::samovar::SamovarRole::kFollower);
@@ -607,9 +605,8 @@ void TeaContextPlanForeign(TeaContextPtr tea_ctx, const ForeignScanParams* param
         // We currencly do not use distributed metadata processing in FDW, so filter_expr is never used
         // TODO(gmusya): set filter expr
         auto result = tea::samovar::FromSamovar(
-            get::Config(tea_ctx), params->segment_id, meta_message.scan_metadata_identifier,
-            is_metadata_already_written, samovar_data_client, get::FileSystemProvider(tea_ctx),
-            get::CancelToken(tea_ctx), nullptr, tea::TimestampToTimestamptzShiftUs());
+            get::Config(tea_ctx), params->segment_id, meta_message.scan_metadata_identifier, samovar_data_client,
+            get::FileSystemProvider(tea_ctx), get::CancelToken(tea_ctx), nullptr, tea::TimestampToTimestamptzShiftUs());
         return result;
       } else {
         tea::ScanMetadataMessage meta = std::move(meta_message);
@@ -1016,6 +1013,16 @@ std::shared_ptr<tea::samovar::SingleQueueClient> SamovarMakePlan(TeaContextPtr t
   }
 }
 
+static std::chrono::milliseconds CalculateSleepTime(std::chrono::milliseconds min_time,
+                                                    std::chrono::milliseconds max_time, const std::string& queue_name,
+                                                    int segment_id) {
+  std::mt19937 rnd(std::accumulate(queue_name.begin(), queue_name.end(), 0) + segment_id);
+
+  std::uniform_int_distribution<int64_t> gen(min_time.count(), max_time.count());
+
+  return std::chrono::milliseconds(gen(rnd));
+}
+
 // invoked on segment
 void TeaContextPlanExternal(TeaContextPtr tea_ctx, const ExternalScanParams* params) {
   TEA_INVOKE_IN_HELPER_THREAD_WITH_INTERRUPTS(ERROR, [=] {
@@ -1082,17 +1089,29 @@ void TeaContextPlanExternal(TeaContextPtr tea_ctx, const ExternalScanParams* par
             tea::samovar::GetCoordinator(get::SessionId(tea_ctx), get::Source(tea_ctx), params->segment_count);
         const bool is_coordinator = params->segment_id == target_coordinator;
 
-        const bool is_metadata_already_written = is_coordinator;
+        // Followers should wait for some time (at least 3x the average s3 request latency) since no progress is
+        // impossible until the coordinator writes the metadata to Samovar.
+        // The coordinator does not have to wait because the metadata has already been written by him.
+        if (!is_coordinator) {
+          const auto& config = get::Config(tea_ctx);
+          if (config.samovar_config.wait_before_processing) {
+            std::chrono::milliseconds sleep_time =
+                CalculateSleepTime(config.samovar_config.min_time_before_processing_ms,
+                                   config.samovar_config.max_time_before_processing_ms, queue_name, params->segment_id);
+
+            std::this_thread::sleep_for(sleep_time);
+          }
+        }
 
         if (!samovar_client) {
           samovar_client = CreateSamovarClient(tea_ctx, queue_name, params->segment_id, params->segment_count,
                                                tea::samovar::SamovarRole::kFollower);
         }
 
-        auto result = tea::samovar::FromSamovar(
-            get::Config(tea_ctx), params->segment_id, queue_name, is_metadata_already_written, samovar_client,
-            get::FileSystemProvider(tea_ctx), get::CancelToken(tea_ctx),
-            iceberg::filter::StringToFilter(filter.extracted), tea::TimestampToTimestamptzShiftUs());
+        auto result = tea::samovar::FromSamovar(get::Config(tea_ctx), params->segment_id, queue_name, samovar_client,
+                                                get::FileSystemProvider(tea_ctx), get::CancelToken(tea_ctx),
+                                                iceberg::filter::StringToFilter(filter.extracted),
+                                                tea::TimestampToTimestamptzShiftUs());
         return result;
       } else {
         auto meta_for_me = GetMetadataForSegment(tea_ctx, get::TableConfig(tea_ctx), params->segment_id,
