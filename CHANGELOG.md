@@ -1,4 +1,10 @@
-### Tea release 1.77.3, 2025-01-20
+### Tea release 1.79.0, 2025-02-05
+
+### Improvements
+
+* [Samovar] Improve `wait_before_processing` parameter
+
+### Tea release 1.78.0, 2025-01-20
 
 ### Bug Fix
 
