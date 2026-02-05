@@ -31,7 +31,7 @@ arrow::Result<PlannerStats> FillSamovarWithManifests(const Config& config, std::
                                                      std::shared_ptr<SingleQueueClient> samovar_client);
 
 arrow::Result<std::pair<meta::PlannedMeta, PlannerStats>> FromSamovar(
-    const Config& config, int segment_id, const std::string& queue_name, bool is_metadata_already_written,
+    const Config& config, int segment_id, const std::string& queue_name,
     std::shared_ptr<SingleQueueClient> samovar_client, std::shared_ptr<iceberg::IFileSystemProvider> fs_provider,
     const CancelToken& cancel_token, iceberg::filter::NodePtr filter_expr, int64_t timestamp_to_timestamptz_shift_us);
 
