@@ -9,7 +9,7 @@ Tea adopts [PXF](https://github.com/greenplum-db/pxf-archive) logic to standard 
 [Foreign data](https://techdocs.broadcom.com/us/en/vmware-tanzu/data-solutions/tanzu-greenplum/6/greenplum-database/ref_guide-sql_commands-CREATE_FOREIGN_TABLE.html) and
 [External tables](https://techdocs.broadcom.com/us/en/vmware-tanzu/data-solutions/tanzu-greenplum/6/greenplum-database/ref_guide-sql_commands-CREATE_EXTERNAL_TABLE.html)
 
-## Restrinctions
+## Restrictions
 
 Greenplum 5 is based on PostgreSQL that has no `FOREIGN TABLE` support so you can use Tea with `EXTERNAL TABLE` only for them.
 Greenplum 6 has restricted support of `FOREIGN TABLE`. Especially you cannot use [GP Orca](https://www.vmware.com/docs/white-paper-orca-a-modular-query-optimizer-architecture-for-big-data) with them.
