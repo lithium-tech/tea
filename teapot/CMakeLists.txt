@@ -32,6 +32,7 @@ if(ABSL_LOG_FLAGS_TYPE STREQUAL "STATIC_LIBRARY")
   set(ABSL_WHOLE_ARCHIVE "$<LINK_LIBRARY:WHOLE_ARCHIVE,absl::log_flags>")
 endif()
 
+
 # teapot_mock_server
 # add_executable(teapot_mock_server mock_server.cpp)
 # target_include_directories(teapot_mock_server PUBLIC ${CMAKE_SOURCE_DIR})
