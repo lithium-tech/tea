@@ -182,12 +182,12 @@ jobs:
 
           echo "Build script will be here"
           # move tea to cloudberry gpcontrib
-          # rm -rf ${SRC_DIR}/../cloudberry/gpcontrib/yezzey
+          # rm -rf ${SRC_DIR}/../cloudberry/gpcontrib/tea
           # cp -r ${SRC_DIR} ${SRC_DIR}/../cloudberry/gpcontrib/
-          # chown -R gpadmin:gpadmin ${SRC_DIR}/../cloudberry/gpcontrib/yezzey
+          # chown -R gpadmin:gpadmin ${SRC_DIR}/../cloudberry/gpcontrib/tea
 
-          # if ! time su - gpadmin -c "cd ${SRC_DIR}/../cloudberry/gpcontrib/yezzey && make && make install"; then
-          #   echo "::error::Build yezzey failed"
+          # if ! time su - gpadmin -c "cd ${SRC_DIR}/../cloudberry/gpcontrib/tea && make && make install"; then
+          #   echo "::error::Build tea failed"
           #   exit 1
           # fi
 
@@ -254,7 +254,7 @@ jobs:
           retention-days: 7
 
   test-gpdb:
-    name: Build and Test Yezzey GPDB
+    name: Build and Test tea GPDB
     runs-on: ubuntu-latest
     container:
       image: ghcr.io/open-gpdb/gpdb-env:jammy-latest
@@ -410,17 +410,17 @@ jobs:
       - name: Run tea build script
         shell: bash
         env:
-          SRC_DIR: ${{ github.workspace }}/yezzey
+          SRC_DIR: ${{ github.workspace }}/tea
         run: |
           set -eo pipefail
 
           echo "Build script will be here"
-          # rm -rf ${SRC_DIR}/../gpdb/gpcontrib/yezzey
+          # rm -rf ${SRC_DIR}/../gpdb/gpcontrib/tea
           # cp -r ${SRC_DIR} ${SRC_DIR}/../gpdb/gpcontrib/
-          # chown -R gpadmin:gpadmin ${SRC_DIR}/../gpdb/gpcontrib/yezzey
+          # chown -R gpadmin:gpadmin ${SRC_DIR}/../gpdb/gpcontrib/tea
 
-          # if ! time su - gpadmin -c "cd ${SRC_DIR}/../gpdb/gpcontrib/yezzey && make && make install"; then
-          #   echo "::error::Build yezzey failed"
+          # if ! time su - gpadmin -c "cd ${SRC_DIR}/../gpdb/gpcontrib/tea && make && make install"; then
+          #   echo "::error::Build tea failed"
           #   exit 1
           # fi
 
