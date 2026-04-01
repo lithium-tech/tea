@@ -1,0 +1,535 @@
+# --------------------------------------------------------------------
+#
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements. See the NOTICE file distributed
+# with this work for additional information regarding copyright
+# ownership. The ASF licenses this file to You under the Apache
+# License, Version 2.0 (the "License"); you may not use this file
+# except in compliance with the License. You may obtain a copy of the
+# License at
+#
+#    http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+# implied. See the License for the specific language governing
+# permissions and limitations under the License.
+#
+# --------------------------------------------------------------------
+# Tea CI Workflow
+# --------------------------------------------------------------------
+name: Tea CI Pipeline
+
+on:
+  push:
+    branches: [ OPENGPDB_GP6 ]
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+env:
+  CLOUDBERRY_HOME: "/usr/local/cloudberry-db"
+  CLOUDBERRY_VERSION: "main"
+  GPDB_HOME: "/opt/greenplum-db-6"
+  GPDB_VERSION: "OPENGPDB_STABLE"
+
+jobs:
+
+  ## Stage 1: Build artifacts and run tests for cloudberry
+
+  test-cloudberry:
+    name: Build and Test tea Cloudberry
+    runs-on: ubuntu-latest
+    container:
+      image: apache/incubator-cloudberry:cbdb-build-ubuntu22.04-latest
+      options: >-
+        --user root
+        -h cdw
+        -v /usr/share:/host_usr_share
+        -v /usr/local:/host_usr_local
+        -v /opt:/host_opt
+
+    services:
+      # Define the MinIO service container
+      minio:
+        image: lazybit/minio  # Use a specific MinIO image tag
+        ports:
+          - 9000:9000  # Expose MinIO's API port (9000)
+          - 9001:9001  # Expose MinIO's console port (optional, for web UI)
+        env:
+          # MinIO root credentials (required for admin access)
+          MINIO_ROOT_USER: some_key
+          MINIO_ROOT_PASSWORD: some_key
+        # Healthcheck to ensure MinIO is ready before the job proceeds
+        options: >-
+          --name minio
+          --health-cmd "curl --fail http://localhost:9000/minio/health/live"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        volumes:
+          - ${{ github.workspace }}/data:/data
+
+    steps:
+      - name: Checkout Cloudberry source
+        uses: actions/checkout@v4
+        with:
+          repository: apache/cloudberry
+          ref: ${{ env.CLOUDBERRY_VERSION }}
+          path: cloudberry
+          submodules: true
+
+      - name: Checkout tea source
+        uses: actions/checkout@v4
+        with:
+          path: tea
+
+      - name: Cloudberry Environment Initialization
+        shell: bash
+        env:
+          LOGS_DIR: build-logs
+          SRC_DIR: ${{ github.workspace }}/cloudberry
+        run: |
+          set -eo pipefail
+          if ! su - gpadmin -c "/tmp/init_system.sh"; then
+            echo "::error::Container initialization failed"
+            exit 1
+          fi
+
+          mkdir -p "${SRC_DIR}/build-logs"
+          chown -R gpadmin:gpadmin "${SRC_DIR}/build-logs"
+          mkdir -p "${LOGS_DIR}/details"
+          chown -R gpadmin:gpadmin .
+          chmod -R 755 .
+          chmod 777 "${LOGS_DIR}"
+
+          df -kh /
+          rm -rf /__t/*
+          df -kh /
+
+          df -h | tee -a "${LOGS_DIR}/details/disk-usage.log"
+          free -h | tee -a "${LOGS_DIR}/details/memory-usage.log"
+
+          {
+            echo "=== Environment Information ==="
+            uname -a
+            df -h
+            free -h
+            env
+          } | tee -a "${LOGS_DIR}/details/environment.log"
+
+          echo "SRC_DIR=${GITHUB_WORKSPACE}" | tee -a "$GITHUB_ENV"
+
+      - name: Install MinIO Client (mc)
+        run: |
+          set -ex pipefail
+          # Download mc for Linux (amd64)
+          curl -O https://dl.min.io/client/mc/release/linux-amd64/mc
+          chmod +x mc
+          sudo mv mc /usr/local/bin/mc  # Make mc available system-wide
+
+      - name: Configure MinIO service
+        run: |
+          set -ex pipefail
+           # Add the MinIO service as an "alias" in mc (name it "minio-ci")
+          mc alias set minio-ci http://minio:9000 some_key some_key
+
+          # Verify the connection
+          mc admin info minio-ci
+
+          # Create buckets
+          mc mb minio-ci/tea
+
+      - name: Run Apache Cloudberry configure script
+        shell: bash
+        env:
+          SRC_DIR: ${{ github.workspace }}/cloudberry
+        run: |
+          set -eo pipefail
+          chmod +x "${SRC_DIR}"/devops/build/automation/cloudberry/scripts/configure-cloudberry.sh
+          if ! time su - gpadmin -c "cd ${SRC_DIR} && SRC_DIR=${SRC_DIR} ENABLE_DEBUG=${{ env.ENABLE_DEBUG }} CONFIGURE_EXTRA_OPTS=${{ env.CONFIGURE_EXTRA_OPTS }} ${SRC_DIR}/devops/build/automation/cloudberry/scripts/configure-cloudberry.sh"; then
+            echo "::error::Configure script failed"
+            exit 1
+          fi
+
+      - name: Run Apache Cloudberry build script
+        shell: bash
+        env:
+          SRC_DIR: ${{ github.workspace }}/cloudberry
+        run: |
+          set -eo pipefail
+
+          chmod +x "${SRC_DIR}"/devops/build/automation/cloudberry/scripts/build-cloudberry.sh
+          if ! time su - gpadmin -c "cd ${SRC_DIR} && SRC_DIR=${SRC_DIR} ${SRC_DIR}/devops/build/automation/cloudberry/scripts/build-cloudberry.sh"; then
+            echo "::error::Build script failed"
+            exit 1
+          fi
+
+      - name: Run tea build script
+        shell: bash
+        env:
+          SRC_DIR: ${{ github.workspace }}/tea
+        run: |
+          set -eo pipefail
+
+          echo "Build script will be here"
+          # move tea to cloudberry gpcontrib
+          # rm -rf ${SRC_DIR}/../cloudberry/gpcontrib/yezzey
+          # cp -r ${SRC_DIR} ${SRC_DIR}/../cloudberry/gpcontrib/
+          # chown -R gpadmin:gpadmin ${SRC_DIR}/../cloudberry/gpcontrib/yezzey
+
+          # if ! time su - gpadmin -c "cd ${SRC_DIR}/../cloudberry/gpcontrib/yezzey && make && make install"; then
+          #   echo "::error::Build yezzey failed"
+          #   exit 1
+          # fi
+
+      - name: Create demo cluster with tea
+        shell: bash
+        env:
+          SRC_DIR: ${{ github.workspace }}/cloudberry
+        run: |
+          set -eo pipefail
+
+          chmod +x "${SRC_DIR}"/devops/build/automation/cloudberry/scripts/create-cloudberry-demo-cluster.sh
+          if ! time su - gpadmin -c "cd ${SRC_DIR} && SRC_DIR=${SRC_DIR} ${SRC_DIR}/devops/build/automation/cloudberry/scripts/create-cloudberry-demo-cluster.sh"; then
+            echo "::error::Create cluster with tea failed"
+            exit 1
+          fi
+
+      - name: Run tests
+        shell: bash
+        env:
+          SRC_DIR: ${{ github.workspace }}/cloudberry
+        run: |
+          set -eo pipefail
+          set -x
+
+          echo "Tests will be here"
+
+
+      - name: Upload test logs
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-logs-cloudberry-${{ needs.build.outputs.build_timestamp }}
+          path: |
+            build-logs/
+          retention-days: 7
+
+      - name: Upload test results files
+        uses: actions/upload-artifact@v4
+        with:
+          name: results-cloudberry-${{ needs.build.outputs.build_timestamp }}
+          path: |
+            **/regression.out
+            **/regression.diffs
+            **/results/
+          retention-days: 7
+
+      - name: Upload test regression logs
+        if: failure() || cancelled()
+        uses: actions/upload-artifact@v4
+        with:
+          name: regression-logs-cloudberry-${{ needs.build.outputs.build_timestamp }}
+          path: |
+            **/regression.out
+            **/regression.diffs
+            **/results/
+            **/yproxy.log
+            cloudberry/gpAux/gpdemo/datadirs/standby/log/
+            cloudberry/gpAux/gpdemo/datadirs/qddir/demoDataDir-1/log/
+            cloudberry/gpAux/gpdemo/datadirs/dbfast1/demoDataDir0/log/
+            cloudberry/gpAux/gpdemo/datadirs/dbfast2/demoDataDir1/log/
+            cloudberry/gpAux/gpdemo/datadirs/dbfast3/demoDataDir2/log/
+            cloudberry/gpAux/gpdemo/datadirs/dbfast_mirror1/demoDataDir0/log/
+            cloudberry/gpAux/gpdemo/datadirs/dbfast_mirror2/demoDataDir1/log/
+            cloudberry/gpAux/gpdemo/datadirs/dbfast_mirror3/demoDataDir2/log/
+          retention-days: 7
+
+  test-gpdb:
+    name: Build and Test Yezzey GPDB
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/open-gpdb/gpdb-env:jammy-latest
+      options: >-
+        --user root
+        -h cdw
+        -v /usr/share:/host_usr_share
+        -v /usr/local:/host_usr_local
+        -v /opt:/host_opt
+
+    services:
+      # Define the MinIO service container
+      minio:
+        image: lazybit/minio  # Use a specific MinIO image tag
+        ports:
+          - 9000:9000  # Expose MinIO's API port (9000)
+          - 9001:9001  # Expose MinIO's console port (optional, for web UI)
+        env:
+          # MinIO root credentials (required for admin access)
+          MINIO_ROOT_USER: some_key
+          MINIO_ROOT_PASSWORD: some_key
+        # Healthcheck to ensure MinIO is ready before the job proceeds
+        options: >-
+          --name minio
+          --health-cmd "curl --fail http://localhost:9000/minio/health/live"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        volumes:
+          - ${{ github.workspace }}/data:/data
+
+    steps:
+      - name: Checkout GPDB source
+        uses: actions/checkout@v4
+        with:
+          repository: open-gpdb/gpdb
+          ref: ${{ env.GPDB_VERSION }}
+          path: gpdb
+          submodules: true
+
+      - name: Checkout tea source
+        uses: actions/checkout@v4
+        with:
+          path: tea
+
+      - name: Checkout CI Build/Test Scripts
+        uses: actions/checkout@v4
+        with:
+          repository: open-gpdb/gpdb-devops
+          ref: main
+          path: gpdb-devops
+          fetch-depth: 1
+
+      - name: GPDB Environment Initialization
+        shell: bash
+        env:
+          LOGS_DIR: build-logs
+          SRC_DIR: ${{ github.workspace }}/gpdb
+        run: |
+          set -eo pipefail
+          if ! su - gpadmin -c "/tmp/init_system.sh"; then
+            echo "::error::Container initialization failed"
+            exit 1
+          fi
+
+          mkdir -p "${SRC_DIR}/build-logs"
+          chown -R gpadmin:gpadmin "${SRC_DIR}/build-logs"
+          mkdir -p "${LOGS_DIR}/details"
+          chown -R gpadmin:gpadmin .
+          chmod -R 755 .
+          chmod 777 "${LOGS_DIR}"
+
+          df -kh /
+          rm -rf /__t/*
+          df -kh /
+
+          df -h | tee -a "${LOGS_DIR}/details/disk-usage.log"
+          free -h | tee -a "${LOGS_DIR}/details/memory-usage.log"
+
+          {
+            echo "=== Environment Information ==="
+            uname -a
+            df -h
+            free -h
+            env
+          } | tee -a "${LOGS_DIR}/details/environment.log"
+
+          echo "SRC_DIR=${GITHUB_WORKSPACE}" | tee -a "$GITHUB_ENV"
+
+      - name: Install MinIO Client (mc)
+        run: |
+          set -ex pipefail
+          # Download mc for Linux (amd64)
+          curl -O https://dl.min.io/client/mc/release/linux-amd64/mc
+          chmod +x mc
+          sudo mv mc /usr/local/bin/mc  # Make mc available system-wide
+
+      - name: Configure MinIO service
+        run: |
+          set -ex pipefail
+           # Add the MinIO service as an "alias" in mc (name it "minio-ci")
+          mc alias set minio-ci http://minio:9000 some_key some_key
+
+          # Verify the connection
+          mc admin info minio-ci
+
+          # Create buckets
+          mc mb minio-ci/tea
+          
+      - name: Run Greenplum configure script
+        env:
+          SRC_DIR: ${{ github.workspace }}/gpdb
+        run: |
+          set -ex pipefail
+
+          # set env for debian build
+          sudo rm -rf /opt/greenplum-db-6 
+          sudo mkdir -p /opt/greenplum-db-6
+          sudo chown gpadmin:gpadmin /opt/greenplum-db-6
+          export BUILD_DESTINATION=/opt/greenplum-db-6
+
+          if ! su - gpadmin -c "cd ${SRC_DIR} && SRC_DIR=${SRC_DIR} ENABLE_DEBUG=${{ env.ENABLE_DEBUG }} BUILD_DESTINATION=${BUILD_DESTINATION} ${SRC_DIR}/../gpdb-devops/build_automation/gpdb/scripts/configure-gpdb.sh"; then
+            echo "::error::Configure script failed"
+            exit 1
+          fi
+
+      - name: Run Greenplum build script
+        env:
+          SRC_DIR: ${{ github.workspace }}/gpdb
+        run: |
+          set -ex pipefail
+
+          # set env for debian build
+          export BUILD_DESTINATION=/opt/greenplum-db-6
+
+          if ! su - gpadmin -c "cd ${SRC_DIR} && SRC_DIR=${SRC_DIR} BUILD_DESTINATION=${BUILD_DESTINATION} ${SRC_DIR}/../gpdb-devops/build_automation/gpdb/scripts/build-gpdb.sh"; then
+            echo "::error::Build script failed"
+            exit 1
+          fi
+
+          # copy sugar and xerces shared libraries
+          if ! cp /usr/local/lib/libsigar.so ${BUILD_DESTINATION}/lib; then
+            echo "::error::Copy libsigar.so failed"
+            exit 1
+          fi
+
+          if ! cp /usr/local/lib/libxerces* ${BUILD_DESTINATION}/lib; then
+            echo "::error::Copy libxerces failed"
+            exit 1
+          fi
+
+
+      - name: Run tea build script
+        shell: bash
+        env:
+          SRC_DIR: ${{ github.workspace }}/yezzey
+        run: |
+          set -eo pipefail
+
+          echo "Build script will be here"
+          # rm -rf ${SRC_DIR}/../gpdb/gpcontrib/yezzey
+          # cp -r ${SRC_DIR} ${SRC_DIR}/../gpdb/gpcontrib/
+          # chown -R gpadmin:gpadmin ${SRC_DIR}/../gpdb/gpcontrib/yezzey
+
+          # if ! time su - gpadmin -c "cd ${SRC_DIR}/../gpdb/gpcontrib/yezzey && make && make install"; then
+          #   echo "::error::Build yezzey failed"
+          #   exit 1
+          # fi
+
+      - name: Create demo cluster with tea 
+        shell: bash
+        env:
+          SRC_DIR: ${{ github.workspace }}/gpdb
+        run: |
+          set -eo pipefail
+
+          {            
+            if ! su - gpadmin -c "cd ${SRC_DIR} && NUM_PRIMARY_MIRROR_PAIRS=3 SRC_DIR=${SRC_DIR} ${SRC_DIR}/../gpdb-devops/build_automation/gpdb/scripts/create-gpdb-demo-cluster.sh"; then
+              echo "::error::Demo cluster creation failed"
+              exit 1
+            fi
+
+          } 2>&1 | tee -a build-logs/details/create-gpdb-demo-cluster.log
+
+
+      - name: Run tests
+        shell: bash
+        env:
+          SRC_DIR: ${{ github.workspace }}/gpdb
+        run: |
+          set -eo pipefail
+          set -x
+
+          echo "Tests will be here"
+
+      - name: Upload test logs
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-logs-gpdb-${{ needs.build.outputs.build_timestamp }}
+          path: |
+            build-logs/
+          retention-days: 7
+
+      - name: Upload test results files
+        uses: actions/upload-artifact@v4
+        with:
+          name: results-gpdb-${{ needs.build.outputs.build_timestamp }}
+          path: |
+            **/regression.out
+            **/regression.diffs
+            **/results/
+          retention-days: 7
+
+      - name: Upload test regression logs
+        if: failure() || cancelled()
+        uses: actions/upload-artifact@v4
+        with:
+          name: regression-logs-gpdb-${{ needs.build.outputs.build_timestamp }}
+          path: |
+            **/regression.out
+            **/regression.diffs
+            **/results/
+            **/yproxy.log
+            gpdb/gpAux/gpdemo/datadirs/standby/log/
+            gpdb/gpAux/gpdemo/datadirs/qddir/demoDataDir-1/log/
+            gpdb/gpAux/gpdemo/datadirs/dbfast1/demoDataDir0/log/
+            gpdb/gpAux/gpdemo/datadirs/dbfast2/demoDataDir1/log/
+            gpdb/gpAux/gpdemo/datadirs/dbfast3/demoDataDir2/log/
+            gpdb/gpAux/gpdemo/datadirs/dbfast_mirror1/demoDataDir0/log/
+            gpdb/gpAux/gpdemo/datadirs/dbfast_mirror2/demoDataDir1/log/
+            gpdb/gpAux/gpdemo/datadirs/dbfast_mirror3/demoDataDir2/log/
+          retention-days: 7
+
+  ## ======================================================================
+  ## Job: report
+  ## ======================================================================
+
+  report:
+    name: Generate Apache Cloudberry Build Report
+    needs: [test-cloudberry, test-gpdb]
+    if: always()
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Generate Final Report
+        run: |
+          {
+            echo "# Tea Test Pipeline Report"
+
+              echo "## Job Status"
+              echo "- Cloudberry Job: ${{ needs.test-cloudberry.result }}"
+              echo "- Test Job: ${{ needs.test-gpdb.result }}"
+              echo "- Completion Time: $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
+
+              if [[ "${{ needs.test-cloudberry.result }}" == "success" && "${{ needs.test-gpdb.result }}" == "success" ]]; then
+                echo "✅ Pipeline completed successfully"
+              else
+                echo "⚠️ Pipeline completed with failures"
+
+                if [[ "${{ needs.test-cloudberry.result }}" != "success" ]]; then
+                  echo "### Cloudberry Test Failure"
+                  echo "Check build logs for details"
+                fi
+
+                if [[ "${{ needs.test-gpdb.result }}" != "success" ]]; then
+                  echo "### GPDB Test Failure"
+                  echo "Check test logs and regression files for details"
+                fi
+              fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Notify on failure
+        if: |
+          (needs.test-cloudberry.result != 'success' || needs.test-gpdb.result != 'success')
+        run: |
+          echo "::error::Build/Test pipeline failed! Check job summaries and logs for details"
+          echo "Timestamp: $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
+          echo "Cloudberry Result: ${{ needs.test-cloudberry.result }}"
+          echo "GPDB Result: ${{ needs.test-gpdb.result }}"
