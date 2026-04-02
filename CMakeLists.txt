@@ -38,14 +38,9 @@ find_package(Greenplum REQUIRED)
 
 find_package(Gandiva REQUIRED PATHS ${TEA_DEPS_PATH})
 
-if (NOT DEFINED GITLAB_URL)
-  if (GIT_HTTPS)
-    set(GITLAB_URL https://${GITLAB})
-  else()
-    set(GITLAB_URL ssh://git@${GITLAB}:7999)
-  endif()
+if (NOT DEFINED GITHUB)
+  set(GITHUB https://github.com)
 endif()
-set(GITHUB_MIRROR ${GITLAB_URL}/github-mirror)
 
 add_subdirectory(vendor)
 
