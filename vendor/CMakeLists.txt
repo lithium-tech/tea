@@ -15,7 +15,7 @@ set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(
   googletest
   EXCLUDE_FROM_ALL
-  GIT_REPOSITORY ${GITHUB_MIRROR}/google/googletest.git
+  GIT_REPOSITORY ${GITHUB}/google/googletest.git
   GIT_TAG release-1.11.0
 )
 
@@ -29,13 +29,12 @@ FetchContent_Declare(
 FetchContent_Declare(
   iceberg-cxx
   EXCLUDE_FROM_ALL
-  GIT_REPOSITORY ${GITHUB_MIRROR}/lithium-tech/iceberg-cxx.git
+  GIT_REPOSITORY ${GITHUB}/lithium-tech/iceberg-cxx.git
   GIT_TAG 0858a1951b41e0820de9eae5d2bcf7d64e6b5187
 )
 
 FetchContent_MakeAvailable(googletest hiredis)
 
-set(GITHUB ${GITHUB_MIRROR} CACHE STRING "")
 set(ICECXX_BUILD_ARROW OFF CACHE BOOL "")
 set(ICECXX_BUILD_ABSEIL OFF CACHE BOOL "")
 set(ICECXX_BUILD_TOOLS ON CACHE BOOL "")
