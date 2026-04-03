@@ -1,6 +1,7 @@
 #include "tea/table/json_substitutor.h"
 
 #include <array>
+#include <cstdint>
 #include <cstring>
 #include <stdexcept>
 #include <string>
