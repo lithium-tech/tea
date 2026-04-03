@@ -869,7 +869,6 @@ static int TeaAcquireSampleRowsFunc(Relation relation, int elevel, HeapTuple* ro
    * see Jeff Vitter's paper.
    */
   double rowstoskip = 0;
-  double rstate = 0;
   while (has_row) {
     CHECK_FOR_INTERRUPTS();
 
@@ -885,14 +884,11 @@ static int TeaAcquireSampleRowsFunc(Relation relation, int elevel, HeapTuple* ro
 
     samplerows += 1;
     rowstoskip -= 1;
-    if (rowstoskip < 0) {
-      rowstoskip = anl_get_next_S(samplerows, targrows, &rstate);
-    }
     const bool replace_element = (rowstoskip <= 0);
 
     if (replace_element) {
       /* Choose a random reservoir element to replace. */
-      int pos = (int)(targrows * anl_random_fract());
+      int pos = (int)(targrows * 0.5);
       Assert(pos >= 0 && pos < targrows);
       heap_freetuple(rows[pos]);
 
