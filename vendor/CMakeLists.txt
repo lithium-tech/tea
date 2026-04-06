@@ -30,7 +30,7 @@ FetchContent_Declare(
   iceberg-cxx
   EXCLUDE_FROM_ALL
   GIT_REPOSITORY ${GITHUB}/lithium-tech/iceberg-cxx.git
-  GIT_TAG 0858a1951b41e0820de9eae5d2bcf7d64e6b5187
+  GIT_TAG c6bb332f2a0a1ae8d580828e732c64e059a3c031
 )
 
 FetchContent_MakeAvailable(googletest hiredis)
