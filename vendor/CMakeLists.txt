@@ -34,7 +34,7 @@ FetchContent_Declare(
   GIT_TAG c6bb332f2a0a1ae8d580828e732c64e059a3c031
 =======
   GIT_TAG 088cfcff6fcf9a539a280a2f41012ac61b6594d4
-  PATCH_COMMAND git reset --hard HEAD && get clean -df
+  PATCH_COMMAND git reset --hard HEAD && git clean -df
     && git apply ${CMAKE_CURRENT_SOURCE_DIR}/iceberg-empty.patch
     && git apply ${CMAKE_CURRENT_SOURCE_DIR}/iceberg-ignore-partition-validation.patch
     && git apply ${CMAKE_CURRENT_SOURCE_DIR}/iceberg-expose-manifests-filtering.patch
