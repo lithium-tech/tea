@@ -55,6 +55,7 @@ jobs:
             pkg-config \
             python2 \
             python2-dev \
+            redis-server \
             rsync \
             zlib1g-dev
           sudo apt-get update
