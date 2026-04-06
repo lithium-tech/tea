@@ -38,7 +38,11 @@ FetchContent_Declare(
     && git apply ${CMAKE_CURRENT_SOURCE_DIR}/iceberg-empty.patch
     && git apply ${CMAKE_CURRENT_SOURCE_DIR}/iceberg-ignore-partition-validation.patch
     && git apply ${CMAKE_CURRENT_SOURCE_DIR}/iceberg-expose-manifests-filtering.patch
+<<<<<<< HEAD
 >>>>>>> 1078081 (Change patch order)
+=======
+    && git apply ${CMAKE_CURRENT_SOURCE_DIR}/iceberg-thrift-tuuid.patch
+>>>>>>> 12bcd1c (Check if iceberg-cxx thirft sources were broken)
 )
 
 FetchContent_MakeAvailable(googletest hiredis)
