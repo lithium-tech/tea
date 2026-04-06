@@ -65,6 +65,8 @@ jobs:
           sudo apt-get install -y gcc-13 g++-13
           which gcc-13
           which g++-13
+          sudo systemctl stop redis-server
+          sudo systemctl disable redis-server
 
       - name: Prepare directories
         run: |
