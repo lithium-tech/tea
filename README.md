@@ -90,6 +90,82 @@ Downgrade extension if needed
 ALTER EXTENSION tea UPDATE TO 1.70.0;
 ```
 
-## How To buld (Linux, macOS)
+## How to build on Ubuntu 22.04
 
-TODO
+Install GCC 13
+```
+sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
+sudo apt-get install gcc-13 g++-13
+```
+
+Create a directory for source and binaries
+```
+mkdir $HOME/compile
+COMPILE_DIR=$HOME/compile
+```
+
+Get CMake 3 (>=3.25)
+```
+cd $COMPILE_DIR
+wget https://github.com/Kitware/CMake/releases/download/v3.31.11/cmake-3.31.11-linux-x86_64.tar.gz
+tar xf cmake-3.31.11-linux-x86_64.tar.gz
+PATH=$COMPILE_DIR/cmake-3.31.11-linux-x86_64/bin:$PATH
+```
+
+Get TEA source
+```
+git clone https://github.com/lithium-tech/tea -b OPENGPDB_GP6
+```
+
+Build and install Arrow
+```
+git clone https://github.com/apache/arrow.git -b maint-15.0.2
+cd arrow
+git apply $COMPILE_DIR/tea/vendor/arrow/fix_c-ares_url.patch
+./cpp/thirdparty/download_dependencies.sh $COMPILE_DIR/arrow-thirdparty
+mkdir cpp/build
+cd $_
+cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_INSTALL_PREFIX=$COMPILE_DIR/bin \
+  -DCMAKE_C_COMPILER=gcc-13 -DCMAKE_CXX_COMPILER=g++-13 \
+  -DARROW_BUILD_STATIC=ON -DARROW_BUILD_SHARED=OFF \
+  -DARROW_DEPENDENCY_SOURCE=BUNDLED -DARROW_NO_DEPRECTATED_API=ON \
+  -DARROW_LLVM_USE_SHARED=OFF -DARROW_FILESYSTEM=ON -DARROW_PARQUET=ON \
+  -DARROW_S3=ON -DARROW_WITH_SNAPPY=ON -DARROW_WITH_LZ4=ON \
+  -DARROW_WITH_ZLIB=ON -DARROW_WITH_ZSTD=ON -DARROW_IPC=ON -DARROW_CSV=ON \
+  -DARROW_WITH_RAPIDJSON=ON -DARROW_GANDIVA=ON -DARROW_COMPUTE=ON ..
+make -j`nproc`
+make install
+```
+
+Build and install gRPC
+```
+cd $COMPILE_DIR
+git clone https://github.com/grpc/grpc.git -b v1.62.3
+cd grpc
+git submodule update --init --single-branch --depth 1
+mkdir build
+cd $_
+cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_INSTALL_PREFIX=$COMPILE_DIR/bin \
+  -DCMAKE_C_COMPILER=gcc-13 -DCMAKE_CXX_COMPILER=g++-13 \
+  -DgRPC_BUILD_SHARED_LIBS=OFF -DgRPC_BUILD_STATIC_LIBS=ON \
+  -DgRPC_BUILD_TESTS=OFF -DgRPC_BUILD_EXAMPLES=OFF \
+  -DgRPC_BUILD_CSHARP_EXT=OFF -DgRPC_BUILD_GRPC_CSHARP_PLUGIN=OFF \
+  -DgRPC_BUILD_GRPC_NODE_PLUGIN=OFF -DgRPC_BUILD_GRPC_OBJECTIVE_C_PLUGIN=OFF \
+  -DgRPC_BUILD_GRPC_PHP_PLUGIN=OFF -DgRPC_BUILD_GRPC_PYTHON_PLUGIN=OFF \
+  -DgRPC_BUILD_GRPC_RUBY_PLUGIN=OFF  -DgRPC_SSL_PROVIDER:STRING=package ..
+make -j`nproc`
+make install
+```
+
+Build TEA. Replace `$COMPILE_DIR/gpdb_bin` with your OpenGPDB root.
+```
+cd $COMPILE_DIR/tea
+mkdir -p build/arrow-thirdparty
+cd build
+cp $COMPILE_DIR/arrow-thirdparty/* arrow-thirdparty/
+cmake .. -GNinja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_PREFIX_PATH=$COMPILE_DIR/bin \
+  -DCMAKE_C_COMPILER=gcc-13 -DCMAKE_CXX_COMPILER=g++-13 \
+  -DGreenplum_ROOT=$COMPILE_DIR/gpdb_bin/  
+ninja
+ninja install
+```
