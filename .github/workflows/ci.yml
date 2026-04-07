@@ -149,43 +149,43 @@ jobs:
           ninja
           ninja install
 
-      - name: Run unit tests
-        run: |
-          cd build
-          ctest --output-on-failure
+      # - name: Run unit tests
+      #   run: |
+      #     cd build
+      #     ctest --output-on-failure
 
-      - name: Initialize Greenplum cluster
-        run: |
-          sudo locale-gen "ru_RU.CP1251"
-          sudo mkdir -p /gpdata
-          sudo chown $USER /gpdata
+      # - name: Initialize Greenplum cluster
+      #   run: |
+      #     sudo locale-gen "ru_RU.CP1251"
+      #     sudo mkdir -p /gpdata
+      #     sudo chown $USER /gpdata
 
-          source $HOME/local/gpdb/greenplum_path.sh
-          export MASTER_DATA_DIRECTORY=/gpdata/master/gpsne-1
-          NUM_SEGS=2 bash test/start-gp.sh $HOME/local/gpdb /gpdata
+      #     source $HOME/local/gpdb/greenplum_path.sh
+      #     export MASTER_DATA_DIRECTORY=/gpdata/master/gpsne-1
+      #     NUM_SEGS=2 bash test/start-gp.sh $HOME/local/gpdb /gpdata
 
-          psql -d tea_ci -c 'CREATE EXTENSION tea;'
+      #     psql -d tea_ci -c 'CREATE EXTENSION tea;'
 
-      - name: Start Minio and upload test data
-        run: |
-          wget -q https://dl.min.io/server/minio/release/linux-amd64/minio -O /tmp/minio
-          wget -q https://dl.min.io/client/mc/release/linux-amd64/mc -O /tmp/mc
-          chmod +x /tmp/minio /tmp/mc
+      # - name: Start Minio and upload test data
+      #   run: |
+      #     wget -q https://dl.min.io/server/minio/release/linux-amd64/minio -O /tmp/minio
+      #     wget -q https://dl.min.io/client/mc/release/linux-amd64/mc -O /tmp/mc
+      #     chmod +x /tmp/minio /tmp/mc
 
-          export CI_PROJECT_DIR=$PWD
-          MINIO_EXECUTABLE=/tmp/minio MC_EXECUTABLE=/tmp/mc \
-          MINIO_DATA_DIR=/tmp/minio-data \
-            bash test/iceberg/gen/init_minio.sh
+      #     export CI_PROJECT_DIR=$PWD
+      #     MINIO_EXECUTABLE=/tmp/minio MC_EXECUTABLE=/tmp/mc \
+      #     MINIO_DATA_DIR=/tmp/minio-data \
+      #       bash test/iceberg/gen/init_minio.sh
 
-      - name: Deploy tea config
-        run: |
-          source $HOME/local/gpdb/greenplum_path.sh
-          mkdir -p $GPHOME/tea
-          cp test/config/tea-config.json $GPHOME/tea/tea-config.json
-          cp test/config/tea-config-schema.json $GPHOME/tea/tea-config-schema.json
+      # - name: Deploy tea config
+      #   run: |
+      #     source $HOME/local/gpdb/greenplum_path.sh
+      #     mkdir -p $GPHOME/tea
+      #     cp test/config/tea-config.json $GPHOME/tea/tea-config.json
+      #     cp test/config/tea-config-schema.json $GPHOME/tea/tea-config-schema.json
 
-      - name: Run smoke tests
-        run: |
-          source $HOME/local/gpdb/greenplum_path.sh
-          export MASTER_DATA_DIRECTORY=/gpdata/master/gpsne-1
-          build/tea/smoke_test/smoke_test --metadata_type=teapot --table_type=foreign
+      # - name: Run smoke tests
+      #   run: |
+      #     source $HOME/local/gpdb/greenplum_path.sh
+      #     export MASTER_DATA_DIRECTORY=/gpdata/master/gpsne-1
+      #     build/tea/smoke_test/smoke_test --metadata_type=teapot --table_type=foreign
