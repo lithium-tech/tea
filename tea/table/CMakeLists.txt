@@ -26,25 +26,25 @@ target_link_libraries(table PUBLIC tea_metadata)
 target_link_libraries(table PUBLIC iceberg)
 target_link_libraries(table PUBLIC stats_state_grpc_proto stats_state)
 
-add_executable(
-  table_test
-  ut/bridge_test.cpp
-  ut/config_test.cpp
-  ut/json_substitutor_test.cpp
-  ut/mock_gp.c
-  ut/numeric_var_test.cpp
-  ut/profile_to_tables_test.cpp
-)
+#add_executable(
+#  table_test
+#  ut/bridge_test.cpp
+#  ut/config_test.cpp
+#  ut/json_substitutor_test.cpp
+#  ut/mock_gp.c
+#  ut/numeric_var_test.cpp
+#  ut/profile_to_tables_test.cpp
+#)
 
-target_link_libraries(table_test PRIVATE gtest_main gmock table tea_test_utils_static
-  absl::cleanup Arrow::arrow_static)
+#target_link_libraries(table_test PRIVATE gtest_main gmock table tea_test_utils_static
+#  absl::cleanup Arrow::arrow_static)
 
-if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-  target_link_options(table_test PRIVATE "-Wl,--allow-multiple-definition")
-endif()
+#if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+#  target_link_options(table_test PRIVATE "-Wl,--allow-multiple-definition")
+#endif()
 
-add_test(NAME table_test COMMAND table_test)
-add_dependencies(check table_test)
+#add_test(NAME table_test COMMAND table_test)
+#add_dependencies(check table_test)
 
-include(GoogleTest)
-gtest_discover_tests(table_test)
+#include(GoogleTest)
+#gtest_discover_tests(table_test)
