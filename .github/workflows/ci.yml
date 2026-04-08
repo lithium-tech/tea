@@ -149,10 +149,10 @@ jobs:
           ninja
           ninja install
 
-      # - name: Run unit tests
-      #   run: |
-      #     cd build
-      #     ctest --output-on-failure
+      - name: Run unit tests
+        run: |
+          cd build
+          ctest --output-on-failure
 
       # - name: Initialize Greenplum cluster
       #   run: |
