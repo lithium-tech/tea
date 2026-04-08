@@ -145,7 +145,7 @@ jobs:
           cmake -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo \
             -DGreenplum_ROOT=$HOME/local/gpdb -DCMAKE_PREFIX_PATH=$HOME/local \
             -DCMAKE_C_COMPILER=gcc-13 -DCMAKE_CXX_COMPILER=g++-13 \
-            -DTEA_USE_THREAD_SANITIZER=OFF ..
+            -DTEA_USE_THREAD_SANITIZER=OFF -DTEA_VERSION=1.0 ..
           ninja
           ninja install
 
