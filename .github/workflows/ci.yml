@@ -93,7 +93,7 @@ jobs:
           git clone https://github.com/arenadata/gpdb.git -b 6.29.1_arenadata68
           cd gpdb
           git submodule update --init
-          ./configure --with-perl --with-python --with-libxml --with-gssapi --prefix=$HOME/local/gpdb
+          ./configure --with-perl --with-python --with-libxml --with-gssapi --with-pythonsrc-ext --prefix=$HOME/local/gpdb
           make -j8
           make -j8 install
           rm -rf gpdb
