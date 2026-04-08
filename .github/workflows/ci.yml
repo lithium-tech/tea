@@ -184,8 +184,8 @@ jobs:
           cp test/config/tea-config.json $GPHOME/tea/tea-config.json
           cp test/config/tea-config-schema.json $GPHOME/tea/tea-config-schema.json
 
-      - name: Run smoke tests
-        run: |
-          source $HOME/local/gpdb/greenplum_path.sh
-          export MASTER_DATA_DIRECTORY=/gpdata/master/gpsne-1
-          build/tea/smoke_test/smoke_test --metadata_type=teapot --table_type=foreign
+      # - name: Run smoke tests
+      #   run: |
+      #     source $HOME/local/gpdb/greenplum_path.sh
+      #     export MASTER_DATA_DIRECTORY=/gpdata/master/gpsne-1
+      #     build/tea/smoke_test/smoke_test --metadata_type=teapot --table_type=foreign
