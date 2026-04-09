@@ -287,6 +287,11 @@ jobs:
           cp test/config/tea-config.json $GPHOME/tea/tea-config.json
           cp test/config/tea-config-schema.json $GPHOME/tea/tea-config-schema.json
 
+      - name: Start Redis
+        run: |
+          sudo systemctl start redis-server
+          redis-cli ping
+
       - name: Run smoke tests
         run: |
           source $HOME/local/gpdb/greenplum_path.sh
