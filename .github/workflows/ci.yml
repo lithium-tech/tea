@@ -147,6 +147,7 @@ jobs:
             -DCMAKE_C_COMPILER=gcc-13 -DCMAKE_CXX_COMPILER=g++-13 \
             -DTEA_USE_THREAD_SANITIZER=OFF -DTEA_VERSION=1.0 ..
           ninja
+          ninja hive_metastore_server hive_metastore_client
           ninja install
 
       - name: Run unit tests
