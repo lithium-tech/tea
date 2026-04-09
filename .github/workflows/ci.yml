@@ -176,8 +176,20 @@ jobs:
         include:
           - metadata_type: teapot
             table_type: foreign
+            profile: ""
           - metadata_type: teapot
             table_type: external
+            profile: ""
+          - metadata_type: iceberg
+            table_type: foreign
+            profile: samovar
+          - metadata_type: iceberg
+            table_type: external
+            profile: samovar
+          - metadata_type: iceberg
+            table_type: foreign
+            profile: ""
+
 
     steps:
       - name: Checkout
@@ -273,4 +285,5 @@ jobs:
           export MASTER_DATA_DIRECTORY=/gpdata/master/gpsne-1
           build/tea/smoke_test/smoke_test \
             --metadata_type=${{ matrix.metadata_type }} \
-            --table_type=${{ matrix.table_type }}
+            --table_type=${{ matrix.table_type }} \
+            --profile=${{ matrix.profile }}
