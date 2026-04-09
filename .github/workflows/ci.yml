@@ -159,6 +159,9 @@ jobs:
           mkdir -p ci-artifacts
           tar -C "$HOME/local" -czf ci-artifacts/gpdb-with-tea.tar.gz gpdb
           cp build/tea/smoke_test/smoke_test ci-artifacts/smoke_test
+          mkdir -p ci-artifacts/hms
+          install -m 0755 build/_deps/iceberg-cxx-build/tools/hive_metastore_server ci-artifacts/hms/hive_metastore_server
+          install -m 0755 build/_deps/iceberg-cxx-build/tools/hive_metastore_client ci-artifacts/hms/hive_metastore_client
 
       - name: Upload runtime artifacts
         uses: actions/upload-artifact@v4
@@ -245,9 +248,11 @@ jobs:
 
       - name: Restore runtime files
         run: |
-          mkdir -p "$HOME/local" build/tea/smoke_test
+          mkdir -p "$HOME/local" build/tea/smoke_test build/hms
           tar -xzf ci-artifacts/gpdb-with-tea.tar.gz -C "$HOME/local"
           install -m 0755 ci-artifacts/smoke_test build/tea/smoke_test/smoke_test
+          install -m 0755 ci-artifacts/hms/hive_metastore_server build/hms/hive_metastore_server
+          install -m 0755 ci-artifacts/hms/hive_metastore_client build/hms/hive_metastore_client
 
       - name: Initialize Greenplum cluster
         run: |
@@ -261,16 +266,18 @@ jobs:
 
           psql -d tea_ci -c 'CREATE EXTENSION tea;'
 
-      - name: Start Minio and upload test data
+      - name: Start Iceberg services (Minio + HMS) and upload test data
         run: |
           wget -q https://dl.min.io/server/minio/release/linux-amd64/minio -O /tmp/minio
           wget -q https://dl.min.io/client/mc/release/linux-amd64/mc -O /tmp/mc
           chmod +x /tmp/minio /tmp/mc
 
           export CI_PROJECT_DIR=$PWD
+          HMS_DIR="$CI_PROJECT_DIR/build/hms"
+
           MINIO_EXECUTABLE=/tmp/minio MC_EXECUTABLE=/tmp/mc \
-          MINIO_DATA_DIR=/tmp/minio-data \
-            bash test/iceberg/gen/init_minio.sh
+          MINIO_DATA_DIR=/tmp/minio-data HMS_DIR="$HMS_DIR" \
+            bash test/iceberg/gen/init.sh
 
       - name: Deploy tea config
         run: |
