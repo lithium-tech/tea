@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 jobs:
-  build-and-test:
+  build-tea:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout
@@ -154,6 +154,85 @@ jobs:
           cd build
           ctest --output-on-failure
 
+      - name: Pack runtime artifacts
+        run: |
+          mkdir -p ci-artifacts
+          tar -C "$HOME/local" -czf ci-artifacts/gpdb-with-tea.tar.gz gpdb
+          cp build/tea/smoke_test/smoke_test ci-artifacts/smoke_test
+
+      - name: Upload runtime artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: tea-runtime
+          path: ci-artifacts
+          retention-days: 1
+
+  smoke-tests:
+    needs: build-tea
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - metadata_type: teapot
+            table_type: foreign
+          - metadata_type: teapot
+            table_type: external
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install runtime dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            iproute2 \
+            iputils-ping \
+            libapr1-dev \
+            libaprutil1-dev \
+            libbz2-dev \
+            libcurl4-openssl-dev \
+            libevent-dev \
+            libipc-run-perl \
+            libkrb5-dev \
+            libpam-dev \
+            libperl-dev \
+            libreadline-dev \
+            libssl-dev \
+            libtool \
+            libuv1-dev \
+            libxerces-c-dev \
+            libxml2-dev \
+            libxslt-dev \
+            libyaml-dev \
+            libzstd-dev \
+            locales \
+            net-tools \
+            openssh-client \
+            openssh-server \
+            python2 \
+            python2-dev \
+            redis-server \
+            rsync \
+            zlib1g-dev
+          sudo systemctl stop redis-server
+          sudo systemctl disable redis-server
+          sudo ln -s -f python2 /usr/bin/python
+          sudo locale-gen "en_US.UTF-8"
+
+      - name: Download runtime artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: tea-runtime
+          path: ci-artifacts
+
+      - name: Restore runtime files
+        run: |
+          mkdir -p "$HOME/local" build/tea/smoke_test
+          tar -xzf ci-artifacts/gpdb-with-tea.tar.gz -C "$HOME/local"
+          install -m 0755 ci-artifacts/smoke_test build/tea/smoke_test/smoke_test
+
       - name: Initialize Greenplum cluster
         run: |
           sudo locale-gen "ru_RU.CP1251"
@@ -184,8 +263,10 @@ jobs:
           cp test/config/tea-config.json $GPHOME/tea/tea-config.json
           cp test/config/tea-config-schema.json $GPHOME/tea/tea-config-schema.json
 
-      # - name: Run smoke tests
-      #   run: |
-      #     source $HOME/local/gpdb/greenplum_path.sh
-      #     export MASTER_DATA_DIRECTORY=/gpdata/master/gpsne-1
-      #     build/tea/smoke_test/smoke_test --metadata_type=teapot --table_type=foreign
+      - name: Run smoke tests
+        run: |
+          source $HOME/local/gpdb/greenplum_path.sh
+          export MASTER_DATA_DIRECTORY=/gpdata/master/gpsne-1
+          build/tea/smoke_test/smoke_test \
+            --metadata_type=${{ matrix.metadata_type }} \
+            --table_type=${{ matrix.table_type }}
