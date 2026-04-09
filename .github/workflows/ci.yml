@@ -78,7 +78,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/local
-          key: deps-gp-6.29.1_arenadata68-arrow-15.0.2-grpc-1.62.3-gcc13-${{ runner.os }}-v2
+          key: deps-gp-6.29.1_arenadata68-arrow-15.0.2-grpc-1.62.3-gcc13-${{ runner.os }}-v3
 
       - name: Cache Arrow third-party downloads
         id: cache-arrow-thirdparty
@@ -104,6 +104,9 @@ jobs:
           git clone https://github.com/apache/arrow.git -b maint-15.0.2
           cd arrow
           git apply ../vendor/arrow/fix_c-ares_url.patch
+          git apply ../vendor/arrow/like-dot-nl.patch
+          git apply ../vendor/arrow/ilike.patch
+          git apply ../vendor/arrow/snappy.patch
           ./cpp/thirdparty/download_dependencies.sh ../build/arrow-thirdparty
           mkdir cpp/build
           cd cpp/build
