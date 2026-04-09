@@ -216,6 +216,10 @@ jobs:
             redis-server \
             rsync \
             zlib1g-dev
+          sudo apt-get update
+          sudo apt-get install -y software-properties-common
+          sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
+          sudo apt-get install -y gcc-13 g++-13
           sudo systemctl stop redis-server
           sudo systemctl disable redis-server
           sudo ln -s -f python2 /usr/bin/python
