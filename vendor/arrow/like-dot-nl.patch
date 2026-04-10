@@ -1,0 +1,172 @@
+diff --git a/cpp/src/gandiva/regex_functions_holder.cc b/cpp/src/gandiva/regex_functions_holder.cc
+index 03a4af90d8..ef07a9ef0b 100644
+--- a/cpp/src/gandiva/regex_functions_holder.cc
++++ b/cpp/src/gandiva/regex_functions_holder.cc
+@@ -99,13 +99,14 @@ Result<std::shared_ptr<LikeHolder>> LikeHolder::Make(const FunctionNode& node) {
+           "'like' function requires a string literal as the second parameter"));
+ 
+   RE2::Options regex_op;
++  regex_op.set_dot_nl(true);  // set dotall mode for the regex.
+   if (node.descriptor()->name() == "ilike") {
+     regex_op.set_case_sensitive(false);  // set case-insensitive for ilike function.
+ 
+     return Make(std::get<std::string>(literal->holder()), regex_op);
+   }
+   if (node.children().size() == 2) {
+-    return Make(std::get<std::string>(literal->holder()));
++    return Make(std::get<std::string>(literal->holder()), regex_op);
+   } else {
+     auto escape_char = dynamic_cast<LiteralNode*>(node.children().at(2).get());
+     ARROW_RETURN_IF(
+@@ -118,7 +119,7 @@ Result<std::shared_ptr<LikeHolder>> LikeHolder::Make(const FunctionNode& node) {
+         Status::Invalid(
+             "'like' function requires a string literal as the third parameter"));
+     return Make(std::get<std::string>(literal->holder()),
+-                std::get<std::string>(escape_char->holder()));
++                std::get<std::string>(escape_char->holder()), regex_op);
+   }
+ }
+ 
+@@ -126,7 +127,9 @@ Result<std::shared_ptr<LikeHolder>> LikeHolder::Make(const std::string& sql_patt
+   std::string pcre_pattern;
+   ARROW_RETURN_NOT_OK(RegexUtil::SqlLikePatternToPcre(sql_pattern, pcre_pattern));
+ 
+-  auto lholder = std::shared_ptr<LikeHolder>(new LikeHolder(pcre_pattern));
++  RE2::Options regex_op;
++  regex_op.set_dot_nl(true);  // set dotall mode for the regex.
++  auto lholder = std::shared_ptr<LikeHolder>(new LikeHolder(pcre_pattern, regex_op));
+   ARROW_RETURN_IF(!lholder->regex_.ok(),
+                   Status::Invalid("Building RE2 pattern '", pcre_pattern,
+                                   "' failed with: ", lholder->regex_.error()));
+@@ -135,7 +138,8 @@ Result<std::shared_ptr<LikeHolder>> LikeHolder::Make(const std::string& sql_patt
+ }
+ 
+ Result<std::shared_ptr<LikeHolder>> LikeHolder::Make(const std::string& sql_pattern,
+-                                                     const std::string& escape_char) {
++                                                     const std::string& escape_char,
++                                                     RE2::Options regex_op) {
+   ARROW_RETURN_IF(escape_char.length() > 1,
+                   Status::Invalid("The length of escape char ", escape_char,
+                                   " in 'like' function is greater than 1"));
+@@ -147,7 +151,7 @@ Result<std::shared_ptr<LikeHolder>> LikeHolder::Make(const std::string& sql_patt
+     ARROW_RETURN_NOT_OK(RegexUtil::SqlLikePatternToPcre(sql_pattern, pcre_pattern));
+   }
+ 
+-  auto lholder = std::shared_ptr<LikeHolder>(new LikeHolder(pcre_pattern));
++  auto lholder = std::shared_ptr<LikeHolder>(new LikeHolder(pcre_pattern, regex_op));
+   ARROW_RETURN_IF(!lholder->regex_.ok(),
+                   Status::Invalid("Building RE2 pattern '", pcre_pattern,
+                                   "' failed with: ", lholder->regex_.error()));
+diff --git a/cpp/src/gandiva/regex_functions_holder.h b/cpp/src/gandiva/regex_functions_holder.h
+index 36d942510b..354c2b53d9 100644
+--- a/cpp/src/gandiva/regex_functions_holder.h
++++ b/cpp/src/gandiva/regex_functions_holder.h
+@@ -40,7 +40,8 @@ class GANDIVA_EXPORT LikeHolder : public FunctionHolder {
+   static Result<std::shared_ptr<LikeHolder>> Make(const std::string& sql_pattern);
+ 
+   static Result<std::shared_ptr<LikeHolder>> Make(const std::string& sql_pattern,
+-                                                  const std::string& escape_char);
++                                                  const std::string& escape_char,
++                                                  RE2::Options regex_op);
+ 
+   static Result<std::shared_ptr<LikeHolder>> Make(const std::string& sql_pattern,
+                                                   RE2::Options regex_op);
+diff --git a/cpp/src/gandiva/regex_functions_holder_test.cc b/cpp/src/gandiva/regex_functions_holder_test.cc
+index 534be5987a..64657e88c6 100644
+--- a/cpp/src/gandiva/regex_functions_holder_test.cc
++++ b/cpp/src/gandiva/regex_functions_holder_test.cc
+@@ -28,6 +28,8 @@ namespace gandiva {
+ class TestLikeHolder : public ::testing::Test {
+  public:
+   RE2::Options regex_op;
++  void SetUp() { regex_op.set_dot_nl(true); }
++
+   FunctionNode BuildLike(std::string pattern) {
+     auto field = std::make_shared<FieldNode>(arrow::field("in", arrow::utf8()));
+     auto pattern_node =
+@@ -77,6 +79,14 @@ TEST_F(TestLikeHolder, TestPcreSpecial) {
+   EXPECT_FALSE(like("xxabc"));
+ }
+ 
++TEST_F(TestLikeHolder, TestPcreSpecialWithNewLine) {
++  EXPECT_OK_AND_ASSIGN(auto const like_holder, LikeHolder::Make("%Space1.%", regex_op));
++
++  auto& like = *like_holder;
++  EXPECT_TRUE(
++      like("[name: \"Space1.protect\"\nargs: \"count\"\ncolumn_name: \"pass_count\"]"));
++}
++
+ TEST_F(TestLikeHolder, TestRegexEscape) {
+   std::string res;
+   ARROW_EXPECT_OK(RegexUtil::SqlLikePatternToPcre("#%hello#_abc_def##", '#', res));
+@@ -91,14 +101,22 @@ TEST_F(TestLikeHolder, TestDot) {
+   EXPECT_FALSE(like("abcd"));
+ }
+ 
++TEST_F(TestLikeHolder, TestMatchWithNewLine) {
++  EXPECT_OK_AND_ASSIGN(auto const like_holder, LikeHolder::Make("%abc%", regex_op));
++
++  auto& like = *like_holder;
++  EXPECT_TRUE(like("abc\nd"));
++}
++
+ TEST_F(TestLikeHolder, TestMatchSubString) {
+-  EXPECT_OK_AND_ASSIGN(auto like_holder, LikeHolder::Make("%abc%", "\\"));
++  EXPECT_OK_AND_ASSIGN(auto like_holder, LikeHolder::Make("%abc%", "\\", regex_op));
+ 
+   auto& like = *like_holder;
+   EXPECT_TRUE(like("abc"));
+   EXPECT_FALSE(like("xxabdc"));
+ 
+-  EXPECT_OK_AND_ASSIGN(like_holder, LikeHolder::Make("%ab-.^$*+?()[]{}|—/c\\%%", "\\"));
++  EXPECT_OK_AND_ASSIGN(like_holder,
++                       LikeHolder::Make("%ab-.^$*+?()[]{}|—/c\\%%", "\\", regex_op));
+ 
+   auto& like_reserved_char = *like_holder;
+   EXPECT_TRUE(like_reserved_char("XXab-.^$*+?()[]{}|—/c%d"));
+@@ -173,7 +191,7 @@ TEST_F(TestLikeHolder, TestOptimise) {
+ }
+ 
+ TEST_F(TestLikeHolder, TestMatchOneEscape) {
+-  EXPECT_OK_AND_ASSIGN(auto const like_holder, LikeHolder::Make("ab\\_", "\\"));
++  EXPECT_OK_AND_ASSIGN(auto const like_holder, LikeHolder::Make("ab\\_", "\\", regex_op));
+ 
+   auto& like = *like_holder;
+ 
+@@ -187,7 +205,7 @@ TEST_F(TestLikeHolder, TestMatchOneEscape) {
+ }
+ 
+ TEST_F(TestLikeHolder, TestMatchManyEscape) {
+-  EXPECT_OK_AND_ASSIGN(auto const like_holder, LikeHolder::Make("ab\\%", "\\"));
++  EXPECT_OK_AND_ASSIGN(auto const like_holder, LikeHolder::Make("ab\\%", "\\", regex_op));
+ 
+   auto& like = *like_holder;
+ 
+@@ -201,7 +219,8 @@ TEST_F(TestLikeHolder, TestMatchManyEscape) {
+ }
+ 
+ TEST_F(TestLikeHolder, TestMatchEscape) {
+-  EXPECT_OK_AND_ASSIGN(auto const like_holder, LikeHolder::Make("ab\\\\", "\\"));
++  EXPECT_OK_AND_ASSIGN(auto const like_holder,
++                       LikeHolder::Make("ab\\\\", "\\", regex_op));
+ 
+   auto& like = *like_holder;
+ 
+@@ -211,7 +230,7 @@ TEST_F(TestLikeHolder, TestMatchEscape) {
+ }
+ 
+ TEST_F(TestLikeHolder, TestEmptyEscapeChar) {
+-  EXPECT_OK_AND_ASSIGN(auto const like_holder, LikeHolder::Make("ab\\_", ""));
++  EXPECT_OK_AND_ASSIGN(auto const like_holder, LikeHolder::Make("ab\\_", "", regex_op));
+ 
+   auto& like = *like_holder;
+ 
+@@ -223,7 +242,7 @@ TEST_F(TestLikeHolder, TestEmptyEscapeChar) {
+ }
+ 
+ TEST_F(TestLikeHolder, TestMultipleEscapeChar) {
+-  ASSERT_RAISES(Invalid, LikeHolder::Make("ab\\_", "\\\\").status());
++  ASSERT_RAISES(Invalid, LikeHolder::Make("ab\\_", "\\\\", regex_op).status());
+ }
+ 
+ class TestILikeHolder : public ::testing::Test {
