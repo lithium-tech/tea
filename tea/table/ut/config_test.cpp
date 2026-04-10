@@ -108,7 +108,7 @@ TEST_F(ConfigSourceTest, TableTypes) {
   TableConfig config;
 
   config = ConfigSource::GetTableConfig("tea://special://empty");
-  EXPECT_THAT(config.source, testing::VariantWith<EmptyTable>(EmptyTable()));
+  EXPECT_TRUE(std::holds_alternative<EmptyTable>(config.source));
 
   config = ConfigSource::GetTableConfig("tea://file:///root/subdir/file");
   EXPECT_THAT(config.source, testing::VariantWith<FileTable>(FileTable{"file:///root/subdir/file"}));
