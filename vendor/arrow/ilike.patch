@@ -1,0 +1,12 @@
+diff --git a/cpp/src/gandiva/function_holder_maker_registry.cc b/cpp/src/gandiva/function_holder_maker_registry.cc
+index 37ca1fbf6c..2d96574896 100644
+--- a/cpp/src/gandiva/function_holder_maker_registry.cc
++++ b/cpp/src/gandiva/function_holder_maker_registry.cc
+@@ -58,6 +58,7 @@ arrow::Result<FunctionHolderPtr> FunctionHolderMakerRegistry::Make(
+ FunctionHolderMakerRegistry::MakerMap FunctionHolderMakerRegistry::DefaultHolderMakers() {
+   static const MakerMap maker_map = {
+       {"like", HolderMaker<LikeHolder>},
++      {"ilike", HolderMaker<LikeHolder>},
+       {"to_date", HolderMaker<ToDateHolder>},
+       {"random", HolderMaker<RandomGeneratorHolder>},
+       {"rand", HolderMaker<RandomGeneratorHolder>},
