@@ -32,11 +32,11 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OPT_FLAGS}")
 
 include(FindIconv)
 include(cmake/grpc.cmake)
-find_package(Arrow REQUIRED PATHS ${TEA_DEPS_PATH})
-find_package(Parquet REQUIRED PATHS ${TEA_DEPS_PATH})
+find_package(Arrow REQUIRED)
+find_package(Parquet REQUIRED)
 find_package(Greenplum REQUIRED)
 
-find_package(Gandiva REQUIRED PATHS ${TEA_DEPS_PATH})
+find_package(Gandiva REQUIRED)
 
 if (NOT DEFINED GITHUB)
   set(GITHUB https://github.com)
