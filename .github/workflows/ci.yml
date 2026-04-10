@@ -7,6 +7,25 @@ on:
     branches: [main]
 
 jobs:
+  clang-format:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install clang-format
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-format
+
+      - name: Check C/C++ formatting
+        run: |
+          git ls-files \
+            '*.c' '*.cc' '*.cpp' '*.h' '*.hpp' \
+            ':!:build/**' \
+            ':!:vendor/**' \
+            | xargs -r clang-format --dry-run -Werror
+
   build-tea:
     runs-on: ubuntu-22.04
     steps:
