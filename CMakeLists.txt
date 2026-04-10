@@ -88,7 +88,6 @@ else()
     -Wno-error=unused-function \
     -Wno-error=unknown-pragmas \
     -Wno-error=maybe-uninitialized \
-    -Wno-error=uninitialized \
     -Wno-error=shift-negative-value \
     -Wno-error=clobbered")
 endif()
