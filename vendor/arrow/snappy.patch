@@ -6,7 +6,7 @@ index 731fdfd133..b862c6a244 100644
   public:
    Result<int64_t> Decompress(int64_t input_len, const uint8_t* input,
                               int64_t output_buffer_len, uint8_t* output_buffer) override {
-+    if (!input_len) {
++    if (input_len == 0) {
 +      return 0;
 +    }
      size_t decompressed_size;
