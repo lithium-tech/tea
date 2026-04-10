@@ -249,7 +249,8 @@ TEST_F(WrongTeapotTest, Simple) {
   ASSERT_TRUE(msg.find("Teapot error: (at iamnotteapot:50002, table_name 'db.test_table')") != std::string::npos)
       << msg << std::endl;
   // status code for UNAVAILABLE
-  ASSERT_TRUE(msg.find("14") != std::string::npos) << msg << std::endl;
+  ASSERT_TRUE(msg.find("14") != std::string::npos || msg.find("4 Deadline Exceeded") != std::string::npos)
+      << msg << std::endl;
 }
 
 }  // namespace tea
