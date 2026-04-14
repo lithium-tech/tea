@@ -3,8 +3,6 @@
 
 #include "postgres.h"
 
-#include "nodes/pg_list.h"
-
 char* TeaGetLocation(Oid foreigntableid);
 
 #endif  // TEA_FDW_OPTIONS_H_
