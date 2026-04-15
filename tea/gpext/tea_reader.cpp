@@ -559,6 +559,8 @@ void TeaContextInitialize(int db_encoding) {
 static tea::TableType TableTypeFromSource(const tea::TableSource& source) {
   if (std::holds_alternative<tea::IcebergTable>(source)) {
     return tea::TableType::kIceberg;
+  } else if (std::holds_alternative<tea::IcebergS3>(source)) {
+    return tea::TableType::kIcebergS3;
   } else if (std::holds_alternative<tea::TeapotTable>(source)) {
     return tea::TableType::kTeapot;
   } else if (std::holds_alternative<tea::FileTable>(source)) {
@@ -642,10 +644,19 @@ static iceberg::ice_tea::ScanMetadata GetMetaFromIceberg(TeaContextPtr tea_ctx, 
                                                          const std::string& extracted_filter,
                                                          const tea::CancelToken& cancel_token) {
   auto filter = iceberg::filter::StringToFilter(extracted_filter);
-  auto res_with_stats = tea::meta::access::FromIceberg(
-      table_config.config, std::get<tea::IcebergTable>(table_config.source).table_id, filter,
-      get::FileSystemProvider(tea_ctx), tea::TimestampToTimestamptzShiftUs(),
-      table_config.config.features.use_iceberg_metadata_partition_pruning ? filter : nullptr, cancel_token);
+  auto res_with_stats =
+      TableTypeFromSource(get::Source(tea_ctx)) == tea::TableType::kIceberg
+          ? tea::meta::access::FromIceberg(
+                table_config.config, std::get<tea::IcebergTable>(table_config.source).table_id, filter,
+                get::FileSystemProvider(tea_ctx), tea::TimestampToTimestamptzShiftUs(),
+                table_config.config.features.use_iceberg_metadata_partition_pruning ? filter : nullptr, cancel_token)
+          : tea::meta::access::FromIcebergWithLocation(
+                filter, get::FileSystemProvider(tea_ctx), std::get<tea::IcebergS3>(table_config.source).url,
+                tea::TimestampToTimestamptzShiftUs(),
+                [&](const iceberg::Schema& schema) {
+                  return schema.Columns().size() >= table_config.config.features.use_avro_projection_minimum_columns;
+                },
+                table_config.config.features.use_iceberg_metadata_partition_pruning ? filter : nullptr, cancel_token);
   get::PlannerStats(tea_ctx).Combine(res_with_stats.second);
   return std::move(res_with_stats.first);
 }
@@ -678,11 +689,13 @@ static iceberg::ice_tea::ScanMetadata GetMetadataForSegment(TeaContextPtr tea_ct
 static iceberg::ice_tea::ScanMetadata GetAllMetadata(TeaContextPtr tea_ctx, const tea::TableConfig& table_config,
                                                      const std::string& session_id, const std::string& extracted_filter,
                                                      const tea::CancelToken& cancel_token) {
-  auto access_type = TableTypeFromSource(get::Source(tea_ctx));
-  if (access_type == tea::TableType::kIceberg) {
-    return GetMetaFromIceberg(tea_ctx, table_config, extracted_filter, cancel_token);
+  switch (TableTypeFromSource(get::Source(tea_ctx))) {
+    case tea::TableType::kIceberg:
+    case tea::TableType::kIcebergS3:
+      return GetMetaFromIceberg(tea_ctx, table_config, extracted_filter, cancel_token);
+    default:
+      return GetMetadataForSegment(tea_ctx, table_config, 0, 1, session_id, extracted_filter);
   }
-  return GetMetadataForSegment(tea_ctx, table_config, 0, 1, session_id, extracted_filter);
 }
 
 using ResultType = arrow::Result<std::pair<tea::meta::PlannedMeta, tea::PlannerStats>>;

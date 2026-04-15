@@ -664,6 +664,9 @@ TableConfig ConfigSource::GetTableConfig(std::string_view url, const std::string
     table_config.source = TeapotTable{.table_id = TableId::FromString(table_id)};
   } else if (schema == "iceberg") {
     table_config.source = IcebergTable{TableId::FromString(components.location)};
+  } else if (schema == "icebergs3") {
+    table_config.source =
+        IcebergS3{.url = std::string(nested_url, 12, nested_url.size() - 12)}; /* strlen("icebergs3://") = 12 */
   } else if (schema == "special" && components.location == "empty") {
     table_config.source = EmptyTable{};
   } else if (schema == "special" && components.location == "iceberg_tables_metrics") {
