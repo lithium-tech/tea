@@ -11,20 +11,11 @@ Tea adopts [PXF](https://github.com/greenplum-db/pxf-archive) logic to standard 
 
 ## Restrictions
 
-Greenplum 5 is based on PostgreSQL that has no `FOREIGN TABLE` support so you can use Tea with `EXTERNAL TABLE` only for them.
 Greenplum 6 has restricted support of `FOREIGN TABLE`. Especially you cannot use [GP Orca](https://www.vmware.com/docs/white-paper-orca-a-modular-query-optimizer-architecture-for-big-data) with them.
-`EXTERNAL TABLE` has no separate qusery coordinator. Such tables require special tasks-coordination logic enabled in config (we call it `samovar`) and separate Redis or Valkey installation its work.
-`Samovar` is also used for work-stealing between Greenplum segments.
 
-## Install
+## Setup
 
-Extract Tea from tea-{platform}-{version}.tar.gz into Greenplum home directory.
-```
-export GPHOME=/path/to/greenplum
-tar xzf tea-linux-1.70.0.tar.gz --strip-components=1 -C $GPHOME
-```
-
-Edit $GPHOME/tea/tea-config.json. At least you have to set access and secret keys to object storage and address for Iceberg catalog.
+Edit $GPHOME/tea/tea-config.json. At least you have to set access and secret keys to object storage
 ```
 {
     "common": {
@@ -33,11 +24,6 @@ Edit $GPHOME/tea/tea-config.json. At least you have to set access and secret key
             "secret_key": "minioadmin",
             "endpoint_override": "127.0.0.1:9000",
             "scheme": "http"
-        },
-        "catalog": {
-            "type" : "hms",
-            "hms": "127.0.0.1:9083",
-            "rest": "127.0.0.1:19120"
         }
     }
 }
@@ -47,30 +33,17 @@ More configuration fields you can find in [tea-config.json](test/config/tea-conf
 
 ## How to use
 
-To access data from Apache Iceberg you should register `tea` extention and create `EXTERNAL TABLE` or `FOREIGN TABLE` to every Iceberg table you want to read.
-
-#### External tables
-
-```
-CREATE EXTENSION tea;
-
-CREATE READABLE EXTERNAL TABLE table_name (...)
-LOCATION ('tea://iceberg_namespace.iceberg_table')
-FORMAT 'custom' (formatter = tea_import);
-```
-It creates an `EXTERNAL TABLE` linked to an Iceberg table `iceberg_namespace.iceberg_table` declared in Iceberg catalog.
-Created table is accessible for reading.
+To access data from Apache Iceberg you should register `tea` extention and create `FOREIGN TABLE` to every Iceberg table you want to read.
 
 #### FDW
 ```
 CREATE EXTENSION tea;
-CREATE SERVER tea_server FOREIGN DATA WRAPPER tea_fdw;
 
 CREATE FOREIGN TABLE table_name (...)
 SERVER tea_server
-OPTIONS(location 'tea://iceberg_namespace.iceberg_table');
+OPTIONS(location 'tea://icebergs3://s3:// ... .metadata.json');
 ```
-It creates a `FOREIGN TABLE` linked to an Iceberg table `iceberg_namespace.iceberg_table` declared in Iceberg catalog.
+It creates a `FOREIGN TABLE` linked to an Iceberg table described in JSON from S3.
 Created table is accessible for reading.
 
 ## Update Tea

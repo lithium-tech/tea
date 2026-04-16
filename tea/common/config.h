@@ -239,6 +239,12 @@ struct IcebergTable {
   auto operator<=>(const IcebergTable&) const = default;
 };
 
+struct IcebergS3 {
+  std::string url;
+
+  auto operator<=>(const IcebergS3&) const = default;
+};
+
 struct FileTable {
   std::string url;
 
@@ -253,9 +259,9 @@ struct IcebergMetricsTable {
   auto operator<=>(const IcebergMetricsTable&) const = default;
 };
 
-enum TableType { kEmpty, kTeapot, kIceberg, kFile, kTotalMetrics };
+enum TableType { kEmpty, kTeapot, kIceberg, kIcebergS3, kFile, kTotalMetrics };
 // TODO(hvintus): replace with proper interface
-using TableSource = std::variant<EmptyTable, TeapotTable, IcebergTable, FileTable, IcebergMetricsTable>;
+using TableSource = std::variant<EmptyTable, TeapotTable, IcebergTable, IcebergS3, FileTable, IcebergMetricsTable>;
 
 struct TableConfig {
   TableSource source;
