@@ -44,8 +44,6 @@ jobs:
             cmake \
             curl \
             flex \
-            g++ \
-            gcc \
             git \
             iproute2 \
             iputils-ping \
@@ -80,8 +78,6 @@ jobs:
             software-properties-common
           sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
           sudo apt-get install -y gcc-13 g++-13
-          which gcc-13
-          which g++-13
           sudo systemctl disable --now redis-server
 
       - name: Prepare directories
@@ -95,7 +91,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/local
-          key: deps-gp-6.29.1_arenadata68-arrow-15.0.2-grpc-1.62.3-gcc13-${{ runner.os }}-v3
+          key: deps-gp-6.29.1_arenadata68-arrow-15.0.2-grpc-1.62.3-gcc13-${{ runner.os }}-v4
 
       - name: Cache Arrow third-party downloads
         id: cache-arrow-thirdparty
@@ -107,7 +103,7 @@ jobs:
       - name: Build and install Greenplum 6
         if: steps.cache-deps.outputs.cache-hit != 'true'
         run: |
-          git clone https://github.com/arenadata/gpdb.git -b 6.29.1_arenadata68
+          git clone https://github.com/arenadata/gpdb.git -b 6.29.1_arenadata68 --depth 1
           cd gpdb
           git submodule update --init
           ./configure --with-perl --with-python --with-libxml --with-gssapi --with-pythonsrc-ext --prefix=$HOME/local/gpdb
@@ -118,7 +114,7 @@ jobs:
       - name: Build and install Arrow 15
         if: steps.cache-deps.outputs.cache-hit != 'true'
         run: |
-          git clone https://github.com/apache/arrow.git -b maint-15.0.2
+          git clone https://github.com/apache/arrow.git -b maint-15.0.2 --depth 1
           cd arrow
           git apply ../vendor/arrow/fix_c-ares_url.patch
           git apply ../vendor/arrow/like-dot-nl.patch
@@ -142,7 +138,7 @@ jobs:
       - name: Build and install gRPC
         if: steps.cache-deps.outputs.cache-hit != 'true'
         run: |
-          git clone https://github.com/grpc/grpc.git -b v1.62.3
+          git clone https://github.com/grpc/grpc.git -b v1.62.3 --depth 1
           cd grpc
           git submodule update --init --single-branch --depth 1
           mkdir build
@@ -165,7 +161,7 @@ jobs:
           cmake -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo \
             -DGreenplum_ROOT=$HOME/local/gpdb -DCMAKE_PREFIX_PATH=$HOME/local \
             -DCMAKE_C_COMPILER=gcc-13 -DCMAKE_CXX_COMPILER=g++-13 \
-            -DTEA_USE_THREAD_SANITIZER=OFF -DTEA_VERSION=1.0 ..
+            -DTEA_USE_THREAD_SANITIZER=OFF -DTEA_VERSION=devel ..
           ninja
           ninja hive_metastore_server hive_metastore_client
           ninja install
