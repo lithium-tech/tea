@@ -271,7 +271,7 @@ jobs:
 
       - name: Initialize Greenplum cluster
         run: |
-        : # TODO(gmusya): consider using make create-demo-cluster
+          : # TODO(gmusya): consider using make create-demo-cluster
           sudo locale-gen "ru_RU.CP1251"
           sudo mkdir -p /gpdata
           sudo chown $USER /gpdata
