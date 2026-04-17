@@ -13,6 +13,18 @@ extern "C" {
 #include "mb/pg_wchar.h"
 }
 
+#ifdef USE_ASSERT_CHECKING
+bool assert_enabled = true;
+
+void ExceptionalCondition(const char* conditionName, const char* errorType, const char* fileName, int lineNumber) {
+  std::cerr << "conditionName = " << conditionName << '\n'
+            << "errorType = " << errorType << '\n'
+            << "fileName = " << fileName << '\n'
+            << "lineNumber = " << lineNumber << '\n';
+  abort();
+}
+#endif
+
 namespace tea {
 namespace {
 
