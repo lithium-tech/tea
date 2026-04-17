@@ -91,7 +91,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/local
-          key: deps-gp-6.29.1_arenadata68-arrow-15.0.2-grpc-1.62.3-gcc13-${{ runner.os }}-v4
+          key: deps-gp-6.29.1_arenadata68-arrow-15.0.2-grpc-1.62.3-gcc13-${{ runner.os }}-v5
 
       - name: Cache Arrow third-party downloads
         id: cache-arrow-thirdparty
@@ -106,7 +106,7 @@ jobs:
           git clone https://github.com/arenadata/gpdb.git -b 6.29.1_arenadata68 --depth 1
           cd gpdb
           git submodule update --init
-          ./configure --with-perl --with-python --with-libxml --with-gssapi --with-pythonsrc-ext --prefix=$HOME/local/gpdb
+          ./configure --with-perl --with-python --with-libxml --with-gssapi --with-pythonsrc-ext --enable-cassert --prefix=$HOME/local/gpdb
           make -j8
           make -j8 install
           rm -rf gpdb
@@ -271,6 +271,7 @@ jobs:
 
       - name: Initialize Greenplum cluster
         run: |
+        : # TODO(gmusya): consider using make create-demo-cluster
           sudo locale-gen "ru_RU.CP1251"
           sudo mkdir -p /gpdata
           sudo chown $USER /gpdata
