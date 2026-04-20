@@ -1,5 +1,3 @@
-file(READ tea_ext_create.sql TEA_EXT_CREATE_SCRIPT)
-file(READ tea_ext_update.sql TEA_EXT_UPDATE_SCRIPT)
 if(TEA_BUILD_FDW)
   file(READ tea_fdw_create.sql TEA_FDW_CREATE_SCRIPT)
   file(READ tea_fdw_update.sql TEA_FDW_UPDATE_SCRIPT)
@@ -7,11 +5,6 @@ endif()
 if(TEA_BUILD_STATS)
   file(READ tea_stats_create.sql TEA_STATS_CREATE_SCRIPT)
   file(READ tea_stats_update.sql TEA_STATS_UPDATE_SCRIPT)
-endif()
-
-if(pg_version_major EQUAL 9)
-  file(READ tea_iceberg_metrics_create.sql TEA_METRICS_CREATE_SCRIPT)
-  file(READ tea_iceberg_metrics_drop.sql TEA_METRICS_DROP_SCRIPT)
 endif()
 
 set(EXT_FILES)

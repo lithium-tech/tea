@@ -1,6 +1,6 @@
 add_library(tea MODULE)
 
-target_sources(tea PRIVATE tea_exttable.c tea_exttable_proj.c tea_import.c
+target_sources(tea PRIVATE tea_import.c
                            tea.c tea_reader.cpp tea_tuple.c tea_common.c)
 if(TEA_BUILD_FDW)
   target_sources(tea PRIVATE tea_fdw.c tea_fdw_proj.c tea_fdw_options.c)
