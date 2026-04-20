@@ -490,7 +490,7 @@ TableConfig ConfigSource::GetTableConfig(std::string_view url, const std::string
     table_config.source = IcebergMetricsTable{};
   } else if (schema == "file" || schema == "s3") {
     table_config.source =
-        FileTable{.url = absl::StrCat(components.schema, "://", components.location, components.path)};
+        FileTable{.url = std::string(components.schema) + "://" + std::string(components.location) + std::string(components.path)};
   } else {
     throw arrow::Status::ExecutionError("Invalid table url: ", url);
   }
