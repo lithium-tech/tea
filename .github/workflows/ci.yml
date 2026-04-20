@@ -1,0 +1,318 @@
+name: GP6 CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  clang-format:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install clang-format
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-format
+
+      - name: Check C/C++ formatting
+        run: |
+          git ls-files \
+            '*.c' '*.cc' '*.cpp' '*.h' '*.hpp' \
+            ':!:build/**' \
+            ':!:vendor/**' \
+            | xargs -r clang-format --dry-run -Werror
+
+  build-tea:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Clear cache
+        run: |
+          cd /opt
+          find . -maxdepth 1 -mindepth 1 '!' -path ./containerd '!' -path ./actionarchivecache '!' -path ./runner '!' -path ./runner-cache -exec rm -rf '{}' ';'
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get install -y \
+            bison \
+            cmake \
+            curl \
+            flex \
+            git \
+            iproute2 \
+            iputils-ping \
+            libapr1-dev \
+            libaprutil1-dev \
+            libbz2-dev \
+            libcurl4-openssl-dev \
+            libevent-dev \
+            libipc-run-perl \
+            libkrb5-dev \
+            libpam-dev \
+            libperl-dev \
+            libreadline-dev \
+            libssl-dev \
+            libtool \
+            libuv1-dev \
+            libxerces-c-dev \
+            libxml2-dev \
+            libxslt-dev \
+            libyaml-dev \
+            libzstd-dev \
+            locales \
+            net-tools \
+            openssh-client \
+            openssh-server \
+            pkg-config \
+            python2 \
+            python2-dev \
+            redis-server \
+            rsync \
+            zlib1g-dev \
+            software-properties-common
+          sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
+          sudo apt-get install -y gcc-13 g++-13
+          sudo systemctl disable --now redis-server
+
+      - name: Prepare directories
+        run: |
+          mkdir -p $HOME/local build
+          sudo ln -s -f python2 /usr/bin/python
+          sudo locale-gen "en_US.UTF-8"
+
+      - name: Cache installed dependencies
+        id: cache-deps
+        uses: actions/cache@v4
+        with:
+          path: ~/local
+          key: deps-gp-6.29.1_arenadata68-arrow-15.0.2-grpc-1.62.3-gcc13-${{ runner.os }}-v6
+
+      - name: Cache Arrow third-party downloads
+        id: cache-arrow-thirdparty
+        uses: actions/cache@v4
+        with:
+          path: build/arrow-thirdparty
+          key: arrow-thirdparty-15.0.2
+
+      - name: Build and install Greenplum 6
+        if: steps.cache-deps.outputs.cache-hit != 'true'
+        run: |
+          git clone https://github.com/arenadata/gpdb.git -b 6.29.1_arenadata68 --depth 1
+          cd gpdb
+          git submodule update --init
+          : # TODO(gmusya): consider using --enable-cassert
+          ./configure --with-perl --with-python --with-libxml --with-gssapi --with-pythonsrc-ext --prefix=$HOME/local/gpdb
+          make -j8
+          make -j8 install
+          rm -rf gpdb
+
+      - name: Build and install Arrow 15
+        if: steps.cache-deps.outputs.cache-hit != 'true'
+        run: |
+          git clone https://github.com/apache/arrow.git -b maint-15.0.2 --depth 1
+          cd arrow
+          git apply ../vendor/arrow/fix_c-ares_url.patch
+          git apply ../vendor/arrow/like-dot-nl.patch
+          git apply ../vendor/arrow/ilike.patch
+          git apply ../vendor/arrow/snappy.patch
+          ./cpp/thirdparty/download_dependencies.sh ../build/arrow-thirdparty
+          mkdir cpp/build
+          cd cpp/build
+          cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_INSTALL_PREFIX=$HOME/local \
+            -DCMAKE_C_COMPILER=gcc-13 -DCMAKE_CXX_COMPILER=g++-13 \
+            -DARROW_BUILD_STATIC=ON -DARROW_BUILD_SHARED=OFF \
+            -DARROW_DEPENDENCY_SOURCE=BUNDLED -DARROW_NO_DEPRECTATED_API=ON \
+            -DARROW_LLVM_USE_SHARED=OFF -DARROW_FILESYSTEM=ON -DARROW_PARQUET=ON \
+            -DARROW_S3=ON -DARROW_WITH_SNAPPY=ON -DARROW_WITH_LZ4=ON -DARROW_WITH_ZLIB=ON -DARROW_WITH_ZSTD=ON \
+            -DARROW_IPC=ON -DARROW_CSV=ON -DARROW_WITH_RAPIDJSON=ON \
+            -DARROW_GANDIVA=ON -DARROW_COMPUTE=ON ..
+          make -j8
+          make -j8 install
+          rm -rf arrow
+
+      - name: Build and install gRPC
+        if: steps.cache-deps.outputs.cache-hit != 'true'
+        run: |
+          git clone https://github.com/grpc/grpc.git -b v1.62.3 --depth 1
+          cd grpc
+          git submodule update --init --single-branch --depth 1
+          mkdir build
+          cd build
+          cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_INSTALL_PREFIX=$HOME/local \
+            -DCMAKE_C_COMPILER=gcc-13 -DCMAKE_CXX_COMPILER=g++-13 \
+            -DgRPC_BUILD_SHARED_LIBS=OFF -DgRPC_BUILD_STATIC_LIBS=ON \
+            -DgRPC_BUILD_TESTS=OFF -DgRPC_BUILD_EXAMPLES=OFF \
+            -DgRPC_BUILD_CSHARP_EXT=OFF -DgRPC_BUILD_GRPC_CSHARP_PLUGIN=OFF \
+            -DgRPC_BUILD_GRPC_NODE_PLUGIN=OFF -DgRPC_BUILD_GRPC_OBJECTIVE_C_PLUGIN=OFF \
+            -DgRPC_BUILD_GRPC_PHP_PLUGIN=OFF -DgRPC_BUILD_GRPC_PYTHON_PLUGIN=OFF \
+            -DgRPC_BUILD_GRPC_RUBY_PLUGIN=OFF  -DgRPC_SSL_PROVIDER:STRING=package ..
+          make -j8
+          make -j8 install
+          rm -rf grpc
+
+      - name: Build Tea
+        run: |
+          cd build
+          cmake -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DGreenplum_ROOT=$HOME/local/gpdb -DCMAKE_PREFIX_PATH=$HOME/local \
+            -DCMAKE_C_COMPILER=gcc-13 -DCMAKE_CXX_COMPILER=g++-13 \
+            -DTEA_USE_THREAD_SANITIZER=OFF ..
+          ninja
+          ninja hive_metastore_server hive_metastore_client
+          ninja install
+
+      - name: Run unit tests
+        run: |
+          cd build
+          ctest --output-on-failure
+
+      - name: Pack runtime artifacts
+        run: |
+          mkdir -p ci-artifacts
+          tar -C "$HOME/local" -czf ci-artifacts/gpdb-with-tea.tar.gz gpdb
+          cp build/tea/smoke_test/smoke_test ci-artifacts/smoke_test
+          mkdir -p ci-artifacts/hms
+          install -m 0755 build/_deps/iceberg-cxx-build/tools/hive_metastore_server ci-artifacts/hms/hive_metastore_server
+          install -m 0755 build/_deps/iceberg-cxx-build/tools/hive_metastore_client ci-artifacts/hms/hive_metastore_client
+
+      - name: Upload runtime artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: tea-runtime
+          path: ci-artifacts
+          retention-days: 1
+
+  smoke-tests:
+    needs: build-tea
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - metadata_type: teapot
+            table_type: foreign
+            profile: ""
+          - metadata_type: teapot
+            table_type: external
+            profile: ""
+          - metadata_type: iceberg
+            table_type: foreign
+            profile: samovar
+          - metadata_type: iceberg
+            table_type: external
+            profile: samovar
+          - metadata_type: iceberg
+            table_type: foreign
+            profile: ""
+
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install runtime dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            iproute2 \
+            iputils-ping \
+            libapr1-dev \
+            libaprutil1-dev \
+            libbz2-dev \
+            libcurl4-openssl-dev \
+            libevent-dev \
+            libipc-run-perl \
+            libkrb5-dev \
+            libpam-dev \
+            libperl-dev \
+            libreadline-dev \
+            libssl-dev \
+            libtool \
+            libuv1-dev \
+            libxerces-c-dev \
+            libxml2-dev \
+            libxslt-dev \
+            libyaml-dev \
+            libzstd-dev \
+            locales \
+            net-tools \
+            openssh-client \
+            openssh-server \
+            python2 \
+            python2-dev \
+            redis-server \
+            rsync \
+            zlib1g-dev \
+            software-properties-common
+          sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
+          sudo apt-get install -y gcc-13 g++-13
+          sudo systemctl disable --now redis-server
+          sudo ln -s -f python2 /usr/bin/python
+          sudo locale-gen "en_US.UTF-8"
+
+      - name: Download runtime artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: tea-runtime
+          path: ci-artifacts
+
+      - name: Restore runtime files
+        run: |
+          mkdir -p "$HOME/local" build/tea/smoke_test build/hms
+          tar -xzf ci-artifacts/gpdb-with-tea.tar.gz -C "$HOME/local"
+          install -m 0755 ci-artifacts/smoke_test build/tea/smoke_test/smoke_test
+          install -m 0755 ci-artifacts/hms/hive_metastore_server build/hms/hive_metastore_server
+          install -m 0755 ci-artifacts/hms/hive_metastore_client build/hms/hive_metastore_client
+
+      - name: Initialize Greenplum cluster
+        run: |
+          : # TODO(gmusya): consider using make create-demo-cluster
+          sudo locale-gen "ru_RU.CP1251"
+          sudo mkdir -p /gpdata
+          sudo chown $USER /gpdata
+
+          source $HOME/local/gpdb/greenplum_path.sh
+          export MASTER_DATA_DIRECTORY=/gpdata/master/gpsne-1
+          NUM_SEGS=2 bash test/start-gp.sh $HOME/local/gpdb /gpdata
+
+          psql -d tea_ci -c 'CREATE EXTENSION tea;'
+
+      - name: Start Iceberg services (Minio + HMS) and upload test data
+        run: |
+          wget -q https://dl.min.io/server/minio/release/linux-amd64/minio -O /tmp/minio
+          wget -q https://dl.min.io/client/mc/release/linux-amd64/mc -O /tmp/mc
+          chmod +x /tmp/minio /tmp/mc
+
+          export CI_PROJECT_DIR=$PWD
+          HMS_DIR="$CI_PROJECT_DIR/build/hms"
+
+          MINIO_EXECUTABLE=/tmp/minio MC_EXECUTABLE=/tmp/mc \
+          MINIO_DATA_DIR=/tmp/minio-data HMS_DIR="$HMS_DIR" \
+            bash test/iceberg/gen/init.sh
+
+      - name: Deploy tea config
+        run: |
+          source $HOME/local/gpdb/greenplum_path.sh
+          mkdir -p $GPHOME/tea
+          cp test/config/tea-config.json $GPHOME/tea/tea-config.json
+          cp test/config/tea-config-schema.json $GPHOME/tea/tea-config-schema.json
+
+      - name: Start Redis
+        run: |
+          sudo systemctl start redis-server
+          redis-cli ping
+
+      - name: Run smoke tests
+        run: |
+          source $HOME/local/gpdb/greenplum_path.sh
+          export MASTER_DATA_DIRECTORY=/gpdata/master/gpsne-1
+          build/tea/smoke_test/smoke_test \
+            --metadata_type=${{ matrix.metadata_type }} \
+            --table_type=${{ matrix.table_type }} \
+            --profile=${{ matrix.profile }}
