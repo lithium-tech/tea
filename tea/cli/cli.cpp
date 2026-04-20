@@ -1,5 +1,6 @@
 #include <arrow/status.h>
 
+#include <iostream>
 #include <fstream>
 #include <optional>
 #include <sstream>
