@@ -58,17 +58,9 @@ void WriteReaderStats(JsonWriter& writer, const ReaderStats& stats, double ticks
   WriteUInt64(writer, "columns_equality_delete", stats.columns_equality_delete);
   WriteUInt64(writer, "columns_only_for_equality_delete", stats.columns_only_for_equality_delete);
   WriteUInt64(writer, "columns_read", stats.columns_read);
-  WriteUInt64(writer, "samovar_fetched_tasks_count", stats.samovar_fetched_tasks_count);
-  WriteUInt64(writer, "samovar_requests_count", stats.samovar_requests_count);
-  WriteUInt64(writer, "samovar_errors_count", stats.samovar_errors_count);
-  WriteDouble(writer, "samovar_sync_seconds", ToSeconds(stats.samovar_sync_duration, ticks_per_second));
-  WriteDouble(writer, "samovar_response_seconds",
-              ToSeconds(stats.samovar_total_response_duration_ticks, ticks_per_second));
 }
 
 void WritePlannerStats(JsonWriter& writer, const PlannerStats& stats, double ticks_per_second) {
-  WriteUInt64(writer, "samovar_splitted_tasks_count", stats.samovar_splitted_tasks_count);
-  WriteUInt64(writer, "samovar_initial_tasks_count", stats.samovar_initial_tasks_count);
   WriteDouble(writer, "plan_duration_seconds", ToSeconds(stats.plan_duration, ticks_per_second));
   WriteDouble(writer, "iceberg_fs_duration_seconds", ToSeconds(stats.iceberg_fs_duration, ticks_per_second));
   WriteUInt64(writer, "iceberg_bytes_read", stats.iceberg_bytes_read);

@@ -116,20 +116,6 @@ TEST_F(ConfigSourceTest, TableTypes) {
   config = ConfigSource::GetTableConfig("tea://s3://bucket/prefix/file");
   EXPECT_THAT(config.source, testing::VariantWith<FileTable>(FileTable{"s3://bucket/prefix/file"}));
 
-  config = ConfigSource::GetTableConfig("tea://teapot://table.id");
-  EXPECT_THAT(config.source, testing::VariantWith<TeapotTable>(TeapotTable{.table_id = {"table", "id"}}));
-
-  config = ConfigSource::GetTableConfig("tea://teapot://host:1234/table.id");
-  EXPECT_THAT(config.source, testing::VariantWith<TeapotTable>(TeapotTable{.table_id = {"table", "id"}}));
-  EXPECT_EQ(config.config.teapot.location, "host:1234");
-
-  config = ConfigSource::GetTableConfig("tea://table.id");
-  EXPECT_THAT(config.source, testing::VariantWith<TeapotTable>(TeapotTable{.table_id = {"table", "id"}}));
-
-  config = ConfigSource::GetTableConfig("tea://table.id?profile=override");
-  EXPECT_THAT(config.source, testing::VariantWith<TeapotTable>(TeapotTable{.table_id = {"table", "id"}}));
-  EXPECT_EQ(config.config.s3.access_key, "OVERRIDE");
-
   config = ConfigSource::GetTableConfig("tea://iceberg://table.id");
   EXPECT_THAT(config.source, testing::VariantWith<IcebergTable>(IcebergTable{.table_id = {"table", "id"}}));
 }

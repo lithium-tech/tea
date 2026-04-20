@@ -5,6 +5,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   target_link_options(tea_cli PRIVATE "-Wl,--allow-multiple-definition")
 endif()
 
+target_compile_definitions(tea_cli PUBLIC TEA_VERSION="${TEA_VERSION}")
 set_target_properties(
   tea_cli
   PROPERTIES PREFIX ""

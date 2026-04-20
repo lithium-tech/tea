@@ -125,32 +125,6 @@ bool Get(const rapidjson::Value* doc, std::string_view section_prefix, std::stri
 }
 
 bool Get(const rapidjson::Value* doc, std::string_view section_prefix, std::string_view section, const std::string& key,
-         std::chrono::seconds* out) {
-  const rapidjson::Value* value = Advance(doc, {std::string(section), key});
-  if (!value) {
-    return false;
-  }
-  if (!value->IsInt64()) {
-    return false;
-  }
-  *out = std::chrono::seconds(value->GetInt64());
-  return true;
-}
-
-bool Get(const rapidjson::Value* doc, std::string_view section_prefix, std::string_view section, const std::string& key,
-         int* out) {
-  const rapidjson::Value* value = Advance(doc, {std::string(section), key});
-  if (!value) {
-    return false;
-  }
-  if (!value->IsInt()) {
-    return false;
-  }
-  *out = value->GetInt();
-  return true;
-}
-
-bool Get(const rapidjson::Value* doc, std::string_view section_prefix, std::string_view section, const std::string& key,
          double* out) {
   const rapidjson::Value* value = Advance(doc, {std::string(section), key});
   if (!value) {
@@ -190,51 +164,6 @@ bool Get(const rapidjson::Value* doc, std::string_view section_prefix, std::stri
 }
 
 bool Get(const rapidjson::Value* doc, std::string_view section_prefix, std::string_view section, const std::string& key,
-         BackoffType* out) {
-  const rapidjson::Value* value = Advance(doc, {std::string(section), key});
-  if (!value) {
-    return false;
-  }
-  if (!value->IsString()) {
-    return false;
-  }
-  std::string str = value->GetString();
-  std::transform(str.begin(), str.end(), str.begin(), tolower);
-  if (str == "no") {
-    *out = BackoffType::kNoBackoff;
-    return true;
-  } else if (str == "lin") {
-    *out = BackoffType::kLinearBackoff;
-    return true;
-  } else if (str.empty() || str == "exp") {
-    *out = BackoffType::kExponentialBackoff;
-    return true;
-  }
-  return false;
-}
-
-bool Get(const rapidjson::Value* doc, std::string_view section_prefix, std::string_view section, const std::string& key,
-         SplitType* out) {
-  const rapidjson::Value* value = Advance(doc, {std::string(section), key});
-  if (!value) {
-    return false;
-  }
-  if (!value->IsString()) {
-    return false;
-  }
-  std::string str = value->GetString();
-  std::transform(str.begin(), str.end(), str.begin(), tolower);
-  if (str == "whole") {
-    *out = SplitType::kWholeDataEntry;
-    return true;
-  } else if (str == "offsets") {
-    *out = SplitType::kOffsets;
-    return true;
-  }
-  return false;
-}
-
-bool Get(const rapidjson::Value* doc, std::string_view section_prefix, std::string_view section, const std::string& key,
          CatalogConfig::CatalogType* out) {
   const rapidjson::Value* value = Advance(doc, {std::string(section), key});
   if (!value) {
@@ -250,24 +179,6 @@ bool Get(const rapidjson::Value* doc, std::string_view section_prefix, std::stri
     return true;
   } else if (str == "rest") {
     *out = CatalogConfig::CatalogType::kREST;
-    return true;
-  }
-  return false;
-}
-
-bool Get(const rapidjson::Value* doc, std::string_view section_prefix, std::string_view section, const std::string& key,
-         BalancerType* out) {
-  const rapidjson::Value* value = Advance(doc, {std::string(section), key});
-  if (!value) {
-    return false;
-  }
-  if (!value->IsString()) {
-    return false;
-  }
-  std::string str = value->GetString();
-  std::transform(str.begin(), str.end(), str.begin(), tolower);
-  if (str.empty() || str == "one_queue") {
-    *out = BalancerType::kOneQueue;
     return true;
   }
   return false;
@@ -310,56 +221,22 @@ bool GetEndpoints(Source* source, std::string_view section_prefix, std::string_v
     return false;
   }
   endpoints->clear();
-  auto log_typo = [&](const std::string_view& endpoint) {
-    TEA_LOG(std::string("Typo in ") + absl::StrCat(section_prefix, section, ".", key) + ": \"" + std::string(endpoint) +
-            "\"");
-  };
 
   for (const auto& endpoint_str : endpoints_as_str) {
     std::vector<std::string> splitted_endpoint = absl::StrSplit(endpoint_str, ":");
     if (splitted_endpoint.size() != 2) {
-      log_typo(endpoint_str);
       continue;
     }
     int port;
     if (!absl::SimpleAtoi(splitted_endpoint[1], &port)) {
-      log_typo(endpoint_str);
       continue;
     }
     if (!(0 <= port && port <= std::numeric_limits<uint16_t>::max())) {
-      log_typo(endpoint_str);
       continue;
     }
     endpoints->emplace_back(Endpoint{.host = splitted_endpoint[0], .port = static_cast<uint16_t>(port)});
   }
   return true;
-}
-
-template <typename Source>
-void GetBackoffInfo(Source* src, BackoffInfo* config, std::string_view section_prefix,
-                    std::string_view keys_prefix = "") {
-  Get(src, section_prefix, "samovar", absl::StrCat(keys_prefix, "backoff_type"), &config->backoff_type);
-  // Sleep time in milliseconds
-  Get(src, section_prefix, "samovar", absl::StrCat(keys_prefix, "linear_backoff_time_to_sleep_ms"),
-      &config->linear_backoff_time_to_sleep_ms);
-  // Increasing coefficient in exponential backoff
-  // Compat: will be removed in future versions
-  GetOptional(src, section_prefix, "samovar", absl::StrCat(keys_prefix, "exponentail_backoff_sleep_coef"),
-              &config->exponential_backoff_sleep_coef);
-
-  GetOptional(src, section_prefix, "samovar", absl::StrCat(keys_prefix, "exponential_backoff_sleep_coef"),
-              &config->exponential_backoff_sleep_coef);
-
-  // Upper bound on waiting time for exponential backoff
-  // Compat: will be removed in future versions
-  GetOptional(src, section_prefix, "samovar", absl::StrCat(keys_prefix, "exponentail_backoff_limit"),
-              &config->exponential_backoff_limit);
-
-  GetOptional(src, section_prefix, "samovar", absl::StrCat(keys_prefix, "exponential_backoff_limit"),  // deprecated
-              &config->exponential_backoff_limit);
-  GetOptional(src, section_prefix, "samovar", absl::StrCat(keys_prefix, "exponential_backoff_limit_ms"),
-              &config->exponential_backoff_limit);
-  Get(src, section_prefix, "samovar", absl::StrCat(keys_prefix, "limit_retries"), &config->limit_retries);
 }
 
 template <typename Source>
@@ -379,9 +256,6 @@ arrow::Status ReadValues(Source* src, Config* config, std::string_view section_p
 
   GetEndpoints(src, section_prefix, "hms", "hms", &config->hms_catalog.hms_endpoints);
 
-  Get(src, section_prefix, "teapot", "location", &config->teapot.location);
-  Get(src, section_prefix, "teapot", "timeout_ms", &config->teapot.timeout);
-
   Get(src, section_prefix, "limits", "max_cpu_threads", &config->limits.max_cpu_threads);
   Get(src, section_prefix, "limits", "max_io_threads", &config->limits.max_io_threads);
   Get(src, section_prefix, "limits", "parquet_buffer_size", &config->limits.parquet_buffer_size);
@@ -389,16 +263,8 @@ arrow::Status ReadValues(Source* src, Config* config, std::string_view section_p
   Get(src, section_prefix, "limits", "equality_delete_max_rows", &config->limits.equality_delete_max_rows);
   Get(src, section_prefix, "limits", "equality_delete_max_mb_size", &config->limits.equality_delete_max_mb_size);
   Get(src, section_prefix, "limits", "metadata_cache_size", &config->limits.metadata_cache_size);
-  Get(src, section_prefix, "limits", "grpc_max_message_size", &config->limits.grpc_max_message_size);
   Get(src, section_prefix, "limits", "json_max_message_size_on_master",
       &config->limits.json_max_message_size_on_master);
-  Get(src, section_prefix, "limits", "samovar_distributed_metadata_parsing_files_threshold",
-      &config->limits.samovar_distributed_metadata_parsing_files_threshold);
-  Get(src, section_prefix, "limits", "samovar_max_total_data_files", &config->limits.samovar_max_total_data_files);
-  Get(src, section_prefix, "limits", "samovar_max_total_data_files_in_distributed_mode",
-      &config->limits.samovar_max_total_data_files_in_distributed_mode);
-  Get(src, section_prefix, "limits", "samovar_max_total_positional_delete_files",
-      &config->limits.samovar_max_total_positional_delete_files);
 
   Get(src, section_prefix, "experimental_features", "prefetch", &config->features.prefetch);
   Get(src, section_prefix, "experimental_features", "read_in_multiple_threads",
@@ -439,45 +305,6 @@ arrow::Status ReadValues(Source* src, Config* config, std::string_view section_p
       &config->debug.intermediate_logs_period_seconds);
 
   Get(src, section_prefix, "metadata_access", "default_schema", &config->meta_access.default_schema);
-
-  Get(src, section_prefix, "samovar", "use_samovar", &config->samovar_config.turn_on_samovar);
-
-  // SyncBackoff = MetadataBackoff by default, but params can be overrided
-  GetBackoffInfo(src, &config->samovar_config.metadata_backoff, section_prefix, "");
-  config->samovar_config.sync_backoff = config->samovar_config.metadata_backoff;
-  GetBackoffInfo(src, &config->samovar_config.sync_backoff, section_prefix, "sync_");
-
-  Get(src, section_prefix, "samovar", "balancer_type", &config->samovar_config.balancer_type);
-  Get(src, section_prefix, "samovar", "cluster_id", &config->samovar_config.cluster_id);
-  // Maybe better to use different keys for redis and postgres
-  GetEndpoints(src, section_prefix, "samovar", "samovar", &config->samovar_config.endpoints);
-
-  Get(src, section_prefix, "samovar", "ttl_seconds", &config->samovar_config.ttl_seconds);
-  Get(src, section_prefix, "samovar", "request_timeout", &config->samovar_config.request_timeout);  // deprecated
-  Get(src, section_prefix, "samovar", "request_timeout_ms", &config->samovar_config.request_timeout);
-  Get(src, section_prefix, "samovar", "connection_timeout", &config->samovar_config.connection_timeout);  // deprecated
-  Get(src, section_prefix, "samovar", "connection_timeout_ms", &config->samovar_config.connection_timeout);
-
-  GetOptional(src, section_prefix, "samovar", "first_request_fragments",
-              &config->samovar_config.first_request_fragments);
-  Get(src, section_prefix, "samovar", "split_type", &config->samovar_config.split_type);
-
-  Get(src, section_prefix, "samovar", "batch_size", &config->samovar_config.batch_size);
-  Get(src, section_prefix, "samovar", "compressor_name", &config->samovar_config.compressor_name);
-
-  Get(src, section_prefix, "samovar", "wait_before_processing", &config->samovar_config.wait_before_processing);
-  Get(src, section_prefix, "samovar", "min_time_before_processing_ms",
-      &config->samovar_config.min_time_before_processing_ms);
-  Get(src, section_prefix, "samovar", "max_time_before_processing_ms",
-      &config->samovar_config.max_time_before_processing_ms);
-
-  Get(src, section_prefix, "samovar", "need_sync_on_init", &config->samovar_config.need_sync_on_init);
-  Get(src, section_prefix, "samovar", "allow_static_balancing", &config->samovar_config.allow_static_balancing);
-
-  Get(src, section_prefix, "samovar", "first_slice_to_sleep", &config->samovar_config.first_slice_to_sleep);
-  Get(src, section_prefix, "samovar", "sleep_per_slice_ms", &config->samovar_config.sleep_per_slice_ms);
-  Get(src, section_prefix, "samovar", "max_sleep_time_ms", &config->samovar_config.max_sleep_time_ms);
-  Get(src, section_prefix, "samovar", "queue_push_batch_size", &config->samovar_config.queue_push_batch_size);
 
   return arrow::Status::OK();
 }
@@ -628,7 +455,6 @@ Config ConfigSource::GetConfig(std::string_view profile) {
   Config config;
   LoadEnvDefaults(&config);
   if (auto status = config.FromJsonFile(*json_config_path, result_file_schema_path, profile); !status.ok()) {
-    TEA_LOG("Incorrect json config " + status.message());
     throw arrow::Status::ExecutionError("Incorrect configuration file ", *json_config_path);
   }
   return config;
@@ -653,16 +479,7 @@ TableConfig ConfigSource::GetTableConfig(std::string_view url, const std::string
   const auto schema =
       (components.schema.empty()) ? table_config.config.meta_access.default_schema : std::string(components.schema);
 
-  if (schema.empty() || schema == "teapot") {
-    std::string_view table_id;
-    if (components.path.empty()) {
-      table_id = components.location;
-    } else {
-      table_config.config.teapot.location = components.location;
-      table_id = components.path.substr(1);
-    }
-    table_config.source = TeapotTable{.table_id = TableId::FromString(table_id)};
-  } else if (schema == "iceberg") {
+  if (schema == "iceberg") {
     table_config.source = IcebergTable{TableId::FromString(components.location)};
   } else if (schema == "icebergs3") {
     table_config.source =

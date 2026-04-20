@@ -76,13 +76,7 @@ struct Limits {
   uint64_t equality_delete_max_rows = 0;
   uint64_t equality_delete_max_mb_size = 1ull << 20;
   uint64_t metadata_cache_size = 0;
-  uint64_t grpc_max_message_size = 16ull << 20;
   uint64_t json_max_message_size_on_master = 32ull << 20;
-
-  uint64_t samovar_distributed_metadata_parsing_files_threshold = 10'000;
-  uint64_t samovar_max_total_data_files = 100'000;
-  uint64_t samovar_max_total_data_files_in_distributed_mode = 1'000'000;
-  uint64_t samovar_max_total_positional_delete_files = 500;
 
   bool operator==(const Limits&) const = default;
 };
@@ -141,41 +135,6 @@ struct BackoffInfo {
   bool operator==(const BackoffInfo&) const = default;
 };
 
-struct SamovarConfig {
-  bool turn_on_samovar = false;
-
-  BackoffInfo metadata_backoff;
-  BackoffInfo sync_backoff;
-
-  SplitType split_type = SplitType::kOffsets;
-  BalancerType balancer_type = BalancerType::kOneQueue;
-  int batch_size = 1;
-  std::string cluster_id;
-  std::string compressor_name;
-
-  std::vector<Endpoint> endpoints;
-  std::chrono::seconds ttl_seconds = std::chrono::seconds(std::numeric_limits<int32_t>::max());
-  std::chrono::milliseconds request_timeout = std::chrono::milliseconds(5000);
-  std::chrono::milliseconds connection_timeout = std::chrono::milliseconds(5000);
-
-  std::optional<int> first_request_fragments = std::nullopt;
-
-  bool wait_before_processing = false;
-  std::chrono::milliseconds min_time_before_processing_ms = std::chrono::milliseconds(0);
-  std::chrono::milliseconds max_time_before_processing_ms = std::chrono::milliseconds(0);
-
-  bool need_sync_on_init = true;
-  bool allow_static_balancing = true;
-
-  int32_t queue_push_batch_size = 1000;
-
-  int32_t first_slice_to_sleep = 100;
-  std::chrono::milliseconds sleep_per_slice_ms = std::chrono::milliseconds(10);
-  std::chrono::milliseconds max_sleep_time_ms = std::chrono::milliseconds(10000);
-
-  bool operator==(const SamovarConfig&) const = default;
-};
-
 struct Debug {
   bool test_gandiva_filter = false;
   bool test_stats = false;
@@ -195,12 +154,10 @@ struct Config {
   S3Config s3;
   CatalogConfig catalog;
   HMSCatalog hms_catalog;
-  TeapotConfig teapot;
   Limits limits;
   Features features;
   Debug debug;
   JsonConfig json;
-  SamovarConfig samovar_config;
   MetadataAccess meta_access;
 
   bool operator==(const Config&) const = default;
@@ -225,12 +182,6 @@ struct TableId {
   std::string ToString() const;
 
   auto operator<=>(const TableId&) const = default;
-};
-
-struct TeapotTable {
-  TableId table_id;
-
-  auto operator<=>(const TeapotTable&) const = default;
 };
 
 struct IcebergTable {
@@ -259,9 +210,9 @@ struct IcebergMetricsTable {
   auto operator<=>(const IcebergMetricsTable&) const = default;
 };
 
-enum TableType { kEmpty, kTeapot, kIceberg, kIcebergS3, kFile, kTotalMetrics };
+enum TableType { kEmpty, kIceberg, kIcebergS3, kFile, kTotalMetrics };
 // TODO(hvintus): replace with proper interface
-using TableSource = std::variant<EmptyTable, TeapotTable, IcebergTable, IcebergS3, FileTable, IcebergMetricsTable>;
+using TableSource = std::variant<EmptyTable, IcebergTable, IcebergS3, FileTable, IcebergMetricsTable>;
 
 struct TableConfig {
   TableSource source;

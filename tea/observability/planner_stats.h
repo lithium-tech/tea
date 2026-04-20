@@ -8,9 +8,6 @@
 namespace tea {
 
 struct PlannerStats {
-  int64_t samovar_initial_tasks_count = 0;
-  int64_t samovar_splitted_tasks_count = 0;
-
   int64_t iceberg_bytes_read = 0;
   int64_t iceberg_requests = 0;
   int64_t iceberg_files_read = 0;
@@ -27,9 +24,6 @@ struct PlannerStats {
   DurationTicks plan_duration = 0;
 
   void Combine(const PlannerStats& other) {
-    samovar_initial_tasks_count += other.samovar_initial_tasks_count;
-    samovar_splitted_tasks_count += other.samovar_splitted_tasks_count;
-
     iceberg_bytes_read += other.iceberg_bytes_read;
     iceberg_requests += other.iceberg_requests;
     iceberg_files_read += other.iceberg_files_read;

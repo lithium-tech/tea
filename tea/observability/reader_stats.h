@@ -31,17 +31,12 @@ struct ReaderStats {
   int64_t columns_for_greenplum = 0;
   int64_t columns_equality_delete = 0;
   int64_t columns_only_for_equality_delete = 0;
-  int64_t samovar_fetched_tasks_count = 0;
-  DurationTicks samovar_total_response_duration_ticks = 0;
-  int64_t samovar_requests_count = 0;
-  int64_t samovar_errors_count = 0;
   DurationTicks positional_delete_apply_duration = 0;
   DurationTicks equality_delete_apply_duration = 0;
   DurationTicks gandiva_filter_build_duration = 0;
   DurationTicks gandiva_filter_apply_duration = 0;
   DurationTicks fetch_duration = 0;
   DurationTicks read_duration = 0;
-  DurationTicks samovar_sync_duration = 0;
 };
 
 std::string FormatStats(std::string_view event_type, std::string_view session_id, uint64_t scan_identifier,

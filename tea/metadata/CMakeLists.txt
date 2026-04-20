@@ -6,8 +6,6 @@ add_library(
   access_file.h
   access_iceberg.cpp
   access_iceberg.h
-  access_teapot.cpp
-  access_teapot.h
   metadata.h
   entries_stream_config.cpp
   entries_stream_config.h
@@ -18,4 +16,4 @@ add_library(
 )
 
 target_include_directories(tea_metadata PUBLIC ${CMAKE_SOURCE_DIR})
-target_link_libraries(tea_metadata PUBLIC table_public samovar_client iceberg tea_log filter_representation stats_filter teapot_file_filter compression_lib)
+target_link_libraries(tea_metadata PUBLIC table_public iceberg tea_log filter_representation stats_filter teapot_file_filter compression_lib)

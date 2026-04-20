@@ -14,7 +14,6 @@
 #include "tea/common/iceberg_json.h"
 #include "tea/common/utils.h"
 #include "tea/observability/tea_log.h"
-#include "teapot/teapot.pb.h"
 
 namespace tea {
 

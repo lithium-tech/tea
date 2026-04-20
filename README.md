@@ -110,26 +110,6 @@ make -j`nproc`
 make install
 ```
 
-Build and install gRPC
-```
-cd $COMPILE_DIR
-git clone https://github.com/grpc/grpc.git -b v1.62.3
-cd grpc
-git submodule update --init --single-branch --depth 1
-mkdir build
-cd $_
-cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_INSTALL_PREFIX=$COMPILE_DIR/bin \
-  -DCMAKE_C_COMPILER=gcc-13 -DCMAKE_CXX_COMPILER=g++-13 \
-  -DgRPC_BUILD_SHARED_LIBS=OFF -DgRPC_BUILD_STATIC_LIBS=ON \
-  -DgRPC_BUILD_TESTS=OFF -DgRPC_BUILD_EXAMPLES=OFF \
-  -DgRPC_BUILD_CSHARP_EXT=OFF -DgRPC_BUILD_GRPC_CSHARP_PLUGIN=OFF \
-  -DgRPC_BUILD_GRPC_NODE_PLUGIN=OFF -DgRPC_BUILD_GRPC_OBJECTIVE_C_PLUGIN=OFF \
-  -DgRPC_BUILD_GRPC_PHP_PLUGIN=OFF -DgRPC_BUILD_GRPC_PYTHON_PLUGIN=OFF \
-  -DgRPC_BUILD_GRPC_RUBY_PLUGIN=OFF  -DgRPC_SSL_PROVIDER:STRING=package ..
-make -j`nproc`
-make install
-```
-
 Build TEA. Replace `$COMPILE_DIR/gpdb_bin` with your OpenGPDB root.
 ```
 cd $COMPILE_DIR/tea
