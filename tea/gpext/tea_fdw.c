@@ -314,20 +314,7 @@ static void TeaGetForeignRelSize(PlannerInfo* root, RelOptInfo* baserel, Oid for
     DeparseTargetList(rel, fpinfo->used_attrs_bitmap, &fpinfo->used_attr);
   }
 
-  /* here we serialize the WHERE clauses */
-  {
-    ListCell* lc;
-    List* clauses = NULL;
-
-    // Using baserel->baserestrictinfo insteaf remote conds because there are
-    // iceberg clauses not supported by gandiva
-    foreach (lc, baserel->baserestrictinfo) {
-      RestrictInfo* ri = (RestrictInfo*)lfirst(lc);
-
-      clauses = lappend(clauses, ri->clause);
-    }
-    fpinfo->desc = RelationGetDescr(rel);
-  }
+  fpinfo->desc = RelationGetDescr(rel);
 
   heap_close(rel, NoLock);
 
