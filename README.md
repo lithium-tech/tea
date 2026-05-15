@@ -37,7 +37,7 @@ Edit $GPHOME/tea/tea-config.json. At least you have to set access and secret key
         "catalog": {
             "type" : "hms",
             "hms": "127.0.0.1:9083",
-            "rest": "127.0.0.1:19120"
+            "nessie": "127.0.0.1:19120"
         }
     }
 }

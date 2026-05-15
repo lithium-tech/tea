@@ -13,7 +13,7 @@
         "catalog": {
             "type": "hms",
             "hms": "iamincorrecthost:9090,127.0.0.1:9090",
-            "rest": "127.0.0.1:19120"
+            "nessie": "127.0.0.1:19120"
         },
         "teapot": {
             "location": "localhost:50002",
@@ -167,8 +167,8 @@
         },
         "nessie": {
             "catalog": {
-                "type": "rest",
-                "rest": "127.0.0.1:19120"
+                "type": "nessie",
+                "nessie": "127.0.0.1:19120"
             }
         },
         "broken_hms": {

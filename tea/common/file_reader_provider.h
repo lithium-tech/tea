@@ -33,7 +33,11 @@ class FileReaderProviderWithProperties : public iceberg::IFileReaderProvider {
         field_ids_to_retrieve_(field_ids_to_retrieve.begin(), field_ids_to_retrieve.end()),
         adaptive_batch_info_(adaptive_batch_info) {}
 
-  arrow::Result<std::shared_ptr<parquet::arrow::FileReader>> Open(const std::string& url) const override;
+  arrow::Result<std::shared_ptr<parquet::arrow::FileReader>> OpenParquet(const std::string& url) const override;
+  arrow::Result<std::shared_ptr<iceberg::DeletionVector>> OpenDeletionVector(const std::string& path, int64_t offset,
+                                                                             int64_t length) const override {
+    return arrow::Status::NotImplemented("OpenDeletionVector is not implemented");
+  }
 
  private:
   ReaderProperties properties_;
@@ -47,7 +51,11 @@ class CachingFileReaderProvider : public iceberg::IFileReaderProvider {
   CachingFileReaderProvider(std::shared_ptr<const iceberg::IFileReaderProvider> provider, size_t cache_size)
       : provider_(provider), metadata_cache_(cache_size) {}
 
-  arrow::Result<std::shared_ptr<parquet::arrow::FileReader>> Open(const std::string& url) const override;
+  arrow::Result<std::shared_ptr<parquet::arrow::FileReader>> OpenParquet(const std::string& url) const override;
+  arrow::Result<std::shared_ptr<iceberg::DeletionVector>> OpenDeletionVector(const std::string& path, int64_t offset,
+                                                                             int64_t length) const override {
+    return arrow::Status::NotImplemented("OpenDeletionVector is not implemented");
+  }
 
  private:
   using MetadataCacheValue = std::shared_ptr<parquet::arrow::FileReader>;

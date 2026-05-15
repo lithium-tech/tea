@@ -19,7 +19,7 @@
 #include "iceberg/filter/stats_filter/stats_filter.h"
 #include "iceberg/schema.h"
 #include "iceberg/tea_hive_catalog.h"
-#include "iceberg/tea_rest_catalog.h"
+#include "iceberg/tea_nessie_catalog.h"
 #include "iceberg/tea_scan.h"
 
 #include "tea/common/cancel.h"
@@ -60,17 +60,17 @@ std::shared_ptr<iceberg::ice_tea::RemoteCatalog> GetCatalog(const Config& config
       throw std::runtime_error("No correct HMS endpoints for iceberg catalog were provided " +
                                std::to_string(config.catalog.hms_endpoints.size()));
     }
-    case CatalogConfig::CatalogType::kREST: {
-#if USE_REST
-      for (const auto& [host, port] : config.catalog.rest_endpoints) {
+    case CatalogConfig::CatalogType::kNessie: {
+#if USE_NESSIE
+      for (const auto& [host, port] : config.catalog.nessie_endpoints) {
         try {
-          return std::make_shared<iceberg::ice_tea::RESTCatalog>(host, port);
+          return std::make_shared<iceberg::ice_tea::NessieCatalog>(host, port);
         } catch (...) {
-          TEA_LOG("Failed to connect to REST catalog (" + host + ":" + std::to_string(port) + ")");
+          TEA_LOG("Failed to connect to Nessie catalog (" + host + ":" + std::to_string(port) + ")");
         }
       }
 #endif
-      throw std::runtime_error("No correct REST endpoints for iceberg catalog were provided");
+      throw std::runtime_error("No correct Nessie endpoints for iceberg catalog were provided");
     }
   }
   throw std::runtime_error("No any correct endpoint for iceberg catalog were provided");

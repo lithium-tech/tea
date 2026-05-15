@@ -248,8 +248,8 @@ bool Get(const rapidjson::Value* doc, std::string_view section_prefix, std::stri
   if (str.empty() || str == "hms") {
     *out = CatalogConfig::CatalogType::kHMS;
     return true;
-  } else if (str == "rest") {
-    *out = CatalogConfig::CatalogType::kREST;
+  } else if (str == "nessie") {
+    *out = CatalogConfig::CatalogType::kNessie;
     return true;
   }
   return false;
@@ -375,7 +375,7 @@ arrow::Status ReadValues(Source* src, Config* config, std::string_view section_p
 
   Get(src, section_prefix, "catalog", "type", &config->catalog.type);
   GetEndpoints(src, section_prefix, "catalog", "hms", &config->catalog.hms_endpoints);
-  GetEndpoints(src, section_prefix, "catalog", "rest", &config->catalog.rest_endpoints);
+  GetEndpoints(src, section_prefix, "catalog", "nessie", &config->catalog.nessie_endpoints);
 
   GetEndpoints(src, section_prefix, "hms", "hms", &config->hms_catalog.hms_endpoints);
 

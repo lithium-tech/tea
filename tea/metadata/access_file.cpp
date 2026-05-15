@@ -138,8 +138,8 @@ iceberg::ice_tea::ScanMetadata FromFileUrl(const std::string& file_url,
   iceberg::ice_tea::ScanMetadata meta;
 
   meta.schema = [&]() {
-    iceberg::FileReaderProvider file_reader_provider(fs_provider);
-    auto file_reader = iceberg::ValueSafe(file_reader_provider.Open(file_url));
+    auto file_reader_provider = MakeFileReaderProvider(fs_provider);
+    auto file_reader = iceberg::ValueSafe(file_reader_provider->OpenParquet(file_url));
     iceberg::Ensure(file_reader.get(), std::string(__PRETTY_FUNCTION__) + ": file_reader is nullptr");
 
     auto parquet_reader = file_reader->parquet_reader();

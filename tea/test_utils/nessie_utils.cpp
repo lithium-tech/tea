@@ -85,7 +85,7 @@ if __name__ == "__main__":
 
 void UploadNessieCatalog([[maybe_unused]] const std::string& db_name, [[maybe_unused]] const std::string& table_name,
                          [[maybe_unused]] const std::string& location) {
-#if USE_REST
+#if USE_NESSIE
   std::ofstream file("script.py");
   if (!file) {
     throw std::runtime_error("Can not open script file");

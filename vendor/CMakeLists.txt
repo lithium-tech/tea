@@ -30,7 +30,7 @@ FetchContent_Declare(
   iceberg-cxx
   EXCLUDE_FROM_ALL
   GIT_REPOSITORY ${GITHUB}/lithium-tech/iceberg-cxx.git
-  GIT_TAG 9b87fbd2aa78d322f971b81243b70310e03dbffc
+  GIT_TAG 237999bd29e6bda22135cce5feda78db62b96eed
 )
 
 FetchContent_MakeAvailable(googletest hiredis)
@@ -39,5 +39,5 @@ set(ICECXX_BUILD_ARROW OFF CACHE BOOL "")
 set(ICECXX_BUILD_ABSEIL OFF CACHE BOOL "")
 set(ICECXX_BUILD_TOOLS ON CACHE BOOL "")
 set(ICECXX_GENERATOR ${ICECXX_GENERATOR} CACHE BOOL "")
-set(ICECXX_USE_REST ${USE_REST} CACHE BOOL "")
+set(ICECXX_USE_NESSIE ${USE_NESSIE} CACHE BOOL "")
 FetchContent_MakeAvailable(iceberg-cxx)

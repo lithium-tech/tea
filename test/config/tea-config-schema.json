@@ -16,11 +16,11 @@
         "catalog": {
             "type": "object",
             "properties": {
-                "type": { "type": "string", "enum": ["hms", "rest"] },
+                "type": { "type": "string", "enum": ["hms", "nessie"] },
                 "hms": { "type": "string" },
-                "rest": { "type": "string" }
+                "nessie": { "type": "string" }
             },
-            "required": ["type", "hms", "rest"]
+            "required": ["type", "hms", "nessie"]
         },
         "teapot": {
             "type": "object",

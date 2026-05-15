@@ -68,7 +68,7 @@ uint64_t CalculateBatchSizeFile(const FileReaderProviderWithProperties::Adaptive
 
 }  // namespace
 
-arrow::Result<std::shared_ptr<parquet::arrow::FileReader>> FileReaderProviderWithProperties::Open(
+arrow::Result<std::shared_ptr<parquet::arrow::FileReader>> FileReaderProviderWithProperties::OpenParquet(
     const std::string& url) const {
   ARROW_ASSIGN_OR_RAISE(auto fs, fs_provider_->GetFileSystem(url));
   ARROW_ASSIGN_OR_RAISE(auto path, GetPath(url));
@@ -97,11 +97,11 @@ arrow::Result<std::shared_ptr<parquet::arrow::FileReader>> FileReaderProviderWit
   return arrow_reader;
 }
 
-arrow::Result<std::shared_ptr<parquet::arrow::FileReader>> CachingFileReaderProvider::Open(
+arrow::Result<std::shared_ptr<parquet::arrow::FileReader>> CachingFileReaderProvider::OpenParquet(
     const std::string& url) const {
   try {
     return metadata_cache_.GetValueOrCalculate(url, [provider = provider_, &url]() {
-      auto maybe_arrow_reader = provider->Open(url);
+      auto maybe_arrow_reader = provider->OpenParquet(url);
       if (!maybe_arrow_reader.ok()) {
         throw maybe_arrow_reader.status();
       }

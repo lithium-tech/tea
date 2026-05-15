@@ -40,12 +40,12 @@ struct Endpoint {
 
 struct CatalogConfig {
   enum class CatalogType {
-    kREST,
+    kNessie,
     kHMS,
   } type = CatalogType::kHMS;
 
   std::vector<Endpoint> hms_endpoints;
-  std::vector<Endpoint> rest_endpoints;
+  std::vector<Endpoint> nessie_endpoints;
 
   bool operator==(const CatalogConfig&) const = default;
 };

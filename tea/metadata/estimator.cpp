@@ -272,7 +272,7 @@ arrow::Result<RelationSize> Estimator::GetRelationSizeFromDataFiles(
                                                                                  std::vector<int32_t>{}, std::nullopt);
 
   ForEachPlannedDataEntry(metadata, [&rows, file_reader_provider](const iceberg::ice_tea::DataEntry& entry) {
-    auto maybe_arrow_reader = file_reader_provider->Open(entry.path);
+    auto maybe_arrow_reader = file_reader_provider->OpenParquet(entry.path);
     if (!maybe_arrow_reader.ok()) {
       throw maybe_arrow_reader.status();
     }
