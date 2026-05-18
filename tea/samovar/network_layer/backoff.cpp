@@ -77,18 +77,15 @@ std::shared_ptr<IBackoff> CreateBackoff(const BackoffInfo& config, const CancelT
   std::shared_ptr<IBackoff> backoff;
   switch (config.backoff_type) {
     case BackoffType::kNoBackoff: {
-      TEA_LOG("Do not use backoff");
       backoff = std::make_shared<NoBackoff>(config.limit_retries);
       break;
     }
     case BackoffType::kLinearBackoff: {
-      TEA_LOG("Use linear backoff");
       backoff =
           std::make_shared<LinearBackoff>(config.limit_retries, config.linear_backoff_time_to_sleep_ms, cancel_token);
       break;
     }
     case BackoffType::kExponentialBackoff: {
-      TEA_LOG("Use exp backoff");
       auto limit_backoff = config.exponential_backoff_limit.value_or(std::chrono::milliseconds(10000));
       backoff = std::make_shared<ExponentialBackoff>(config.limit_retries,
                                                      config.exponential_backoff_sleep_coef.value_or(kDefaultIncrement),
