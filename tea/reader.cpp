@@ -52,6 +52,7 @@
 #include "iceberg/tea_scan.h"
 
 #include "tea/common/config.h"
+#include "tea/common/file_errors.h"
 #include "tea/common/file_reader_provider.h"
 #include "tea/common/row_groups_utils.h"
 #include "tea/debug/stats_state.grpc.pb.h"
@@ -102,28 +103,41 @@ using FilesystemStats = Reader::FilesystemStats;
 
 class LoggingInputFile : public iceberg::InputFileWrapper {
  public:
-  LoggingInputFile(std::shared_ptr<arrow::io::RandomAccessFile> file, std::shared_ptr<FilesystemStats> metrics)
-      : InputFileWrapper(file), metrics_(metrics) {}
+  LoggingInputFile(std::shared_ptr<arrow::io::RandomAccessFile> file, std::shared_ptr<FilesystemStats> metrics,
+                   std::string path)
+      : InputFileWrapper(file), metrics_(metrics), path_(std::move(path)) {}
 
   arrow::Result<int64_t> ReadAt(int64_t position, int64_t nbytes, void* out) override {
     metrics_->wait_read_stats->Resume();
     Defer defer([&]() { metrics_->wait_read_stats->Suspend(); });
     TakeRequestIntoAccount(nbytes);
-    return InputFileWrapper::ReadAt(position, nbytes, out);
+    auto result = InputFileWrapper::ReadAt(position, nbytes, out);
+    if (!result.ok()) {
+      return AnnotateFileError(result.status(), path_);
+    }
+    return result;
   }
 
   arrow::Result<int64_t> Read(int64_t nbytes, void* out) override {
     metrics_->wait_read_stats->Resume();
     Defer defer([&]() { metrics_->wait_read_stats->Suspend(); });
     TakeRequestIntoAccount(nbytes);
-    return InputFileWrapper::Read(nbytes, out);
+    auto result = InputFileWrapper::Read(nbytes, out);
+    if (!result.ok()) {
+      return AnnotateFileError(result.status(), path_);
+    }
+    return result;
   }
 
   arrow::Result<std::shared_ptr<arrow::Buffer>> Read(int64_t nbytes) override {
     metrics_->wait_read_stats->Resume();
     Defer defer([&]() { metrics_->wait_read_stats->Suspend(); });
     TakeRequestIntoAccount(nbytes);
-    return InputFileWrapper::Read(nbytes);
+    auto result = InputFileWrapper::Read(nbytes);
+    if (!result.ok()) {
+      return AnnotateFileError(result.status(), path_);
+    }
+    return result;
   }
 
  private:
@@ -134,6 +148,7 @@ class LoggingInputFile : public iceberg::InputFileWrapper {
   }
 
   std::shared_ptr<FilesystemStats> metrics_;
+  std::string path_;
 };
 
 class IcebergLoggingFileSystem : public iceberg::FileSystemWrapper {
@@ -142,8 +157,11 @@ class IcebergLoggingFileSystem : public iceberg::FileSystemWrapper {
       : FileSystemWrapper(fs), metrics_(metrics) {}
 
   arrow::Result<std::shared_ptr<arrow::io::RandomAccessFile>> OpenInputFile(const std::string& path) override {
-    ARROW_ASSIGN_OR_RAISE(auto file, FileSystemWrapper::OpenInputFile(path));
-    return std::make_shared<LoggingInputFile>(file, metrics_);
+    auto maybe_file = FileSystemWrapper::OpenInputFile(path);
+    if (!maybe_file.ok()) {
+      return AnnotateFileError(maybe_file.status(), path);
+    }
+    return std::make_shared<LoggingInputFile>(maybe_file.MoveValueUnsafe(), metrics_, path);
   }
 
  private:
