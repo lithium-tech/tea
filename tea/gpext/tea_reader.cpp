@@ -900,6 +900,7 @@ void ValidateFilesCountInDistributedMode(const tea::Config& config,
 std::shared_ptr<iceberg::TableMetadataV2> GetTableMetadataNonNull(TeaContextPtr tea_ctx, tea::PlannerStats& stats) {
   const auto& config = get::TableConfig(tea_ctx);
 
+  TEA_LOG("Samovar: getting table metadata location");
   std::string table_metadata_location =
       tea::meta::access::GetIcebergTableLocation(config.config, std::get<tea::IcebergTable>(config.source).table_id);
   ++stats.catalog_connections_established;
@@ -909,6 +910,7 @@ std::shared_ptr<iceberg::TableMetadataV2> GetTableMetadataNonNull(TeaContextPtr 
   auto metrics = std::make_shared<tea::IcebergMetrics>();
   fs = std::make_shared<tea::IcebergLoggingFileSystem>(fs, metrics);
 
+  TEA_LOG("Samovar: parsing table metadata");
   auto data = iceberg::ValueSafe(iceberg::ice_tea::ReadFile(fs, table_metadata_location));
   std::shared_ptr<iceberg::TableMetadataV2> table_metadata = iceberg::ice_tea::ReadTableMetadataV2(data);
   if (!table_metadata) {
@@ -943,6 +945,7 @@ std::shared_ptr<tea::samovar::SingleQueueClient> SamovarMakePlan(TeaContextPtr t
 
     {
       std::shared_ptr<iceberg::Schema> schema = table_metadata->GetCurrentSchema();
+      TEA_LOG("Samovar: getting manifest files");
 
       std::deque<iceberg::ManifestFile> manifest_files_queue =
           GetManifestFiles(get::FileSystemProvider(tea_ctx), table_metadata, stats_filter, get::PlannerStats(tea_ctx));
@@ -955,6 +958,7 @@ std::shared_ptr<tea::samovar::SingleQueueClient> SamovarMakePlan(TeaContextPtr t
 
         std::shared_ptr<tea::samovar::SingleQueueClient> samovar_client =
             CreateSamovarClient(tea_ctx, queue_name, segment_id, segment_count, tea::samovar::SamovarRole::kFollower);
+        TEA_LOG("Samovar: filling manifests queue");
         auto maybe_stats = tea::samovar::FillSamovarWithManifests(get::Config(tea_ctx), schema, manifest_files_queue,
                                                                   segment_count, samovar_client);
         get::PlannerStats(tea_ctx).Combine(iceberg::ValueSafe(maybe_stats));
