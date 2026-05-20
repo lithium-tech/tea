@@ -1057,8 +1057,6 @@ void TeaContextPlanExternal(TeaContextPtr tea_ctx, const ExternalScanParams* par
           tea::samovar::GetCoordinator(get::SessionId(tea_ctx), get::Source(tea_ctx), params->segment_count);
       const bool is_coordinator = params->segment_id == target_coordinator;
 
-      TEA_LOG("Samovar coordinator for query is " + std::to_string(target_coordinator));
-
       const auto& cfg = get::Config(tea_ctx).samovar_config;
       const int slice_id = params->slice_id;
       const int first_slice_to_sleep = cfg.first_slice_to_sleep;
@@ -1076,6 +1074,8 @@ void TeaContextPlanExternal(TeaContextPtr tea_ctx, const ExternalScanParams* par
       if (is_coordinator) {
         samovar_client =
             SamovarMakePlan(tea_ctx, filter, make_samovar_queue_name(), params->segment_id, params->segment_count);
+      } else {
+        TEA_LOG("Samovar coordinator for query is " + std::to_string(target_coordinator));
       }
     }
 
