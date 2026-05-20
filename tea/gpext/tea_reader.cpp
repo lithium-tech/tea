@@ -1076,8 +1076,6 @@ void TeaContextPlanExternal(TeaContextPtr tea_ctx, const ExternalScanParams* par
       if (is_coordinator) {
         samovar_client =
             SamovarMakePlan(tea_ctx, filter, make_samovar_queue_name(), params->segment_id, params->segment_count);
-      } else {
-        TEA_LOG("I am samovar follower");
       }
     }
 
