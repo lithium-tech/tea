@@ -47,6 +47,7 @@ stats_state::StatsRequest StatsToProto(DurationTicks duration_ticks, double tick
   data_stats->set_rows_skipped_equality_delete(reader_stats.rows_skipped_equality_delete);
   data_stats->set_rows_skipped_filter(reader_stats.rows_skipped_filter);
   data_stats->set_rows_skipped_prefilter(reader_stats.rows_skipped_prefilter);
+  data_stats->set_rows_skipped_deletion_vector(reader_stats.rows_skipped_deletion_vector);
 
   stats_state::S3Stats* s3_stats_result = execution_stats->mutable_s3();
   s3_stats_result->set_s3_requests(s3_stats.requests);
@@ -68,6 +69,8 @@ stats_state::StatsRequest StatsToProto(DurationTicks duration_ticks, double tick
   plan_stats->set_potisional_files_planned(planner_stats.positional_files_planned);
   plan_stats->set_equality_files_planned(planner_stats.equality_files_planned);
   plan_stats->set_dangling_positional_files(planner_stats.dangling_positional_files);
+  plan_stats->set_deletion_vectors_planned(planner_stats.deletion_vectors_planned);
+  plan_stats->set_dangling_deletion_vector_files(planner_stats.dangling_deletion_vector_files);
 
   stats_state::Durations* durations = execution_stats->mutable_durations();
   SetDuration(duration_ticks, ticks_per_second, durations->mutable_total());

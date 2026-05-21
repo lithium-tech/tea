@@ -36,6 +36,7 @@ message DataStats {
   int64 rows_skipped_equality_delete = 6;
   int64 rows_skipped_filter = 7;
   int64 rows_skipped_prefilter = 8;
+  int64 rows_skipped_deletion_vector = 9;
 }
 
 message S3Stats {
@@ -67,6 +68,8 @@ message PlanStats {
   int64 potisional_files_planned = 2;
   int64 equality_files_planned = 3;
   int64 dangling_positional_files = 4;
+  int64 deletion_vectors_planned = 5;
+  int64 dangling_deletion_vector_files = 6;
 }
 
 message ProjectionStats {

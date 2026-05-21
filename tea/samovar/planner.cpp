@@ -11,12 +11,14 @@
 #include <stdexcept>
 #include <string>
 #include <thread>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
 #include "arrow/filesystem/filesystem.h"
 #include "arrow/result.h"
 #include "arrow/status.h"
+#include "iceberg/deletion_vector.h"
 #include "iceberg/manifest_entry.h"
 #include "iceberg/schema.h"
 #include "iceberg/tea_scan.h"
@@ -92,11 +94,18 @@ arrow::Result<PlannerStats> FillSamovar(const Config& config, iceberg::ice_tea::
                                         std::shared_ptr<SingleQueueClient> samovar_client) {
   PlannerStats stats;
   std::optional<ScopedTimerTicks> timer = ScopedTimerTicks(stats.plan_duration);
+  int64_t dv_planned = 0;
   for (const auto& part : meta.partitions) {
     for (const auto& layer : part) {
       stats.samovar_initial_tasks_count += layer.data_entries_.size();
+      for (const auto& data_entry : layer.data_entries_) {
+        if (data_entry.dv) {
+          dv_planned++;
+        }
+      }
     }
   }
+  stats.deletion_vectors_planned = dv_planned;
 
   ARROW_ASSIGN_OR_RAISE(auto split_result, SplitPartitions(meta.partitions, config));
 
@@ -372,6 +381,11 @@ arrow::Result<std::pair<meta::PlannedMeta, PlannerStats>> FromSamovar(
                                                  schema, timestamp_to_timestamptz_shift_us));
 
     if (!result.empty()) {
+      for (const auto& entry : result) {
+        if (entry.data_entry().has_dv_info()) {
+          stats.deletion_vectors_planned++;
+        }
+      }
       // write tasks to the entries queue
       stats.samovar_splitted_tasks_count += result.size();
       samovar_client->AppendToFilesQueue(std::move(result));
@@ -395,6 +409,16 @@ arrow::Result<std::pair<meta::PlannedMeta, PlannerStats>> FromSamovar(
     auto response_file_list = samovar_client->GetFileList();
 
     auto total_scan_metadata = ConvertSamovarRepresentationToScanMeta(response, response_file_list);
+
+    for (const auto& part : total_scan_metadata.partitions) {
+      for (const auto& layer : part) {
+        for (const auto& data_entry : layer.data_entries_) {
+          if (data_entry.dv) {
+            stats.deletion_vectors_planned++;
+          }
+        }
+      }
+    }
 
     auto sched = std::make_shared<SamovarMetadataScheduler>(config, samovar_client);
     auto meta =

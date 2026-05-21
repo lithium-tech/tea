@@ -35,9 +35,7 @@ class FileReaderProviderWithProperties : public iceberg::IFileReaderProvider {
 
   arrow::Result<std::shared_ptr<parquet::arrow::FileReader>> OpenParquet(const std::string& url) const override;
   arrow::Result<std::shared_ptr<iceberg::DeletionVector>> OpenDeletionVector(const std::string& path, int64_t offset,
-                                                                             int64_t length) const override {
-    return arrow::Status::NotImplemented("OpenDeletionVector is not implemented");
-  }
+                                                                             int64_t length) const override;
 
  private:
   ReaderProperties properties_;
@@ -53,9 +51,7 @@ class CachingFileReaderProvider : public iceberg::IFileReaderProvider {
 
   arrow::Result<std::shared_ptr<parquet::arrow::FileReader>> OpenParquet(const std::string& url) const override;
   arrow::Result<std::shared_ptr<iceberg::DeletionVector>> OpenDeletionVector(const std::string& path, int64_t offset,
-                                                                             int64_t length) const override {
-    return arrow::Status::NotImplemented("OpenDeletionVector is not implemented");
-  }
+                                                                             int64_t length) const override;
 
  private:
   using MetadataCacheValue = std::shared_ptr<parquet::arrow::FileReader>;

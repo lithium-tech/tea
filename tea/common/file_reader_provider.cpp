@@ -7,6 +7,8 @@
 #include "arrow/filesystem/filesystem.h"
 #include "arrow/status.h"
 #include "iceberg/common/fs/url.h"
+#include "iceberg/puffin.h"
+#include "iceberg/deletion_vector.h"
 #include "parquet/metadata.h"
 
 #include "tea/common/batch_size.h"
@@ -97,6 +99,25 @@ arrow::Result<std::shared_ptr<parquet::arrow::FileReader>> FileReaderProviderWit
   return arrow_reader;
 }
 
+arrow::Result<std::shared_ptr<iceberg::DeletionVector>> FileReaderProviderWithProperties::OpenDeletionVector(
+    const std::string& path, int64_t offset, int64_t length) const {
+  ARROW_ASSIGN_OR_RAISE(auto fs, fs_provider_->GetFileSystem(path));
+  ARROW_ASSIGN_OR_RAISE(auto internal_path, GetPath(path));
+  ARROW_ASSIGN_OR_RAISE(auto input_file, fs->OpenInputFile(internal_path));
+  ARROW_ASSIGN_OR_RAISE(auto footer, iceberg::PuffinFile::ReadFooter(input_file));
+
+  auto deserialized_footer = footer.GetDeserializedFooter();
+  auto it = std::find_if(deserialized_footer.blobs.begin(), deserialized_footer.blobs.end(),
+                         [offset, length](const auto& blob) { return blob.offset == offset && blob.length == length; });
+  if (it == deserialized_footer.blobs.end()) {
+    return arrow::Status::IOError("Deletion vector blob not found at offset ", offset);
+  }
+  ARROW_ASSIGN_OR_RAISE(auto buffer, input_file->ReadAt(offset, length));
+
+  std::string blob_data(reinterpret_cast<const char*>(buffer->data()), buffer->size());
+  return std::make_shared<iceberg::DeletionVector>(*it, std::move(blob_data));
+}
+
 arrow::Result<std::shared_ptr<parquet::arrow::FileReader>> CachingFileReaderProvider::OpenParquet(
     const std::string& url) const {
   try {
@@ -111,6 +132,11 @@ arrow::Result<std::shared_ptr<parquet::arrow::FileReader>> CachingFileReaderProv
   } catch (const arrow::Status& status) {
     return status;
   }
+}
+
+arrow::Result<std::shared_ptr<iceberg::DeletionVector>> CachingFileReaderProvider::OpenDeletionVector(
+    const std::string& path, int64_t offset, int64_t length) const {
+  return provider_->OpenDeletionVector(path, offset, length);
 }
 
 }  // namespace tea

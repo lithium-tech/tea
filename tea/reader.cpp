@@ -467,6 +467,9 @@ std::shared_ptr<Logger> Reader::InitializeLogger() {
   logger->SetHandler("metrics:positional:deleted_rows", [&](const Logger::Message& message) {
     stats_.rows_skipped_positional_delete += std::stoll(message);
   });
+  logger->SetHandler("metrics:deletion_vector:deleted_rows", [&](const Logger::Message& message) {
+    stats_.rows_skipped_deletion_vector += std::stoll(message);
+  });
   logger->SetHandler("metrics:positional:rows_read", [&](const Logger::Message& message) {
     positional_delete_stats_.rows_read += std::stoll(message);
   });

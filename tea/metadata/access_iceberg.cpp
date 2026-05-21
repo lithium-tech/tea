@@ -120,6 +120,8 @@ std::pair<iceberg::ice_tea::ScanMetadata, PlannerStats> FromIcebergWithLocation(
                      [&](const Logger::Message& msg) { stats.equality_files_planned += std::stoll(msg); });
   logger->SetHandler("metrics:plan:dangling_positional_files",
                      [&](const Logger::Message& msg) { stats.dangling_positional_files += std::stoll(msg); });
+  logger->SetHandler("metrics:plan:dangling_deletion_vector_files",
+                     [&](const Logger::Message& msg) { stats.dangling_deletion_vector_files += std::stoll(msg); });
 
   auto result = [&]() -> arrow::Result<iceberg::ice_tea::ScanMetadata> {
     ARROW_ASSIGN_OR_RAISE(auto data, iceberg::ice_tea::ReadFile(fs, location));
@@ -166,6 +168,17 @@ std::pair<iceberg::ice_tea::ScanMetadata, PlannerStats> FromIcebergWithLocation(
     stats.iceberg_bytes_read = metrics->bytes_read;
     stats.iceberg_files_read = metrics->files_opened;
     stats.iceberg_requests = metrics->requests;
+
+    for (const auto& part : result.ValueUnsafe().partitions) {
+      for (const auto& layer : part) {
+        for (const auto& data_entry : layer.data_entries_) {
+          if (data_entry.dv) {
+            stats.deletion_vectors_planned++;
+          }
+        }
+      }
+    }
+
     return std::make_pair(result.MoveValueUnsafe(), std::move(stats));
   } else {
     throw result.status();

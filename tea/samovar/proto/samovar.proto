@@ -28,9 +28,17 @@ message ManifestEntry {
   repeated int32 equality_deletes_fields_ids = 4;
 }
 
+message DeletionVectorInfo {
+  string path = 1;
+  int64 offset = 2;
+  int64 length = 3;
+  string referenced_data_file = 4;
+}
+
 message DataEntry {
   repeated Segment segments = 1;
   ManifestEntry entry = 2;
+  DeletionVectorInfo dv_info = 3;
 }
 
 message Layer {

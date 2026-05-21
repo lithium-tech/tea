@@ -18,8 +18,10 @@ struct PlannerStats {
   int64_t data_files_planned = 0;
   int64_t positional_files_planned = 0;
   int64_t equality_files_planned = 0;
+  int64_t deletion_vectors_planned = 0;
 
   int64_t dangling_positional_files = 0;
+  int64_t dangling_deletion_vector_files = 0;
 
   int64_t catalog_connections_established = 0;
 
@@ -40,8 +42,10 @@ struct PlannerStats {
     data_files_planned += other.data_files_planned;
     positional_files_planned += other.positional_files_planned;
     equality_files_planned += other.equality_files_planned;
+    deletion_vectors_planned += other.deletion_vectors_planned;
 
     dangling_positional_files += other.dangling_positional_files;
+    dangling_deletion_vector_files += other.dangling_deletion_vector_files;
 
     catalog_connections_established += other.catalog_connections_established;
   }

@@ -23,6 +23,7 @@ struct ReaderStats {
   int64_t rows_read = 0;
   int64_t rows_skipped_positional_delete = 0;
   int64_t rows_skipped_equality_delete = 0;
+  int64_t rows_skipped_deletion_vector = 0;
   int64_t rows_skipped_filter = 0;
   int64_t rows_skipped_prefilter = 0;
   // TODO(gmusya): for some reason PositionalDeleteStats defined in iceberg-cxx. Fix

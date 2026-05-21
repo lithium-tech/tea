@@ -68,6 +68,7 @@ set(smoke_test_sources
   part_of_file_test.cpp
   negative_server_test.cpp
   nested_loop_join_test.cpp
+  deletion_vector_test.cpp
 )
 
 add_executable(smoke_test ${smoke_test_sources})

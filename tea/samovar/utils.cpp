@@ -322,6 +322,15 @@ arrow::Result<SplitResult> SplitPartitions(const std::vector<iceberg::ice_tea::S
               auto segment = additional_entry.mutable_data_entry()->add_segments();
               segment->set_length(entry_segment.length);
               segment->set_offset(entry_segment.offset);
+
+              if (data_entry.dv) {
+                auto* dv_info = additional_entry.mutable_data_entry()->mutable_dv_info();
+                dv_info->set_path(data_entry.dv->path);
+                dv_info->set_offset(data_entry.dv->offset);
+                dv_info->set_length(data_entry.dv->length);
+                dv_info->set_referenced_data_file(data_entry.dv->referenced_data_file);
+              }
+
               result.data_entries.push_back(std::move(additional_entry));
             }
             break;
@@ -337,6 +346,15 @@ arrow::Result<SplitResult> SplitPartitions(const std::vector<iceberg::ice_tea::S
               segment->set_length(entry_segment.length);
               segment->set_offset(entry_segment.offset);
             }
+
+            if (data_entry.dv) {
+              auto* dv_info = additional_entry.mutable_data_entry()->mutable_dv_info();
+              dv_info->set_path(data_entry.dv->path);
+              dv_info->set_offset(data_entry.dv->offset);
+              dv_info->set_length(data_entry.dv->length);
+              dv_info->set_referenced_data_file(data_entry.dv->referenced_data_file);
+            }
+
             result.data_entries.push_back(std::move(additional_entry));
             break;
           }
@@ -361,9 +379,19 @@ iceberg::AnnotatedDataPath ConvertSamovarAnnotatedDataEntryToAnnotatedDataEntry(
   for (auto segment : additional_data_entry.data_entry().segments()) {
     segments.emplace_back(segment.offset(), segment.length());
   }
+  std::optional<iceberg::ice_tea::DeletionVectorInfo> dv_info = std::nullopt;
+  if (additional_data_entry.data_entry().has_dv_info()) {
+    const auto& samovar_dv = additional_data_entry.data_entry().dv_info();
+    dv_info = iceberg::ice_tea::DeletionVectorInfo{
+        samovar_dv.path(),
+        samovar_dv.offset(),
+        samovar_dv.length(),
+        samovar_dv.referenced_data_file()
+    };
+  }
   return iceberg::AnnotatedDataPath(
       iceberg::PartitionLayerFile(iceberg::PartitionLayer(partition_id, layer_id), std::move(path)),
-      std::move(segments));
+      std::move(segments), std::move(dv_info));
 }
 
 std::string MakeSessionIdentifier(const TableSource& source, const std::string& cluster_id,
