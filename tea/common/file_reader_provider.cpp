@@ -7,8 +7,8 @@
 #include "arrow/filesystem/filesystem.h"
 #include "arrow/status.h"
 #include "iceberg/common/fs/url.h"
-#include "iceberg/puffin.h"
 #include "iceberg/deletion_vector.h"
+#include "iceberg/puffin.h"
 #include "parquet/metadata.h"
 
 #include "tea/common/batch_size.h"

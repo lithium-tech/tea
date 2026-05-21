@@ -382,12 +382,8 @@ iceberg::AnnotatedDataPath ConvertSamovarAnnotatedDataEntryToAnnotatedDataEntry(
   std::optional<iceberg::ice_tea::DeletionVectorInfo> dv_info = std::nullopt;
   if (additional_data_entry.data_entry().has_dv_info()) {
     const auto& samovar_dv = additional_data_entry.data_entry().dv_info();
-    dv_info = iceberg::ice_tea::DeletionVectorInfo{
-        samovar_dv.path(),
-        samovar_dv.offset(),
-        samovar_dv.length(),
-        samovar_dv.referenced_data_file()
-    };
+    dv_info = iceberg::ice_tea::DeletionVectorInfo{samovar_dv.path(), samovar_dv.offset(), samovar_dv.length(),
+                                                   samovar_dv.referenced_data_file()};
   }
   return iceberg::AnnotatedDataPath(
       iceberg::PartitionLayerFile(iceberg::PartitionLayer(partition_id, layer_id), std::move(path)),
