@@ -48,7 +48,7 @@ TEST_F(DeletionVectorTest, SimpleScanAndMetrics) {
 
   const std::string table_name = "deletion_vectors";
 
-  std::filesystem::path local_path = "/workspaces/tea/build/_deps/iceberg-cxx-src/tests/tables/deletion_vectors";
+  std::filesystem::path local_path = std::filesystem::path(__FILE__).parent_path() / "deletion_vectors";
   ASSERT_TRUE(std::filesystem::exists(local_path)) << "Could not find deletion_vectors source directory!";
 
   auto s3_fs = Environment::GetS3Filesystem();
