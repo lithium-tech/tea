@@ -3,6 +3,7 @@
 #include <cassert>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -43,6 +44,11 @@ constexpr std::string_view kManifestEntry = "manifest_entry";
 constexpr std::string_view kTaskParts = "task_parts";
 constexpr std::string_view kSegmentOffset = "offset";
 constexpr std::string_view kSegmentLength = "length";
+constexpr std::string_view kDeletionVectorField = "dv_info";
+constexpr std::string_view kDeletionVectorPathField = "path";
+constexpr std::string_view kDeletionVectorOffsetField = "offset";
+constexpr std::string_view kDeletionVectorLengthField = "length";
+constexpr std::string_view kDeletionVectorReferencedDataFileField = "referenced_data_file";
 constexpr std::string_view kList = "list";
 
 class Serializer {
@@ -62,6 +68,8 @@ class Serializer {
   rapidjson::Value Serialize(iceberg::ice_tea::ScanMetadata::Layer&& layer);
 
   rapidjson::Value Serialize(iceberg::ice_tea::DataEntry::Segment&& segment);
+
+  rapidjson::Value Serialize(iceberg::ice_tea::DeletionVectorInfo&& deletion_vector);
 
   rapidjson::Value Serialize(iceberg::ice_tea::DataEntry&& task);
 
@@ -109,10 +117,22 @@ rapidjson::Value Serializer::Serialize(iceberg::ice_tea::DataEntry::Segment&& se
   return result;
 }
 
+rapidjson::Value Serializer::Serialize(iceberg::ice_tea::DeletionVectorInfo&& deletion_vector) {
+  rapidjson::Value result(rapidjson::kObjectType);
+  AddMember(result, kDeletionVectorPathField, std::move(deletion_vector.path));
+  AddMember(result, kDeletionVectorOffsetField, deletion_vector.offset);
+  AddMember(result, kDeletionVectorLengthField, deletion_vector.length);
+  AddMember(result, kDeletionVectorReferencedDataFileField, std::move(deletion_vector.referenced_data_file));
+  return result;
+}
+
 rapidjson::Value Serializer::Serialize(iceberg::ice_tea::DataEntry&& task) {
   rapidjson::Value result(rapidjson::kObjectType);
   AddMember(result, kFilePathField, std::move(task.path));
   AddMember(result, kTaskParts, std::move(task.parts));
+  if (task.dv.has_value()) {
+    AddMember(result, kDeletionVectorField, std::move(task.dv.value()));
+  }
   return result;
 }
 
@@ -276,12 +296,27 @@ iceberg::ice_tea::DataEntry::Segment Deserialize(const rapidjson::Value& value) 
 }
 
 template <>
+iceberg::ice_tea::DeletionVectorInfo Deserialize(const rapidjson::Value& value) {
+  Ensure(value.IsObject(), "Deserialize (DeletionVectorInfo): wrong type");
+
+  auto path = Extract<std::string>(value, kDeletionVectorPathField);
+  auto offset = Extract<int64_t>(value, kDeletionVectorOffsetField);
+  auto length = Extract<int64_t>(value, kDeletionVectorLengthField);
+  auto referenced_data_file = Extract<std::string>(value, kDeletionVectorReferencedDataFileField);
+  return iceberg::ice_tea::DeletionVectorInfo{std::move(path), offset, length, std::move(referenced_data_file)};
+}
+
+template <>
 iceberg::ice_tea::DataEntry Deserialize(const rapidjson::Value& value) {
   Ensure(value.IsObject(), "Deserialize (Task): wrong type");
 
   auto path = Extract<std::string>(value, kFilePathField);
   auto parts = Extract<std::vector<iceberg::ice_tea::DataEntry::Segment>>(value, kTaskParts);
-  return iceberg::ice_tea::DataEntry(std::move(path), std::move(parts));
+  std::optional<iceberg::ice_tea::DeletionVectorInfo> deletion_vector = std::nullopt;
+  if (value.HasMember(kDeletionVectorField.data())) {
+    deletion_vector = Extract<iceberg::ice_tea::DeletionVectorInfo>(value, kDeletionVectorField);
+  }
+  return iceberg::ice_tea::DataEntry(std::move(path), std::move(parts), std::move(deletion_vector));
 }
 
 template <>

@@ -809,7 +809,7 @@ iceberg::ice_tea::ScanMetadata SplitPartitionsAndFilter(iceberg::ice_tea::ScanMe
         if (segments.empty()) {
           continue;
         }
-        new_layer.data_entries_.emplace_back(data_entry.path, std::move(segments));
+        new_layer.data_entries_.emplace_back(data_entry.path, std::move(segments), data_entry.dv);
       }
       new_partition.emplace_back(std::move(new_layer));
     }

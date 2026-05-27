@@ -66,7 +66,7 @@ std::vector<iceberg::AnnotatedDataPath> ExtractDataEntries(iceberg::ice_tea::Sca
         iceberg::AnnotatedDataPath result_annotated_path(
             iceberg::PartitionLayerFile(
                 iceberg::PartitionLayer(static_cast<int>(partition_id), static_cast<int>(layer_id)), data_entry.path),
-            std::move(segments));
+            std::move(segments), data_entry.dv);
         all_data_entries.emplace_back(std::move(result_annotated_path));
       }
     }
