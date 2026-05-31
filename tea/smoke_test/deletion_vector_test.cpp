@@ -17,7 +17,8 @@ TEST_F(OtherEngineGeneratedTable, DeletionVectorSimpleScanAndMetrics) {
               std::vector<GreenplumColumnInfo>{GreenplumColumnInfo{.name = "c1", .type = "int4"},
                                                GreenplumColumnInfo{.name = "c2", .type = "int4"}});
 
-  ASSIGN_OR_FAIL(pq::ScanResult result, pq::Query("SELECT c1, c2 FROM " + kDefaultTableName + " ORDER BY c1").Run(*conn_));
+  ASSIGN_OR_FAIL(pq::ScanResult result,
+                 pq::Query("SELECT c1, c2 FROM " + kDefaultTableName + " ORDER BY c1").Run(*conn_));
   EXPECT_EQ(result.values.size(), 8);
 
   int64_t rows_skipped_deletion_vector = 0;
@@ -37,4 +38,3 @@ TEST_F(OtherEngineGeneratedTable, DeletionVectorSimpleScanAndMetrics) {
 
 }  // namespace
 }  // namespace tea
-
