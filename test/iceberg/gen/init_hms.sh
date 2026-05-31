@@ -9,3 +9,5 @@ $HMS_DIR/hive_metastore_client create-table 127.0.0.1 9090 gperov test s3://ware
 $HMS_DIR/hive_metastore_client create-table 127.0.0.1 9090 empty empty s3://warehouse/empty/empty/metadata/00000-80089c7c-cfe3-4279-a864-ef65495ba43b.metadata.json
 $HMS_DIR/hive_metastore_client create-table 127.0.0.1 9090 qa update_null s3://warehouse/qa_etl_table_update_null/metadata/00003-e4c28ff8-09d6-475a-b62c-7b9e5c4e694a.metadata.json
 $HMS_DIR/hive_metastore_client create-table 127.0.0.1 9090 test dangling_deletes s3://warehouse/dangling_deletes/metadata/00011-31179cfb-920d-47df-af37-7362d4028557.metadata.json
+$HMS_DIR/hive_metastore_client create-table 127.0.0.1 9090 test deletion_vectors s3://warehouse/deletion_vectors/metadata/00004-ae0294d0-1de5-4fab-97f1-cd80e0078fa4.metadata.json
+
