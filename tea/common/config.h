@@ -42,10 +42,17 @@ struct CatalogConfig {
   enum class CatalogType {
     kNessie,
     kHMS,
+#if USE_REST
+    kREST,
+#endif
   } type = CatalogType::kHMS;
 
   std::vector<Endpoint> hms_endpoints;
   std::vector<Endpoint> nessie_endpoints;
+#if USE_REST
+  std::string rest_url;
+  std::string rest_warehouse_id;
+#endif
 
   bool operator==(const CatalogConfig&) const = default;
 };

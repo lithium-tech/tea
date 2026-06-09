@@ -20,6 +20,7 @@
 #include "iceberg/schema.h"
 #include "iceberg/tea_hive_catalog.h"
 #include "iceberg/tea_nessie_catalog.h"
+#include "iceberg/tea_rest_catalog.h"
 #include "iceberg/tea_scan.h"
 
 #include "tea/common/cancel.h"
@@ -73,6 +74,19 @@ std::shared_ptr<iceberg::ice_tea::RemoteCatalog> GetCatalog(const Config& config
 #endif
       throw std::runtime_error("No correct Nessie endpoints for iceberg catalog were provided");
     }
+#if USE_REST
+    case CatalogConfig::CatalogType::kREST: {
+      if (config.catalog.rest_url.empty()) {
+        throw std::runtime_error("REST URL for iceberg catalog is not provided");
+      }
+
+      if (config.catalog.rest_warehouse_id.empty()) {
+        throw std::runtime_error("Warehouse id for iceberg catalog is not provided");
+      }
+
+      return std::make_shared<iceberg::ice_tea::RESTCatalog>(config.catalog.rest_url, config.catalog.rest_warehouse_id);
+    }
+#endif
   }
   throw std::runtime_error("No any correct endpoint for iceberg catalog were provided");
 }

@@ -317,3 +317,95 @@ jobs:
             --metadata_type=${{ matrix.metadata_type }} \
             --table_type=${{ matrix.table_type }} \
             --profile=${{ matrix.profile }}
+
+  rest-tests:
+    needs: build-tea
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install runtime dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libevent-2.1-7 \
+            libipc-run-perl \
+            libxerces-c3.2 \
+            libxml2 \
+            python2 \
+            software-properties-common
+
+          wget -qO- https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
+          sudo add-apt-repository -y "deb http://apt.postgresql.org/pub/repos/apt jammy-pgdg main"
+          DEBIAN_FRONTEND=noninteractive sudo apt-get install -y postgresql-16 postgresql-client-16
+          sudo pg_dropcluster 14 main
+
+          sudo ln -s -f python2 /usr/bin/python
+          sudo locale-gen "en_US.UTF-8"
+
+      - name: Download runtime artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: tea-runtime
+          path: ci-artifacts
+
+      - name: Restore runtime files
+        run: |
+          mkdir -p "$HOME/local"
+          tar -xzf ci-artifacts/gpdb-with-tea.tar.gz -C "$HOME/local"
+
+      - name: Initialize Greenplum cluster
+        run: |
+          : # TODO(gmusya): consider using make create-demo-cluster
+          sudo locale-gen "ru_RU.CP1251"
+          sudo mkdir -p /gpdata
+          sudo chown $USER /gpdata
+
+          source $HOME/local/gpdb/greenplum_path.sh
+          export MASTER_DATA_DIRECTORY=/gpdata/master/gpsne-1
+          NUM_SEGS=2 bash test/start-gp.sh $HOME/local/gpdb /gpdata
+
+      - name: Start Minio and upload test data
+        run: |
+          wget -q https://dl.min.io/server/minio/release/linux-amd64/minio -O /tmp/minio
+          wget -q https://dl.min.io/client/mc/release/linux-amd64/mc -O /tmp/mc
+          chmod +x /tmp/minio /tmp/mc
+
+          export CI_PROJECT_DIR=$PWD
+
+          MINIO_EXECUTABLE=/tmp/minio MC_EXECUTABLE=/tmp/mc \
+          MINIO_DATA_DIR=/tmp/minio-data \
+            bash test/iceberg/gen/init_minio.sh
+
+      - name: Deploy tea config
+        run: |
+          source $HOME/local/gpdb/greenplum_path.sh
+          mkdir -p $GPHOME/tea
+          cp test/config/tea-config-rest.json $GPHOME/tea/tea-config.json
+          cp test/config/tea-config-schema.json $GPHOME/tea/tea-config-schema.json
+
+      - name: Start Lakekeeper
+        run: |
+          sudo pg_createcluster -p 5433 16 main
+          sudo sed -i 's/scram-sha-256/trust/g' /etc/postgresql/16/main/pg_hba.conf
+          sudo /etc/init.d/postgresql start
+
+          wget -q https://github.com/lakekeeper/lakekeeper/releases/download/v0.12.1/lakekeeper-x86_64-unknown-linux-gnu.tar.gz -O - | tar -xzf -
+          export LAKEKEEPER__PG_DATABASE_URL_READ="postgres://postgres@localhost:5433/postgres"
+          export LAKEKEEPER__PG_DATABASE_URL_WRITE="postgres://postgres@localhost:5433/postgres"
+          export LAKEKEEPER__METRICS__PORT=0
+          ./lakekeeper migrate
+          psql -h localhost -p 5433 -U postgres -f test/iceberg/gen/setup_lakekeeper.sql postgres
+          ./lakekeeper serve &
+          sleep 5
+
+      - name: Check REST catalog support
+        run: |
+          source $HOME/local/gpdb/greenplum_path.sh
+          export PGDATABASE=tea_ci
+          psql -c 'CREATE EXTENSION tea'
+          psql -c "CREATE FOREIGN TABLE rest_test (a bigint, b bigint) server tea_server options(location 'tea://iceberg://gperov.test')"
+          OUT=`psql -Atc "SELECT count(*), sum(a), sum(b) FROM rest_test"`
+          echo $OUT
+          [[ "$OUT" = "9999|49992899|99985798" ]] || exit 1

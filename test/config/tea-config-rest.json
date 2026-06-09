@@ -1,0 +1,15 @@
+{
+    "common": {
+        "s3": {
+            "access_key": "minioadmin",
+            "secret_key": "minioadmin",
+            "endpoint_override": "127.0.0.1:9000",
+            "scheme": "http"
+        },
+        "catalog": {
+            "type": "rest",
+            "rest_url": "http://127.0.0.1:8181/catalog",
+            "rest_warehouse_id": "b498836e-6ecd-11f1-9c23-533b70a81474"
+        }
+    }
+}

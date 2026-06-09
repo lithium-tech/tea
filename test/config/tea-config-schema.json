@@ -16,9 +16,11 @@
         "catalog": {
             "type": "object",
             "properties": {
-                "type": { "type": "string", "enum": ["hms", "nessie"] },
+                "type": { "type": "string", "enum": ["hms", "nessie", "rest"] },
                 "hms": { "type": "string" },
-                "nessie": { "type": "string" }
+                "nessie": { "type": "string" },
+                "rest_url": { "type": "string" },
+                "rest_warehouse_id": { "type": "string" }
             },
             "required": ["type", "hms", "nessie"]
         },

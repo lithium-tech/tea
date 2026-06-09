@@ -19,7 +19,7 @@ target_link_libraries(
   tea PRIVATE reader tea_log teapot_file_filter Arrow::arrow_static
               Parquet::parquet_static teapot_grpc_proto gp_filter_convert)
 
-if (USE_NESSIE)
+if (USE_NESSIE OR USE_REST)
   target_link_libraries(tea PRIVATE cpr)
 endif()
 

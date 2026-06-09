@@ -253,7 +253,14 @@ bool Get(const rapidjson::Value* doc, std::string_view section_prefix, std::stri
     *out = CatalogConfig::CatalogType::kNessie;
     return true;
   }
-  return false;
+#if USE_REST
+  if (str == "rest") {
+    *out = CatalogConfig::CatalogType::kREST;
+    return true;
+  }
+#endif
+
+  throw std::runtime_error("Catalog type '" + str + "' is not supported");
 }
 
 bool Get(const rapidjson::Value* doc, std::string_view section_prefix, std::string_view section, const std::string& key,
@@ -377,6 +384,10 @@ arrow::Status ReadValues(Source* src, Config* config, std::string_view section_p
   Get(src, section_prefix, "catalog", "type", &config->catalog.type);
   GetEndpoints(src, section_prefix, "catalog", "hms", &config->catalog.hms_endpoints);
   GetEndpoints(src, section_prefix, "catalog", "nessie", &config->catalog.nessie_endpoints);
+#if USE_REST
+  Get(src, section_prefix, "catalog", "rest_url", &config->catalog.rest_url);
+  Get(src, section_prefix, "catalog", "rest_warehouse_id", &config->catalog.rest_warehouse_id);
+#endif
 
   GetEndpoints(src, section_prefix, "hms", "hms", &config->hms_catalog.hms_endpoints);
 

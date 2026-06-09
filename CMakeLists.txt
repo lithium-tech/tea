@@ -2,6 +2,7 @@ option(TEA_BUILD_FDW "Build Foreign Data Wrapper" ON)
 option(HAS_ARROW_CSV "Arrow built with csv" ON)
 option(ICECXX_GENERATOR "" ON)
 option(USE_NESSIE "Enable Nessie catalog" ON)
+option(USE_REST "Enable REST catalog" ON)
 option(TEA_USE_THREAD_SANITIZER "Enable running tests with ThreadSanitizer" ON)
 
 cmake_minimum_required(VERSION 3.25)
@@ -57,6 +58,10 @@ endif()
 
 if(USE_NESSIE)
   add_compile_definitions(USE_NESSIE)
+endif()
+
+if(USE_REST)
+  add_compile_definitions(USE_REST)
 endif()
 
 enable_testing()
