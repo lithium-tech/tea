@@ -1,0 +1,40 @@
+{
+  "name": "Tea Development Environment",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "editor.formatOnSave": true,
+        "cmake.configureOnOpen": false,
+        "cmake.generator": "Ninja",
+        "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
+        "clangd.arguments": [
+          "--background-index",
+          "--compile-commands-dir=build",
+          "-j=12",
+          "--clang-tidy",
+          "--all-scopes-completion",
+          "--completion-style=detailed",
+          "--header-insertion=iwyu",
+          "--pch-storage=memory"
+        ]
+      },
+      "extensions": [
+        "ms-vscode.cpptools",
+        "ms-vscode.cmake-tools",
+        "llvm-vs-code-extensions.vscode-clangd",
+        "twxs.cmake",
+        "ms-python.python",
+        "eamodio.gitlens"
+      ]
+    }
+  },
+  "postCreateCommand": "bash -c 'mkdir -p build && ln -s build/compile_commands.json compile_commands.json || true'",
+  "remoteUser": "root",
+  "mounts": [
+    "source=${localWorkspaceFolderBasename}-build,target=${containerWorkspaceFolder}/build,type=volume"
+  ]
+}
