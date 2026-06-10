@@ -42,7 +42,7 @@ void CheckQueryScansLimit(std::shared_ptr<ISamovarClient> client, const std::str
   }
   throw std::runtime_error("Query exceeds Samovar scan limit: " + std::to_string(scans_count) +
                            " scans started (limit is " + std::to_string(max_scans_per_query) +
-                           "). Consider simplifying the query, reducing the number of JOIN/UNION ALL branches, "
+                           "). Consider simplifying the query, reducing the number of JOIN/UNION ALL operators, "
                            "or splitting it into separate queries");
 }
 }  // namespace
