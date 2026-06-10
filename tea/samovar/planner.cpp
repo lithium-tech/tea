@@ -45,7 +45,8 @@
 namespace tea::samovar {
 
 std::shared_ptr<SingleQueueClient> MakeSamovarDataClient(const SamovarConfig& config, const std::string& queue_name,
-                                                         int segment_id, int segment_count, SamovarRole role,
+                                                         const std::string& query_clients_count_key, int segment_id,
+                                                         int segment_count, SamovarRole role,
                                                          const CancelToken& cancel_token) {
   auto sync_backoff = CreateBackoff(config.sync_backoff, cancel_token);
   auto metadata_backoff = CreateBackoff(config.metadata_backoff, cancel_token);
@@ -60,8 +61,9 @@ std::shared_ptr<SingleQueueClient> MakeSamovarDataClient(const SamovarConfig& co
   switch (config.balancer_type) {
     case BalancerType::kOneQueue: {
       samovar_data_client_ = std::make_shared<SingleQueueClient>(
-          samovar_client, batcher, config.ttl_seconds, queue_name, segment_count, config.compressor_name, role,
-          sync_backoff, metadata_backoff, config.need_sync_on_init, config.queue_push_batch_size);
+          samovar_client, batcher, config.ttl_seconds, queue_name, query_clients_count_key, segment_count,
+          config.compressor_name, role, config.max_clients_per_query, sync_backoff, metadata_backoff,
+          config.need_sync_on_init, config.queue_push_batch_size);
       break;
     }
     default:

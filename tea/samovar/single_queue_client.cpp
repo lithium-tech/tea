@@ -29,13 +29,29 @@ void SyncSegments(std::shared_ptr<ISamovarClient> client, const std::string& cel
       },
       backoff, msg);
 }
+
+void CheckQueryClientsLimit(std::shared_ptr<ISamovarClient> client, const std::string& query_clients_count_key,
+                            std::chrono::seconds ttl_seconds, uint64_t max_clients_per_query) {
+  if (max_clients_per_query == 0 || query_clients_count_key.empty()) {
+    return;
+  }
+  const int clients_count = client->IncreaseNumericCell(query_clients_count_key);
+  client->UpdateTTL(query_clients_count_key, ttl_seconds);
+  if (static_cast<uint64_t>(clients_count) <= max_clients_per_query) {
+    return;
+  }
+  throw std::runtime_error("Samovar clients limit exceeded for query: " + std::to_string(clients_count) +
+                           " clients connected (limit is " + std::to_string(max_clients_per_query) + ")");
+}
 }  // namespace
 
 SingleQueueClient::SingleQueueClient(std::shared_ptr<ISamovarClient> client, std::shared_ptr<Batcher> batcher,
-                                     std::chrono::seconds ttl_seconds, const std::string& queue_id, int segment_count,
+                                     std::chrono::seconds ttl_seconds, const std::string& queue_id,
+                                     const std::string& query_clients_count_key, int segment_count,
                                      const std::string& compressor_name, SamovarRole role,
-                                     std::shared_ptr<IBackoff> sync_backoff, std::shared_ptr<IBackoff> metadata_backoff,
-                                     bool need_sync_on_init, uint32_t queue_push_batch_size)
+                                     uint64_t max_clients_per_query, std::shared_ptr<IBackoff> sync_backoff,
+                                     std::shared_ptr<IBackoff> metadata_backoff, bool need_sync_on_init,
+                                     uint32_t queue_push_batch_size)
     : client_(client),
       batcher_(batcher),
       ttl_seconds_(ttl_seconds),
@@ -47,6 +63,8 @@ SingleQueueClient::SingleQueueClient(std::shared_ptr<ISamovarClient> client, std
       sync_backoff_(sync_backoff),
       segment_count_(segment_count),
       queue_push_batch_size_(queue_push_batch_size) {
+  CheckQueryClientsLimit(client_, query_clients_count_key, ttl_seconds_, max_clients_per_query);
+
   // role semantics in context of SingleQueueClient class:
   // kCoordinator means that segment will write metadata
   // kFollower means that:
