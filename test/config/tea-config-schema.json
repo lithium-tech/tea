@@ -79,13 +79,18 @@
             "type": "object",
             "properties": {
                 "use_samovar": { "type": "boolean" },
+                "enable_setnx_coordinator": { "type": "boolean" },
                 "backoff_type": { "type": "string", "enum": ["exp", "linear", "none"] },
                 "exponentail_backoff_sleep_coef": { "type": "number", "minimum": 0 },
                 "exponentail_backoff_limit": { "type": "integer", "minimum": 0 },
                 "limit_retries": { "type": "integer", "minimum": 0 },
                 "samovar": { "type": "string", "format": "hostname" },
                 "split_type": { "type": "string", "enum": ["offsets", "ranges", "hash"] },
-                "ttl": { "type": "integer", "minimum": 0 }
+                "ttl": { "type": "integer", "minimum": 0 },
+                "sync_segments": {
+                    "type": "array",
+                    "items": { "type": "integer", "minimum": 1 }
+                }
             },
             "required": [
                 "use_samovar",

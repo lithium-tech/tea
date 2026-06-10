@@ -45,6 +45,7 @@ class RedisClient {
   DurationTicks GetTotalResponseDurationTicks() const;
   int64_t GetRequestCount() const;
   int64_t GetErrorCount() const;
+  size_t GetConnectedEndpointIndex() const;
 
  protected:
   bool TryConnect(const Endpoint& endpoint);
@@ -54,6 +55,7 @@ class RedisClient {
   DurationTicks sum_time_response_ = 0;
   int64_t requests_count_ = 0;
   int64_t error_count_ = 0;
+  size_t connected_endpoint_index_ = 0;
   std::chrono::milliseconds request_timeout_;
   std::chrono::milliseconds connection_timeout_;
 };
@@ -67,6 +69,7 @@ class SamovarRedisClient : public ISamovarClient {
   std::vector<std::string> PopQueue(const std::string& queue_name, int num_elements) override;
 
   void SetCell(const std::string& cell_name, const std::string& message, std::chrono::seconds ttl) override;
+  bool SetCellIfNotExists(const std::string& cell_name, const std::string& message, std::chrono::seconds ttl) override;
   std::optional<std::string> GetCell(const std::string& cell_name) override;
 
   void SetNumericCell(const std::string& cell_name, int value, std::chrono::seconds ttl) override;
@@ -86,6 +89,7 @@ class SamovarRedisClient : public ISamovarClient {
   void AddIntoSet(const std::string& set_key, const std::string& value) override;
   void RemoveFromSet(const std::string& set_key, const std::string& value) override;
   bool ContainsInSet(const std::string& set_key, const std::string& value) override;
+  size_t GetConnectedEndpointIndex() const;
 
   /// Note: methods below are useful only for tests.
   std::vector<std::string> GetAllKeys();

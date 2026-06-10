@@ -921,10 +921,9 @@ std::shared_ptr<iceberg::TableMetadataV2> GetTableMetadataNonNull(TeaContextPtr 
   return table_metadata;
 }
 
-std::shared_ptr<tea::samovar::SingleQueueClient> SamovarMakePlan(TeaContextPtr tea_ctx,
-                                                                 tea::Reader::SerializedFilter filter,
-                                                                 std::string queue_name, int segment_id,
-                                                                 int segment_count) {
+std::shared_ptr<tea::samovar::SingleQueueClient> SamovarMakePlan(
+    TeaContextPtr tea_ctx, tea::Reader::SerializedFilter filter, std::string queue_name, int segment_id,
+    int segment_count, std::shared_ptr<tea::samovar::SingleQueueClient> samovar_client) {
   TEA_LOG("I am samovar coordinator");
 
   tea::PlannerStats& stats = get::PlannerStats(tea_ctx);
@@ -956,8 +955,10 @@ std::shared_ptr<tea::samovar::SingleQueueClient> SamovarMakePlan(TeaContextPtr t
         // SinglenodeMetadataParsing mode uses its own validation which is performed after applying min/max filters
         ValidateFilesCountInDistributedMode(config.config, manifest_files_queue);
 
-        std::shared_ptr<tea::samovar::SingleQueueClient> samovar_client =
-            CreateSamovarClient(tea_ctx, queue_name, segment_id, segment_count, tea::samovar::SamovarRole::kFollower);
+        if (!samovar_client) {
+          samovar_client =
+              CreateSamovarClient(tea_ctx, queue_name, segment_id, segment_count, tea::samovar::SamovarRole::kFollower);
+        }
         TEA_LOG("Samovar: filling manifests queue");
         auto maybe_stats = tea::samovar::FillSamovarWithManifests(get::Config(tea_ctx), schema, manifest_files_queue,
                                                                   segment_count, samovar_client);
@@ -1000,8 +1001,10 @@ std::shared_ptr<tea::samovar::SingleQueueClient> SamovarMakePlan(TeaContextPtr t
 
         ValidateAllMetadata(get::Config(tea_ctx), all_meta);
 
-        std::shared_ptr<tea::samovar::SingleQueueClient> samovar_client =
-            CreateSamovarClient(tea_ctx, queue_name, segment_id, segment_count, tea::samovar::SamovarRole::kFollower);
+        if (!samovar_client) {
+          samovar_client =
+              CreateSamovarClient(tea_ctx, queue_name, segment_id, segment_count, tea::samovar::SamovarRole::kFollower);
+        }
 
         tea::UpdatePlannerStats(stats, *metrics);
 
@@ -1054,13 +1057,9 @@ void TeaContextPlanExternal(TeaContextPtr tea_ctx, const ExternalScanParams* par
 
     const bool from_samovar = get::SamovarConfig(tea_ctx).turn_on_samovar;
     std::shared_ptr<tea::samovar::SingleQueueClient> samovar_client;
+    bool is_samovar_coordinator = false;
     if (from_samovar) {
       const std::string queue_name = make_samovar_queue_name();
-
-      const auto target_coordinator =
-          tea::samovar::GetCoordinator(get::SessionId(tea_ctx), get::Source(tea_ctx), params->segment_count);
-      const bool is_coordinator = params->segment_id == target_coordinator;
-
       const auto& cfg = get::Config(tea_ctx).samovar_config;
       const int slice_id = params->slice_id;
       const int first_slice_to_sleep = cfg.first_slice_to_sleep;
@@ -1075,11 +1074,24 @@ void TeaContextPlanExternal(TeaContextPtr tea_ctx, const ExternalScanParams* par
         }
       }
 
-      if (is_coordinator) {
-        samovar_client =
-            SamovarMakePlan(tea_ctx, filter, make_samovar_queue_name(), params->segment_id, params->segment_count);
+      if (cfg.enable_setnx_coordinator) {
+        samovar_client = CreateSamovarClient(tea_ctx, queue_name, params->segment_id, params->segment_count,
+                                             tea::samovar::SamovarRole::kFollower);
+        is_samovar_coordinator = samovar_client->TryClaimCoordinator(params->segment_id);
+        TEA_LOG("Samovar coordinator is selected via SETNX. Current segment " + std::to_string(params->segment_id) +
+                (is_samovar_coordinator ? " won coordinator role" : " is follower"));
       } else {
-        TEA_LOG("Samovar coordinator for query is " + std::to_string(target_coordinator));
+        const auto target_coordinator =
+            tea::samovar::GetCoordinator(get::SessionId(tea_ctx), get::Source(tea_ctx), params->segment_count);
+        is_samovar_coordinator = params->segment_id == target_coordinator;
+        if (!is_samovar_coordinator) {
+          TEA_LOG("Samovar coordinator for query is " + std::to_string(target_coordinator));
+        }
+      }
+
+      if (is_samovar_coordinator) {
+        samovar_client =
+            SamovarMakePlan(tea_ctx, filter, queue_name, params->segment_id, params->segment_count, samovar_client);
       }
     }
 
@@ -1087,14 +1099,10 @@ void TeaContextPlanExternal(TeaContextPtr tea_ctx, const ExternalScanParams* par
       if (from_samovar) {
         const std::string queue_name = make_samovar_queue_name();
 
-        const auto target_coordinator =
-            tea::samovar::GetCoordinator(get::SessionId(tea_ctx), get::Source(tea_ctx), params->segment_count);
-        const bool is_coordinator = params->segment_id == target_coordinator;
-
         // Followers should wait for some time (at least 3x the average s3 request latency) since no progress is
         // impossible until the coordinator writes the metadata to Samovar.
         // The coordinator does not have to wait because the metadata has already been written by him.
-        if (!is_coordinator) {
+        if (!is_samovar_coordinator) {
           const auto& config = get::Config(tea_ctx);
           if (config.samovar_config.wait_before_processing) {
             std::chrono::milliseconds sleep_time =

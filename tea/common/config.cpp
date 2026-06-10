@@ -441,6 +441,7 @@ arrow::Status ReadValues(Source* src, Config* config, std::string_view section_p
   Get(src, section_prefix, "metadata_access", "default_schema", &config->meta_access.default_schema);
 
   Get(src, section_prefix, "samovar", "use_samovar", &config->samovar_config.turn_on_samovar);
+  Get(src, section_prefix, "samovar", "enable_setnx_coordinator", &config->samovar_config.enable_setnx_coordinator);
 
   // SyncBackoff = MetadataBackoff by default, but params can be overrided
   GetBackoffInfo(src, &config->samovar_config.metadata_backoff, section_prefix, "");
@@ -472,6 +473,7 @@ arrow::Status ReadValues(Source* src, Config* config, std::string_view section_p
       &config->samovar_config.max_time_before_processing_ms);
 
   Get(src, section_prefix, "samovar", "need_sync_on_init", &config->samovar_config.need_sync_on_init);
+  Get(src, section_prefix, "samovar", "sync_segments", &config->samovar_config.sync_segments);
   Get(src, section_prefix, "samovar", "allow_static_balancing", &config->samovar_config.allow_static_balancing);
 
   Get(src, section_prefix, "samovar", "first_slice_to_sleep", &config->samovar_config.first_slice_to_sleep);

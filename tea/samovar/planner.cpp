@@ -46,14 +46,39 @@
 
 namespace tea::samovar {
 
+namespace {
+int GetSyncSegmentsOnInit(const SamovarConfig& config, int segment_count, size_t endpoint_index) {
+  if (!config.enable_setnx_coordinator) {
+    return segment_count;
+  }
+
+  if (config.sync_segments.size() != config.endpoints.size()) {
+    throw std::runtime_error("Samovar config error: sync_segments size must match number of endpoints");
+  }
+  if (endpoint_index >= config.sync_segments.size()) {
+    throw std::runtime_error("Samovar internal error: endpoint index is out of bounds for sync_segments");
+  }
+
+  const int sync_segments = config.sync_segments[endpoint_index];
+  if (sync_segments <= 0 || sync_segments > segment_count) {
+    throw std::runtime_error("Samovar config error: sync_segments value must be in [1, segment_count]");
+  }
+
+  return sync_segments;
+}
+}  // namespace
+
 std::shared_ptr<SingleQueueClient> MakeSamovarDataClient(const SamovarConfig& config, const std::string& queue_name,
                                                          int segment_id, int segment_count, SamovarRole role,
                                                          const CancelToken& cancel_token) {
   auto sync_backoff = CreateBackoff(config.sync_backoff, cancel_token);
   auto metadata_backoff = CreateBackoff(config.metadata_backoff, cancel_token);
 
-  std::shared_ptr<ISamovarClient> samovar_client =
+  auto redis_client =
       std::make_shared<SamovarRedisClient>(config.endpoints, config.request_timeout, config.connection_timeout);
+  const int sync_segments_on_init =
+      GetSyncSegmentsOnInit(config, segment_count, redis_client->GetConnectedEndpointIndex());
+  std::shared_ptr<ISamovarClient> samovar_client = redis_client;
   auto batch_size_scheduler = std::make_shared<ConstantBatchSizeScheduler>(config.batch_size);
   auto batcher = std::make_shared<Batcher>(samovar_client, batch_size_scheduler);
 
@@ -63,7 +88,8 @@ std::shared_ptr<SingleQueueClient> MakeSamovarDataClient(const SamovarConfig& co
     case BalancerType::kOneQueue: {
       samovar_data_client_ = std::make_shared<SingleQueueClient>(
           samovar_client, batcher, config.ttl_seconds, queue_name, segment_count, config.compressor_name, role,
-          sync_backoff, metadata_backoff, config.need_sync_on_init, config.queue_push_batch_size);
+          sync_backoff, metadata_backoff, config.need_sync_on_init, config.queue_push_batch_size,
+          sync_segments_on_init);
       break;
     }
     default:

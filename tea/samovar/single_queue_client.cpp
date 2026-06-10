@@ -35,7 +35,7 @@ SingleQueueClient::SingleQueueClient(std::shared_ptr<ISamovarClient> client, std
                                      std::chrono::seconds ttl_seconds, const std::string& queue_id, int segment_count,
                                      const std::string& compressor_name, SamovarRole role,
                                      std::shared_ptr<IBackoff> sync_backoff, std::shared_ptr<IBackoff> metadata_backoff,
-                                     bool need_sync_on_init, uint32_t queue_push_batch_size)
+                                     bool need_sync_on_init, uint32_t queue_push_batch_size, int sync_segments_on_init)
     : client_(client),
       batcher_(batcher),
       ttl_seconds_(ttl_seconds),
@@ -44,6 +44,7 @@ SingleQueueClient::SingleQueueClient(std::shared_ptr<ISamovarClient> client, std
       role_(role),
       metadata_backoff_(metadata_backoff),
       need_sync_on_init_(need_sync_on_init),
+      sync_segments_on_init_(sync_segments_on_init),
       sync_backoff_(sync_backoff),
       segment_count_(segment_count),
       queue_push_batch_size_(queue_push_batch_size) {
@@ -117,7 +118,7 @@ const samovar::ScanMetadata& SingleQueueClient::GetPlannedMetadata() {
   if (role_ == SamovarRole::kFollower && need_sync_on_init_) {
     ScopedTimerTicks timer(total_sync_time_);
 
-    SyncSegments(client_, GetInitScanCell(), segment_count_, sync_backoff_, "sync_segments");
+    SyncSegments(client_, GetInitScanCell(), sync_segments_on_init_, sync_backoff_, "sync_segments");
   }
 
   samovar::ScanMetadata result_metadata;
@@ -196,6 +197,13 @@ std::string SingleQueueClient::GetMetadataCell() {
   return *metadata_cell_;
 }
 
+std::string SingleQueueClient::GetCoordinatorCell() {
+  if (!coordinator_cell_) {
+    coordinator_cell_ = coordinator_prefix + queue_id_;
+  }
+  return *coordinator_cell_;
+}
+
 std::string SingleQueueClient::GetManifestsSyncScanCell() { return manifest_sync_prefix + queue_id_; }
 std::string SingleQueueClient::GetManifestCell() { return manifest_queue_prefix + queue_id_; }
 
@@ -225,6 +233,10 @@ int64_t SingleQueueClient::GetMetricValue(SamovarMetrics metric) const {
   }
 }
 
+bool SingleQueueClient::TryClaimCoordinator(int segment_id) {
+  return client_->SetCellIfNotExists(GetCoordinatorCell(), std::to_string(segment_id), ttl_seconds_);
+}
+
 SingleQueueClient::~SingleQueueClient() {
   if (role_ == SamovarRole::kFollower) {
     try {
@@ -236,7 +248,7 @@ SingleQueueClient::~SingleQueueClient() {
 }
 
 std::vector<std::string> SingleQueueClient::AllCells() {
-  return {queue_id_,           GetMetadataCell(), GetInitScanCell(), GetManifestsSyncScanCell(),
+  return {queue_id_,           GetMetadataCell(), GetCoordinatorCell(), GetInitScanCell(), GetManifestsSyncScanCell(),
           GetCheckpointCell(), GetFileListCell(), GetManifestCell()};
 }
 
