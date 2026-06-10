@@ -32,7 +32,7 @@ void SyncSegments(std::shared_ptr<ISamovarClient> client, const std::string& cel
 
 void CheckQueryClientsLimit(std::shared_ptr<ISamovarClient> client, const std::string& query_clients_count_key,
                             std::chrono::seconds ttl_seconds, uint64_t max_clients_per_query) {
-  if (max_clients_per_query == 0 || query_clients_count_key.empty()) {
+  if (max_clients_per_query == 0) {
     return;
   }
   const int clients_count = client->IncreaseNumericCell(query_clients_count_key);

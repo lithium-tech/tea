@@ -53,13 +53,15 @@ void CreateSingleRowTable(TestState& state) {
   ASSERT_OK(state.AddDataFiles({file_path}));
 }
 
+constexpr int kSamovarClientsLimit = 20;
+
 TEST_F(SamovarLimitTest, SimpleQueriesWork) {
   auto change_profile_defer = UseLimitedProfile();
 
   CreateSingleRowTable(*state_);
   ASSIGN_OR_FAIL(auto defer, state_->CreateTable({GreenplumColumnInfo{.name = "col1", .type = "int4"}}));
 
-  for (int i = 0; i < 3; ++i) {
+  for (int i = 0; i < kSamovarClientsLimit + 1; ++i) {
     ASSIGN_OR_FAIL(pq::ScanResult result, pq::Query(MakeUnionAllQuery(kDefaultTableName, 1)).Run(*conn_));
     ASSERT_EQ(result, pq::ScanResult({"count"}, {{"1"}}));
   }
@@ -72,7 +74,6 @@ TEST_F(SamovarLimitTest, ClientsLimitExceeded) {
   ASSIGN_OR_FAIL(auto defer, state_->CreateTable({GreenplumColumnInfo{.name = "col1", .type = "int4"}}));
 
   const int segments_count = pq::GetSegmentsCount(*conn_);
-  constexpr uint64_t kSamovarClientsLimit = 20;
   const int scans_count = kSamovarClientsLimit / segments_count + 2;
   auto status = pq::Query(MakeUnionAllQuery(kDefaultTableName, scans_count)).Run(*conn_).status();
 
