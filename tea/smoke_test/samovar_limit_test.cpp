@@ -9,19 +9,10 @@
 #include "tea/smoke_test/test_base.h"
 #include "tea/test_utils/column.h"
 #include "tea/test_utils/metadata.h"
+#include "tea/util/defer.h"
 
 namespace tea {
 namespace {
-
-class Defer {
- public:
-  explicit Defer(std::function<void()> func) : func_(std::move(func)) {}
-
-  ~Defer() { func_(); }
-
- private:
-  std::function<void()> func_;
-};
 
 class SamovarLimitTest : public TeaTest {
  protected:
