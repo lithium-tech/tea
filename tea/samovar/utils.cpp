@@ -388,9 +388,9 @@ std::string MakeSessionIdentifier(const TableSource& source, const std::string& 
          session_id + "/" + std::to_string(slice_id) + "/" + std::to_string(scan_identifier);
 }
 
-std::string MakeQueryIdentifier(const std::string& cluster_id, const std::string& session_id) {
+std::string MakeQueryScansIdentifier(const std::string& cluster_id, const std::string& session_id) {
   static constexpr const std::string_view protocol_version = TEA_VERSION;
-  return "/tea/" + std::string(protocol_version) + "/query_clients/" + cluster_id + "/" + session_id;
+  return "/tea/" + std::string(protocol_version) + "/query_scans/" + cluster_id + "/" + session_id;
 }
 
 bool ContainsPositionalDeletes(const samovar::ScanMetadata& scan_metadata) {

@@ -30,28 +30,29 @@ void SyncSegments(std::shared_ptr<ISamovarClient> client, const std::string& cel
       backoff, msg);
 }
 
-void CheckQueryClientsLimit(std::shared_ptr<ISamovarClient> client, const std::string& query_clients_count_key,
-                            std::chrono::seconds ttl_seconds, uint64_t max_clients_per_query) {
-  if (max_clients_per_query == 0) {
+void CheckQueryScansLimit(std::shared_ptr<ISamovarClient> client, const std::string& query_scans_count_key,
+                          std::chrono::seconds ttl_seconds, uint64_t max_scans_per_query) {
+  if (max_scans_per_query == 0) {
     return;
   }
-  const int clients_count = client->IncreaseNumericCell(query_clients_count_key);
-  client->UpdateTTL(query_clients_count_key, ttl_seconds);
-  if (static_cast<uint64_t>(clients_count) <= max_clients_per_query) {
+  const int scans_count = client->IncreaseNumericCell(query_scans_count_key);
+  client->UpdateTTL(query_scans_count_key, ttl_seconds);
+  if (static_cast<uint64_t>(scans_count) <= max_scans_per_query) {
     return;
   }
-  throw std::runtime_error("Samovar clients limit exceeded for query: " + std::to_string(clients_count) +
-                           " clients connected (limit is " + std::to_string(max_clients_per_query) + ")");
+  throw std::runtime_error("Query exceeds Samovar scan limit: " + std::to_string(scans_count) +
+                           " distributed scans requested (limit is " + std::to_string(max_scans_per_query) +
+                           "). Consider simplifying the query, reducing the number of JOIN/UNION ALL branches, "
+                           "or splitting it into separate queries");
 }
 }  // namespace
 
 SingleQueueClient::SingleQueueClient(std::shared_ptr<ISamovarClient> client, std::shared_ptr<Batcher> batcher,
                                      std::chrono::seconds ttl_seconds, const std::string& queue_id,
-                                     const std::string& query_clients_count_key, int segment_count,
-                                     const std::string& compressor_name, SamovarRole role,
-                                     uint64_t max_clients_per_query, std::shared_ptr<IBackoff> sync_backoff,
-                                     std::shared_ptr<IBackoff> metadata_backoff, bool need_sync_on_init,
-                                     uint32_t queue_push_batch_size)
+                                     const std::string& query_scans_count_key, int segment_count,
+                                     const std::string& compressor_name, SamovarRole role, uint64_t max_scans_per_query,
+                                     std::shared_ptr<IBackoff> sync_backoff, std::shared_ptr<IBackoff> metadata_backoff,
+                                     bool need_sync_on_init, uint32_t queue_push_batch_size)
     : client_(client),
       batcher_(batcher),
       ttl_seconds_(ttl_seconds),
@@ -63,7 +64,7 @@ SingleQueueClient::SingleQueueClient(std::shared_ptr<ISamovarClient> client, std
       sync_backoff_(sync_backoff),
       segment_count_(segment_count),
       queue_push_batch_size_(queue_push_batch_size) {
-  CheckQueryClientsLimit(client_, query_clients_count_key, ttl_seconds_, max_clients_per_query);
+  CheckQueryScansLimit(client_, query_scans_count_key, ttl_seconds_, max_scans_per_query);
 
   // role semantics in context of SingleQueueClient class:
   // kCoordinator means that segment will write metadata

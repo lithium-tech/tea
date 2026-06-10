@@ -20,7 +20,7 @@ namespace tea::samovar {
 int GetCoordinator(const std::string& session_id, const TableSource& table_source, int segment_count);
 
 std::shared_ptr<SingleQueueClient> MakeSamovarDataClient(const SamovarConfig& config, const std::string& queue_name,
-                                                         const std::string& query_clients_count_key, int segment_id,
+                                                         const std::string& query_scans_count_key, int segment_id,
                                                          int segment_count, SamovarRole role,
                                                          const CancelToken& cancel_token);
 

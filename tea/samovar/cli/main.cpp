@@ -159,9 +159,9 @@ int main(int argc, char** argv) {
       std::cerr << "Ticks in second: " << ticks_in_second << std::endl;
 
       std::cerr << "Filling samovar" << std::endl;
-      const std::string query_clients_count_key = tea::samovar::MakeQueryIdentifier("cluster_id", "session_id");
+      const std::string query_scans_count_key = tea::samovar::MakeQueryScansIdentifier("cluster_id", "session_id");
       auto samovar_data_client = MakeSamovarDataClient(
-          config.samovar_config, queue_name, query_clients_count_key, absl::GetFlag(FLAGS_segment_id),
+          config.samovar_config, queue_name, query_scans_count_key, absl::GetFlag(FLAGS_segment_id),
           absl::GetFlag(FLAGS_segment_count), tea::samovar::SamovarRole::kCoordinator, cancel_token);
 
       auto maybe_stats = tea::samovar::FillSamovar(config, std::move(iceberg_meta), absl::GetFlag(FLAGS_segment_count),

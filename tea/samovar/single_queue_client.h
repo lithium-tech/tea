@@ -30,8 +30,8 @@ class SingleQueueClient {
  public:
   explicit SingleQueueClient(std::shared_ptr<ISamovarClient> client, std::shared_ptr<Batcher> batcher,
                              std::chrono::seconds ttl_seconds, const std::string& queue_id,
-                             const std::string& query_clients_count_key, int segment_count,
-                             const std::string& compressor_name, SamovarRole role, uint64_t max_clients_per_query,
+                             const std::string& query_scans_count_key, int segment_count,
+                             const std::string& compressor_name, SamovarRole role, uint64_t max_scans_per_query,
                              std::shared_ptr<IBackoff> sync_backoff, std::shared_ptr<IBackoff> metadata_backoff,
                              bool need_sync_on_init, uint32_t queue_push_batch_size);
 
