@@ -143,6 +143,7 @@ struct BackoffInfo {
 
 struct SamovarConfig {
   bool turn_on_samovar = false;
+  bool enable_setnx_coordinator = false;
 
   BackoffInfo metadata_backoff;
   BackoffInfo sync_backoff;
@@ -165,6 +166,7 @@ struct SamovarConfig {
   std::chrono::milliseconds max_time_before_processing_ms = std::chrono::milliseconds(0);
 
   bool need_sync_on_init = true;
+  std::vector<int> sync_segments;
   bool allow_static_balancing = true;
 
   int32_t queue_push_batch_size = 1000;

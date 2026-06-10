@@ -31,7 +31,7 @@ class SingleQueueClient {
                              std::chrono::seconds ttl_seconds, const std::string& queue_id, int segment_count,
                              const std::string& compressor_name, SamovarRole role,
                              std::shared_ptr<IBackoff> sync_backoff, std::shared_ptr<IBackoff> metadata_backoff,
-                             bool need_sync_on_init, uint32_t queue_push_batch_size);
+                             bool need_sync_on_init, uint32_t queue_push_batch_size, int sync_segments_on_init);
 
   std::optional<samovar::AnnotatedDataEntry> GetNextDataEntry();
   std::optional<samovar::ManifestList> GetNextManifest();
@@ -50,6 +50,7 @@ class SingleQueueClient {
   std::string GetQueueId() const { return queue_id_; }
 
   int64_t GetMetricValue(SamovarMetrics metric) const;
+  bool TryClaimCoordinator(int segment_id);
 
   ~SingleQueueClient();
 
@@ -71,6 +72,7 @@ class SingleQueueClient {
   std::string queue_id_;
 
   static constexpr const char* metadata_prefix = "/samovar_meta";
+  static constexpr const char* coordinator_prefix = "/coordinator";
   static constexpr const char* file_list_prefix = "/file_list";
   static constexpr const char* init_scan_prefix = "/init_scan";
   static constexpr const char* checkpoint_prefix = "/checkpoint";
@@ -81,6 +83,7 @@ class SingleQueueClient {
   std::optional<std::string> checkpoint_cell_;
   std::optional<std::string> metadata_cell_;
   std::optional<std::string> file_list_cell_;
+  std::optional<std::string> coordinator_cell_;
 
   std::optional<samovar::ScanMetadata> cached_result_metadata;
   std::optional<samovar::FileList> file_list;
@@ -88,6 +91,7 @@ class SingleQueueClient {
   std::string GetInitScanCell();
   std::string GetCheckpointCell();
   std::string GetMetadataCell();
+  std::string GetCoordinatorCell();
   std::string GetFileListCell();
   std::string GetManifestCell();
   std::string GetManifestsSyncScanCell();
@@ -98,6 +102,7 @@ class SingleQueueClient {
   std::shared_ptr<IBackoff> metadata_backoff_;
 
   bool need_sync_on_init_ = false;
+  int sync_segments_on_init_ = 1;
   std::shared_ptr<IBackoff> sync_backoff_;
   DurationTicks total_sync_time_ = 0;
 

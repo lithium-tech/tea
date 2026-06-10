@@ -51,6 +51,7 @@ RedisClient::RedisClient(const std::vector<Endpoint>& endpoints, std::chrono::mi
     if (!TryConnect(endpoints[i])) {
       TEA_LOG("Non available redis host " + endpoints[i].host + ":" + std::to_string(endpoints[i].port));
     } else {
+      connected_endpoint_index_ = i;
       chosen_checkpoint_ = endpoints[i];
       TEA_LOG("Redis to processing - " + endpoints[i].host + ":" + std::to_string(endpoints[i].port));
       break;
@@ -115,6 +116,8 @@ int64_t RedisClient::GetRequestCount() const { return requests_count_; }
 
 int64_t RedisClient::GetErrorCount() const { return error_count_; }
 
+size_t RedisClient::GetConnectedEndpointIndex() const { return connected_endpoint_index_; }
+
 void SamovarRedisClient::PushQueue(const std::string& queue_name, const std::vector<std::string>& elements) {
   std::vector<std::string> args{"LPUSH", queue_name};
   args.insert(args.end(), elements.begin(), elements.end());
@@ -162,6 +165,23 @@ void SamovarRedisClient::SetCell(const std::string& cell_name, const std::string
   if (ErrorOnMessage(reply_repr)) {
     throw std::runtime_error("Can not set cell " + cell_name + ": " + underground_client_->GetErrorMessage());
   }
+}
+
+bool SamovarRedisClient::SetCellIfNotExists(const std::string& cell_name, const std::string& message,
+                                            std::chrono::seconds ttl) {
+  auto reply =
+      underground_client_->SendRequest({"SET", cell_name, message, "NX", "EX", std::to_string(ttl.count())}).Get();
+  if (ErrorOnMessage(reply)) {
+    throw std::runtime_error("Can not set cell if not exists " + cell_name + ": " +
+                             underground_client_->GetErrorMessage());
+  }
+  if (reply->type == REDIS_REPLY_NIL) {
+    return false;
+  }
+  if (reply->type == REDIS_REPLY_STATUS) {
+    return true;
+  }
+  throw std::runtime_error("Can not set cell if not exists " + cell_name + ": unexpected response type");
 }
 
 std::optional<std::string> SamovarRedisClient::GetCell(const std::string& cell_name) {
@@ -298,6 +318,10 @@ bool SamovarRedisClient::ContainsInSet(const std::string& set_key, const std::st
     throw std::runtime_error("Can not check if contains in set");
   }
   return reply->integer;
+}
+
+size_t SamovarRedisClient::GetConnectedEndpointIndex() const {
+  return underground_client_->GetConnectedEndpointIndex();
 }
 
 }  // namespace tea::samovar

@@ -41,6 +41,8 @@ class ISamovarClient {
   virtual std::vector<std::string> PopQueue(const std::string& queue_name, int num_elements) = 0;
 
   virtual void SetCell(const std::string& cell_name, const std::string& message, std::chrono::seconds ttl) = 0;
+  virtual bool SetCellIfNotExists(const std::string& cell_name, const std::string& message,
+                                  std::chrono::seconds ttl) = 0;
   virtual std::optional<std::string> GetCell(const std::string& cell_name) = 0;
 
   virtual void SetNumericCell(const std::string& cell_name, int value, std::chrono::seconds ttl) = 0;
