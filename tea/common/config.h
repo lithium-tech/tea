@@ -168,6 +168,7 @@ struct SamovarConfig {
   bool allow_static_balancing = true;
 
   int32_t queue_push_batch_size = 1000;
+  uint64_t max_query_segment_scans = 20'000;
 
   int32_t first_slice_to_sleep = 100;
   std::chrono::milliseconds sleep_per_slice_ms = std::chrono::milliseconds(10);

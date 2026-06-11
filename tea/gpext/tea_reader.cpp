@@ -576,11 +576,12 @@ static std::string CommonFilterToTeapotFileFilter(std::string serialized_filter)
 
 static std::shared_ptr<tea::samovar::SingleQueueClient> CreateSamovarClient(TeaContextPtr tea_ctx,
                                                                             const std::string& queue_name,
+                                                                            const std::string& query_scans_count_key,
                                                                             int segment_id, int segment_count,
                                                                             tea::samovar::SamovarRole role) {
   TEA_LOG("Creating samovar client with queue " + queue_name);
-  return MakeSamovarDataClient(get::SamovarConfig(tea_ctx), queue_name, segment_id, segment_count, role,
-                               get::CancelToken(tea_ctx));
+  return MakeSamovarDataClient(get::SamovarConfig(tea_ctx), queue_name, query_scans_count_key, segment_id,
+                               segment_count, role, get::CancelToken(tea_ctx));
 }
 
 // invoked on segment
@@ -598,9 +599,12 @@ void TeaContextPlanForeign(TeaContextPtr tea_ctx, const ForeignScanParams* param
     auto maybe_plan_meta = [&]() {
       bool from_samovar = get::SamovarConfig(tea_ctx).turn_on_samovar;
       if (from_samovar) {
+        const std::string query_scans_count_key =
+            tea::samovar::MakeQueryScansIdentifier(get::SamovarConfig(tea_ctx).cluster_id, get::SessionId(tea_ctx));
+
         auto samovar_data_client =
-            CreateSamovarClient(tea_ctx, meta_message.scan_metadata_identifier, params->segment_id,
-                                params->segment_count, tea::samovar::SamovarRole::kFollower);
+            CreateSamovarClient(tea_ctx, meta_message.scan_metadata_identifier, query_scans_count_key,
+                                params->segment_id, params->segment_count, tea::samovar::SamovarRole::kFollower);
 
         // We currencly do not use distributed metadata processing in FDW, so filter_expr is never used
         // TODO(gmusya): set filter expr
@@ -923,8 +927,9 @@ std::shared_ptr<iceberg::TableMetadataV2> GetTableMetadataNonNull(TeaContextPtr 
 
 std::shared_ptr<tea::samovar::SingleQueueClient> SamovarMakePlan(TeaContextPtr tea_ctx,
                                                                  tea::Reader::SerializedFilter filter,
-                                                                 std::string queue_name, int segment_id,
-                                                                 int segment_count) {
+                                                                 std::string queue_name,
+                                                                 const std::string& query_scans_count_key,
+                                                                 int segment_id, int segment_count) {
   TEA_LOG("I am samovar coordinator");
 
   tea::PlannerStats& stats = get::PlannerStats(tea_ctx);
@@ -957,7 +962,8 @@ std::shared_ptr<tea::samovar::SingleQueueClient> SamovarMakePlan(TeaContextPtr t
         ValidateFilesCountInDistributedMode(config.config, manifest_files_queue);
 
         std::shared_ptr<tea::samovar::SingleQueueClient> samovar_client =
-            CreateSamovarClient(tea_ctx, queue_name, segment_id, segment_count, tea::samovar::SamovarRole::kFollower);
+            CreateSamovarClient(tea_ctx, queue_name, query_scans_count_key, segment_id, segment_count,
+                                tea::samovar::SamovarRole::kFollower);
         TEA_LOG("Samovar: filling manifests queue");
         auto maybe_stats = tea::samovar::FillSamovarWithManifests(get::Config(tea_ctx), schema, manifest_files_queue,
                                                                   segment_count, samovar_client);
@@ -1001,7 +1007,8 @@ std::shared_ptr<tea::samovar::SingleQueueClient> SamovarMakePlan(TeaContextPtr t
         ValidateAllMetadata(get::Config(tea_ctx), all_meta);
 
         std::shared_ptr<tea::samovar::SingleQueueClient> samovar_client =
-            CreateSamovarClient(tea_ctx, queue_name, segment_id, segment_count, tea::samovar::SamovarRole::kFollower);
+            CreateSamovarClient(tea_ctx, queue_name, query_scans_count_key, segment_id, segment_count,
+                                tea::samovar::SamovarRole::kFollower);
 
         tea::UpdatePlannerStats(stats, *metrics);
 
@@ -1051,6 +1058,9 @@ void TeaContextPlanExternal(TeaContextPtr tea_ctx, const ExternalScanParams* par
                                                  get::SessionId(tea_ctx), "0", params->slice_id,
                                                  get::ScanIdentifier(tea_ctx), false);
     };
+    auto make_samovar_query_scans_count_key = [&]() {
+      return tea::samovar::MakeQueryScansIdentifier(get::SamovarConfig(tea_ctx).cluster_id, get::SessionId(tea_ctx));
+    };
 
     const bool from_samovar = get::SamovarConfig(tea_ctx).turn_on_samovar;
     std::shared_ptr<tea::samovar::SingleQueueClient> samovar_client;
@@ -1077,7 +1087,8 @@ void TeaContextPlanExternal(TeaContextPtr tea_ctx, const ExternalScanParams* par
 
       if (is_coordinator) {
         samovar_client =
-            SamovarMakePlan(tea_ctx, filter, make_samovar_queue_name(), params->segment_id, params->segment_count);
+            SamovarMakePlan(tea_ctx, filter, make_samovar_queue_name(), make_samovar_query_scans_count_key(),
+                            params->segment_id, params->segment_count);
       } else {
         TEA_LOG("Samovar coordinator for query is " + std::to_string(target_coordinator));
       }
@@ -1106,8 +1117,9 @@ void TeaContextPlanExternal(TeaContextPtr tea_ctx, const ExternalScanParams* par
         }
 
         if (!samovar_client) {
-          samovar_client = CreateSamovarClient(tea_ctx, queue_name, params->segment_id, params->segment_count,
-                                               tea::samovar::SamovarRole::kFollower);
+          samovar_client =
+              CreateSamovarClient(tea_ctx, queue_name, make_samovar_query_scans_count_key(), params->segment_id,
+                                  params->segment_count, tea::samovar::SamovarRole::kFollower);
         }
 
         auto result = tea::samovar::FromSamovar(get::Config(tea_ctx), params->segment_id, queue_name, samovar_client,
@@ -1288,11 +1300,13 @@ void TeaContextGetScanMetadata(const TeaContextPtr tea_ctx, const char* session_
           std::string queue_name =
               tea::samovar::MakeSessionIdentifier(get::Source(tea_ctx), get::SamovarConfig(tea_ctx).cluster_id,
                                                   session_id, gen.CreateRandom().ToString(), 1, 1, true);
+          std::string query_scans_count_key =
+              tea::samovar::MakeQueryScansIdentifier(get::SamovarConfig(tea_ctx).cluster_id, session_id);
 
           std::shared_ptr<iceberg::Schema> schema = all_meta.schema;
 
-          auto samovar_data_client =
-              CreateSamovarClient(tea_ctx, queue_name, 0, segment_count, tea::samovar::SamovarRole::kCoordinator);
+          auto samovar_data_client = CreateSamovarClient(tea_ctx, queue_name, query_scans_count_key, 0, segment_count,
+                                                         tea::samovar::SamovarRole::kCoordinator);
 
           TEA_LOG("Filling queue " + queue_name);
           auto stats =

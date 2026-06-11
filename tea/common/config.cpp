@@ -478,6 +478,7 @@ arrow::Status ReadValues(Source* src, Config* config, std::string_view section_p
   Get(src, section_prefix, "samovar", "sleep_per_slice_ms", &config->samovar_config.sleep_per_slice_ms);
   Get(src, section_prefix, "samovar", "max_sleep_time_ms", &config->samovar_config.max_sleep_time_ms);
   Get(src, section_prefix, "samovar", "queue_push_batch_size", &config->samovar_config.queue_push_batch_size);
+  Get(src, section_prefix, "samovar", "max_query_segment_scans", &config->samovar_config.max_query_segment_scans);
 
   return arrow::Status::OK();
 }

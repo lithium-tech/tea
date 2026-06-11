@@ -175,11 +175,69 @@ TEST(RedisClient, Test1) {
                                            std::chrono::milliseconds(30000), std::chrono::milliseconds(3000));
   auto batcher = std::make_shared<Batcher>(redis_client, batch_size_scheduler);
   auto client = SingleQueueClient(redis_client, batcher, std::chrono::seconds(std::numeric_limits<int32_t>::max()),
-                                  GetQueueName(), 1, std::string(compression::kIdentityCompressorName),
-                                  SamovarRole::kCoordinator, backoff, backoff, true, 1);
+                                  GetQueueName(), "", 1, std::string(compression::kIdentityCompressorName),
+                                  SamovarRole::kCoordinator, 0, backoff, backoff, true, 1);
 
   client.FillFilesQueue({}, {}, {});
   EXPECT_FALSE(client.GetNextDataEntry());
+  KillRedis();
+}
+
+TEST(RedisClient, QueryScansLimitDisabled) {
+  StartRedis();
+  FlushServer();
+
+  auto backoff = std::make_shared<NoBackoff>(30);
+  auto batch_size_scheduler = std::make_shared<ConstantBatchSizeScheduler>(1);
+  auto redis_client =
+      std::make_shared<SamovarRedisClient>(std::vector<Endpoint>{Endpoint{.host = "0.0.0.0", .port = kDefaultPort}},
+                                           std::chrono::milliseconds(30000), std::chrono::milliseconds(3000));
+  auto batcher = std::make_shared<Batcher>(redis_client, batch_size_scheduler);
+  const std::string query_scans_count_key = MakeQueryScansIdentifier("cluster", "session_id");
+
+  auto first_client =
+      SingleQueueClient(redis_client, batcher, std::chrono::seconds(std::numeric_limits<int32_t>::max()),
+                        GetQueueName(), query_scans_count_key, 1, std::string(compression::kIdentityCompressorName),
+                        SamovarRole::kCoordinator, 0, backoff, backoff, true, 1);
+  auto second_client =
+      SingleQueueClient(redis_client, batcher, std::chrono::seconds(std::numeric_limits<int32_t>::max()),
+                        GetQueueName(), query_scans_count_key, 1, std::string(compression::kIdentityCompressorName),
+                        SamovarRole::kCoordinator, 0, backoff, backoff, true, 1);
+
+  KillRedis();
+}
+
+TEST(RedisClient, QueryScansLimitExceeded) {
+  StartRedis();
+  FlushServer();
+
+  auto backoff = std::make_shared<NoBackoff>(30);
+  auto batch_size_scheduler = std::make_shared<ConstantBatchSizeScheduler>(1);
+  auto redis_client =
+      std::make_shared<SamovarRedisClient>(std::vector<Endpoint>{Endpoint{.host = "0.0.0.0", .port = kDefaultPort}},
+                                           std::chrono::milliseconds(30000), std::chrono::milliseconds(3000));
+  auto batcher = std::make_shared<Batcher>(redis_client, batch_size_scheduler);
+  const std::string query_scans_count_key = MakeQueryScansIdentifier("cluster", "session_id");
+  constexpr uint64_t kMaxScansPerQuery = 3;
+
+  std::vector<std::shared_ptr<SingleQueueClient>> clients;
+  for (int i = 0; i < static_cast<int>(kMaxScansPerQuery); ++i) {
+    clients.emplace_back(std::make_shared<SingleQueueClient>(
+        redis_client, batcher, std::chrono::seconds(std::numeric_limits<int32_t>::max()), GetQueueName(),
+        query_scans_count_key, 1, std::string(compression::kIdentityCompressorName), SamovarRole::kCoordinator,
+        kMaxScansPerQuery, backoff, backoff, true, 1));
+  }
+
+  try {
+    auto client =
+        SingleQueueClient(redis_client, batcher, std::chrono::seconds(std::numeric_limits<int32_t>::max()),
+                          GetQueueName(), query_scans_count_key, 1, std::string(compression::kIdentityCompressorName),
+                          SamovarRole::kCoordinator, kMaxScansPerQuery, backoff, backoff, true, 1);
+    EXPECT_FALSE(true);
+  } catch (const std::exception& ex) {
+    EXPECT_NE(std::string(ex.what()).find("Query exceeds Samovar scan limit"), std::string::npos);
+  }
+
   KillRedis();
 }
 
@@ -206,10 +264,10 @@ TEST(RedisClient, MultiThreading) {
             std::vector<Endpoint>{Endpoint{.host = "0.0.0.0", .port = kDefaultPort}}, std::chrono::milliseconds(3000),
             std::chrono::milliseconds(3000));
         auto batcher = std::make_shared<Batcher>(redis_client, batch_size_scheduler);
-        auto client =
-            SingleQueueClient(redis_client, batcher, std::chrono::seconds(std::numeric_limits<int32_t>::max()),
-                              GetQueueName(test_iter), num_segments, std::string(compression::kIdentityCompressorName),
-                              SamovarRole::kCoordinator, backoff, backoff, true, 1);
+        auto client = SingleQueueClient(
+            redis_client, batcher, std::chrono::seconds(std::numeric_limits<int32_t>::max()), GetQueueName(test_iter),
+            "", num_segments, std::string(compression::kIdentityCompressorName), SamovarRole::kCoordinator, 0, backoff,
+            backoff, true, 1);
 
         if (segment_id == 0) {
           samovar::ScanMetadata scan_metadata;
@@ -367,8 +425,8 @@ TEST(RedisClient, FailServer) {
 
         try {
           client = std::make_shared<SingleQueueClient>(
-              redis_client, batcher, std::chrono::seconds(std::numeric_limits<int32_t>::max()), GetQueueName(),
-              num_segments, std::string(compression::kIdentityCompressorName), SamovarRole::kCoordinator, backoff,
+              redis_client, batcher, std::chrono::seconds(std::numeric_limits<int32_t>::max()), GetQueueName(), "",
+              num_segments, std::string(compression::kIdentityCompressorName), SamovarRole::kCoordinator, 0, backoff,
               backoff, true, 1);
         } catch (const std::runtime_error& ex) {
           std::lock_guard lock(kill_mutex);

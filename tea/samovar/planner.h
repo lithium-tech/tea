@@ -20,7 +20,8 @@ namespace tea::samovar {
 int GetCoordinator(const std::string& session_id, const TableSource& table_source, int segment_count);
 
 std::shared_ptr<SingleQueueClient> MakeSamovarDataClient(const SamovarConfig& config, const std::string& queue_name,
-                                                         int segment_id, int segment_count, SamovarRole role,
+                                                         const std::string& query_scans_count_key, int segment_id,
+                                                         int segment_count, SamovarRole role,
                                                          const CancelToken& cancel_token);
 
 arrow::Result<PlannerStats> FillSamovar(const Config& config, iceberg::ice_tea::ScanMetadata&& meta, int segment_count,

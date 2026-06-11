@@ -105,6 +105,22 @@
                 "default_schema": "iceberg"
             }
         },
+        "iceberg_samovar_connection_limit": {
+            "samovar": {
+                "use_samovar": true,
+                "backoff_type": "exp",
+                "exponential_backoff_sleep_coef": 2.5,
+                "exponential_backoff_limit_ms": 5000,
+                "limit_retries": 50,
+                "samovar": "0.0.0.0:6379",
+                "split_type": "offsets",
+                "need_sync_on_init": false,
+                "max_query_segment_scans": 20
+            },
+            "metadata_access": {
+                "default_schema": "iceberg"
+            }
+        },
         "broken_samovar": {
             "samovar": {
                 "use_samovar": true,

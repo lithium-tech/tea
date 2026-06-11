@@ -53,6 +53,7 @@ set(smoke_test_sources
   filter_tests/temporal_arithmetic_test.cpp
   filter_tests/unary_test.cpp
   session_test.cpp
+  samovar_limit_test.cpp
   system_column_test.cpp
   stats_test.cpp
   iceberg_test.cpp
