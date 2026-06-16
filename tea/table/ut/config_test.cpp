@@ -132,6 +132,10 @@ TEST_F(ConfigSourceTest, TableTypes) {
 
   config = ConfigSource::GetTableConfig("tea://iceberg://table.id");
   EXPECT_THAT(config.source, testing::VariantWith<IcebergTable>(IcebergTable{.table_id = {"table", "id"}}));
+
+  config = ConfigSource::GetTableConfig("tea://iceberg://table.id?snapshot_id=123");
+  EXPECT_THAT(config.source, testing::VariantWith<IcebergTable>(IcebergTable{.table_id = {"table", "id"}}));
+  EXPECT_EQ(config.config.snapshot_id, 123);
 }
 
 TEST_F(ConfigSourceTest, InvalidUrl) {
@@ -140,6 +144,7 @@ TEST_F(ConfigSourceTest, InvalidUrl) {
   EXPECT_ANY_THROW(ConfigSource::GetTableConfig("tea://hdfs://unsupported"));
   EXPECT_ANY_THROW(ConfigSource::GetTableConfig("tea://teapot://invalid_table_id"));
   EXPECT_ANY_THROW(ConfigSource::GetTableConfig("tea://iceberg://invalid_table_id"));
+  EXPECT_ANY_THROW(ConfigSource::GetTableConfig("tea://iceberg://table.id?snapshot_id=abc"));
 }
 
 }  // namespace

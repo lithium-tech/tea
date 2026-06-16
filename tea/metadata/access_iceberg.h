@@ -23,7 +23,8 @@ std::pair<iceberg::ice_tea::ScanMetadata, PlannerStats> FromIcebergWithLocation(
     iceberg::filter::NodePtr filter, std::shared_ptr<iceberg::IFileSystemProvider> fs_provider,
     const std::string& location, int64_t timestamp_to_timestamptz_shift_us,
     std::function<bool(iceberg::Schema& schema)> use_avro_reader_schema,
-    iceberg::filter::NodePtr partition_pruning_filter, const CancelToken& cancel_token);
+    iceberg::filter::NodePtr partition_pruning_filter, const CancelToken& cancel_token,
+    std::optional<int64_t> snapshot_id = std::nullopt);
 
 std::string GetIcebergTableLocation(const Config& config, TableId table_id);
 

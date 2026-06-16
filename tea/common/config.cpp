@@ -22,6 +22,7 @@
 #include "rapidjson/istreamwrapper.h"
 #include "rapidjson/schema.h"
 
+#include "tea/common/utils.h"
 #include "tea/observability/tea_log.h"
 
 namespace tea {
@@ -608,7 +609,7 @@ arrow::Status Config::FromJsonFile(const std::string& file_path, const std::opti
   return FromJsonStream(input_config, schema_content, profile);
 }
 
-Config ConfigSource::GetConfig(std::string_view profile) {
+Config ConfigSource::GetConfig(std::string_view profile, std::optional<int64_t> snapshot_id) {
   auto json_config_path = Config::GetJsonFilePath();
   auto json_schema_config_path = Config::GetJsonSchemaFilePath();
 
@@ -632,6 +633,7 @@ Config ConfigSource::GetConfig(std::string_view profile) {
     TEA_LOG("Incorrect json config " + status.message());
     throw arrow::Status::ExecutionError("Incorrect configuration file ", *json_config_path);
   }
+  config.snapshot_id = snapshot_id;
   return config;
 }
 
@@ -648,8 +650,14 @@ TableConfig ConfigSource::GetTableConfig(std::string_view url, const std::string
     }
   }
 
+  auto maybe_snapshot_id = ParseSnapshotId(url);
+  if (!maybe_snapshot_id.ok()) {
+    throw maybe_snapshot_id.status();
+  }
+  std::optional<int64_t> snapshot_id = maybe_snapshot_id.ValueUnsafe();
+
   TableConfig table_config;
-  table_config.config = GetConfig(profile);
+  table_config.config = GetConfig(profile, snapshot_id);
 
   const auto schema =
       (components.schema.empty()) ? table_config.config.meta_access.default_schema : std::string(components.schema);
