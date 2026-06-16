@@ -64,13 +64,6 @@ arrow::Result<IcebergInfo> IcebergInfoFromConfig(const Config& config, TableId t
   }
 
   auto schema = tea::GetSchemaForSnapshot(table_metadata, snapshot_id);
-  if (!schema) {
-    if (snapshot_id.has_value()) {
-      return arrow::Status::ExecutionError("Snapshot with ID " + std::to_string(*snapshot_id) +
-                                           " not found in table metadata");
-    }
-    return arrow::Status::ExecutionError("Current schema not found in table metadata");
-  }
 
   auto manifest_list_path = tea::GetManifestListPathForSnapshot(table_metadata, snapshot_id);
   if (!manifest_list_path.has_value()) {
@@ -287,9 +280,6 @@ arrow::Result<RelationSize> Estimator::GetRelationSizeFromIceberg(
   auto entries_stream = iceberg_info.entries_stream;
 
   auto schema = tea::GetSchemaForSnapshot(table_metadata, snapshot_id);
-  if (!schema) {
-    return arrow::Status::ExecutionError("GetRelationSizeFromIceberg: schema not found for snapshot");
-  }
   TableStatsAggregator agg(schema->Columns());
 
   ForEachDataEntry(entries_stream, [&](const iceberg::ManifestEntry& entry) { agg.AddManifestEntry(entry); });
@@ -328,9 +318,6 @@ arrow::Result<ColumnStats> Estimator::GetIcebergColumnStats(const Config& config
   auto entries_stream = iceberg_info.entries_stream;
 
   auto schema = tea::GetSchemaForSnapshot(table_metadata, snapshot_id);
-  if (!schema) {
-    return arrow::Status::ExecutionError("GetIcebergColumnStats: schema not found for snapshot");
-  }
 
   int field_id = -1;
   {

@@ -49,7 +49,11 @@ arrow::Result<std::optional<int64_t>> ParseSnapshotId(std::string_view url) {
 std::shared_ptr<iceberg::Schema> GetSchemaForSnapshot(std::shared_ptr<iceberg::TableMetadataV2> table_metadata,
                                                       std::optional<int64_t> snapshot_id) {
   if (!snapshot_id.has_value()) {
-    return table_metadata->GetCurrentSchema();
+    auto schema = table_metadata->GetCurrentSchema();
+    if (!schema) {
+      throw std::runtime_error("Current schema not found in table metadata");
+    }
+    return schema;
   }
 
   std::shared_ptr<iceberg::Snapshot> target_snapshot = nullptr;
@@ -61,10 +65,9 @@ std::shared_ptr<iceberg::Schema> GetSchemaForSnapshot(std::shared_ptr<iceberg::T
   }
 
   if (!target_snapshot) {
-    return nullptr;
+    throw std::runtime_error("Snapshot with ID " + std::to_string(*snapshot_id) + " not found in table metadata");
   }
 
-  // TODO(gmusya): ???
   int32_t schema_id = target_snapshot->schema_id.value_or(table_metadata->current_schema_id);
 
   for (const auto& schema : table_metadata->schemas) {
@@ -73,7 +76,7 @@ std::shared_ptr<iceberg::Schema> GetSchemaForSnapshot(std::shared_ptr<iceberg::T
     }
   }
 
-  return nullptr;
+  throw std::runtime_error("Schema with ID " + std::to_string(schema_id) + " not found in table metadata");
 }
 
 std::optional<std::string> GetManifestListPathForSnapshot(std::shared_ptr<iceberg::TableMetadataV2> table_metadata,

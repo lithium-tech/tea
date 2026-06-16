@@ -137,13 +137,6 @@ std::pair<iceberg::ice_tea::ScanMetadata, PlannerStats> FromIcebergWithLocation(
       entries_stream = std::make_shared<EmptyIcebergStream>();
     } else {
       auto schema = tea::GetSchemaForSnapshot(table_metadata, snapshot_id);
-      if (!schema) {
-        if (snapshot_id.has_value()) {
-          return arrow::Status::ExecutionError("Snapshot with ID " + std::to_string(*snapshot_id) +
-                                               " not found in table metadata");
-        }
-        return arrow::Status::ExecutionError("Current schema not found in table metadata");
-      }
 
       std::shared_ptr<iceberg::filter::StatsFilter> partition_pruning_stats_filter;
       if (partition_pruning_filter) {

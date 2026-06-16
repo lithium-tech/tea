@@ -872,7 +872,7 @@ std::deque<iceberg::ManifestFile> GetManifestFiles(std::shared_ptr<iceberg::IFil
   auto schema = tea::GetSchemaForSnapshot(table_metadata, snapshot_id);
 
   try {
-    if (stats_filter != nullptr && schema != nullptr) {
+    if (stats_filter != nullptr) {
       std::vector<bool> can_skip =
           iceberg::ice_tea::FilterManifests(stats_filter, schema, table_metadata->partition_specs, manifest_metadatas);
       std::deque<iceberg::ManifestFile> result;
@@ -981,13 +981,6 @@ std::shared_ptr<tea::samovar::SingleQueueClient> SamovarMakePlan(TeaContextPtr t
 
     {
       std::shared_ptr<iceberg::Schema> schema = tea::GetSchemaForSnapshot(table_metadata, config.snapshot_id);
-      if (!schema) {
-        if (config.snapshot_id.has_value()) {
-          throw std::runtime_error("Snapshot with ID " + std::to_string(*config.snapshot_id) +
-                                   " not found in table metadata");
-        }
-        throw std::runtime_error("Failed to get schema for snapshot");
-      }
       TEA_LOG("Samovar: getting manifest files");
 
       std::deque<iceberg::ManifestFile> manifest_files_queue =
