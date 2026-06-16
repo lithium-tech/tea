@@ -21,6 +21,7 @@
 
 #include "tea/common/file_reader_provider.h"
 #include "tea/common/reader_properties.h"
+#include "tea/common/utils.h"
 #include "tea/metadata/access_iceberg.h"
 #include "tea/metadata/entries_stream_config.h"
 
@@ -33,7 +34,8 @@ struct IcebergInfo {
 };
 
 arrow::Result<IcebergInfo> IcebergInfoFromConfig(const Config& config, TableId table_id,
-                                                 std::shared_ptr<iceberg::IFileSystemProvider> fs_provider) {
+                                                 std::shared_ptr<iceberg::IFileSystemProvider> fs_provider = nullptr,
+                                                 std::optional<int64_t> snapshot_id = std::nullopt) {
   std::string metadata_location = access::GetIcebergTableLocation(config, table_id);
 
   ARROW_ASSIGN_OR_RAISE(auto fs, fs_provider->GetFileSystem(metadata_location));
@@ -245,17 +247,34 @@ std::map<std::string, int64_t> Estimator::GetTotalMetricsFromIceberg(
     throw std::runtime_error("GetReltuplesFromIceberg: failed to parse metadata " + metadata_location);
   }
 
-  std::shared_ptr<iceberg::Snapshot> snapshot = GetCurrentSnapshot(table_metadata);
+  std::shared_ptr<iceberg::Snapshot> snapshot;
+  if (config.snapshot_id.has_value()) {
+    for (const auto& s : table_metadata->snapshots) {
+      if (s->snapshot_id == *config.snapshot_id) {
+        snapshot = s;
+        break;
+      }
+    }
+    if (!snapshot) {
+      throw std::runtime_error("Snapshot with ID " + std::to_string(*config.snapshot_id) + " not found");
+    }
+  } else {
+    snapshot = GetCurrentSnapshot(table_metadata);
+  }
+
   return GetTotalMetricFromSnapshot(snapshot);
 }
 
 arrow::Result<RelationSize> Estimator::GetRelationSizeFromIceberg(
     const Config& config, TableId table_id, std::shared_ptr<iceberg::IFileSystemProvider> fs_provider) {
-  ARROW_ASSIGN_OR_RAISE(auto iceberg_info, IcebergInfoFromConfig(config, table_id, fs_provider));
+  ARROW_ASSIGN_OR_RAISE(auto iceberg_info, IcebergInfoFromConfig(config, table_id, fs_provider, config.snapshot_id));
   auto table_metadata = iceberg_info.table_metadata;
   auto entries_stream = iceberg_info.entries_stream;
 
-  auto schema = table_metadata->GetCurrentSchema();
+  auto schema = tea::GetSchemaForSnapshot(table_metadata, config.snapshot_id);
+  if (!schema) {
+    return arrow::Status::ExecutionError("GetRelationSizeFromIceberg: schema not found for snapshot");
+  }
   TableStatsAggregator agg(schema->Columns());
 
   ForEachDataEntry(entries_stream, [&](const iceberg::ManifestEntry& entry) { agg.AddManifestEntry(entry); });
@@ -287,13 +306,18 @@ arrow::Result<RelationSize> Estimator::GetRelationSizeFromDataFiles(
 #ifdef TEA_BUILD_STATS
 arrow::Result<ColumnStats> Estimator::GetIcebergColumnStats(const Config& config, TableId table_id,
                                                             const std::string& column_name) {
-  ARROW_ASSIGN_OR_RAISE(auto iceberg_info, IcebergInfoFromConfig(config, table_id));
+  ARROW_ASSIGN_OR_RAISE(auto iceberg_info, IcebergInfoFromConfig(config, table_id, nullptr, config.snapshot_id));
   auto table_metadata = iceberg_info.table_metadata;
   auto entries_stream = iceberg_info.entries_stream;
 
+  auto schema = tea::GetSchemaForSnapshot(table_metadata, config.snapshot_id);
+  if (!schema) {
+    return arrow::Status::ExecutionError("GetIcebergColumnStats: schema not found for snapshot");
+  }
+
   int field_id = -1;
   {
-    auto maybe_field_id = table_metadata->GetCurrentSchema()->FindColumnIgnoreCase(column_name);
+    auto maybe_field_id = schema->FindColumnIgnoreCase(column_name);
     if (!maybe_field_id.has_value()) {
       return arrow::Status::ExecutionError("GetIcebergColumnStats: Column ", column_name, " not found in schema");
     }

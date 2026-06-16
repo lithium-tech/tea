@@ -2,6 +2,7 @@
 
 #include <arrow/result.h>
 #include <arrow/status.h>
+#include <iceberg/common/fs/url.h>
 #include <iceberg/streams/iceberg/plan.h>
 
 #include <algorithm>
@@ -15,15 +16,81 @@
 #include <utility>
 #include <vector>
 
+#include "absl/strings/numbers.h"
 #include "iceberg/manifest_entry.h"
 #include "iceberg/nested_field.h"
 #include "iceberg/tea_scan.h"
 #include "iceberg/type.h"
 
+#include "tea/observability/tea_log.h"
 #include "tea/smoke_test/fragment_info.h"
 #include "teapot/teapot.pb.h"
 
 namespace tea {
+
+arrow::Result<std::optional<int64_t>> ParseSnapshotId(std::string_view url) {
+  std::string_view nested_url = url;
+  if (url.starts_with("tea://")) {
+    nested_url = url.substr(6);
+  }
+  auto components = iceberg::SplitUrl(nested_url);
+  for (auto& [key, value] : components.params) {
+    if (key == std::string_view("snapshot_id")) {
+      int64_t val;
+      if (!absl::SimpleAtoi(value, &val)) {
+        return arrow::Status::ExecutionError("Invalid snapshot_id value '", value, "' in url ", url);
+      }
+      return std::optional<int64_t>(val);
+    }
+  }
+  return std::nullopt;
+}
+
+std::shared_ptr<iceberg::Schema> GetSchemaForSnapshot(std::shared_ptr<iceberg::TableMetadataV2> table_metadata,
+                                                      std::optional<int64_t> snapshot_id) {
+  if (!snapshot_id.has_value()) {
+    return table_metadata->GetCurrentSchema();
+  }
+
+  std::shared_ptr<iceberg::Snapshot> target_snapshot = nullptr;
+  for (const auto& s : table_metadata->snapshots) {
+    if (s->snapshot_id == *snapshot_id) {
+      target_snapshot = s;
+      break;
+    }
+  }
+
+  if (!target_snapshot) {
+    return nullptr;
+  }
+
+  // TODO(gmusya): ???
+  int32_t schema_id = target_snapshot->schema_id.value_or(table_metadata->current_schema_id);
+
+  for (const auto& schema : table_metadata->schemas) {
+    if (schema->SchemaId() == schema_id) {
+      return schema;
+    }
+  }
+
+  return nullptr;
+}
+
+std::optional<std::string> GetManifestListPathForSnapshot(std::shared_ptr<iceberg::TableMetadataV2> table_metadata,
+                                                          std::optional<int64_t> snapshot_id) {
+  if (!snapshot_id.has_value()) {
+    return table_metadata->GetCurrentManifestListPath();
+  }
+
+  for (const auto& snapshot : table_metadata->snapshots) {
+    if (snapshot->snapshot_id == *snapshot_id) {
+      return snapshot->manifest_list_location;
+    }
+  }
+
+  return std::nullopt;
+}
+
 namespace {
 void IcebergTypeToTeapotType(std::shared_ptr<const iceberg::types::Type> type, teapot::Field* field) {
   using IceTypeId = iceberg::TypeID;

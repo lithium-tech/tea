@@ -26,6 +26,7 @@
 #include "tea/common/config.h"
 #include "tea/common/iceberg_fs.h"
 #include "tea/common/iceberg_stats_filter.h"
+#include "tea/common/utils.h"
 #include "tea/metadata/entries_stream_config.h"
 #include "tea/observability/planner_stats.h"
 #include "tea/observability/tea_log.h"
@@ -98,7 +99,8 @@ std::pair<iceberg::ice_tea::ScanMetadata, PlannerStats> FromIcebergWithLocation(
     iceberg::filter::NodePtr filter, std::shared_ptr<iceberg::IFileSystemProvider> fs_provider,
     const std::string& location, int64_t timestamp_to_timestamptz_shift_us,
     std::function<bool(iceberg::Schema& schema)> use_avro_reader_schema,
-    iceberg::filter::NodePtr partition_pruning_filter, const CancelToken& cancel_token) {
+    iceberg::filter::NodePtr partition_pruning_filter, const CancelToken& cancel_token,
+    std::optional<int64_t> snapshot_id) {
   PlannerStats stats;
   std::optional<ScopedTimerTicks> timer = ScopedTimerTicks(stats.plan_duration);
 
@@ -131,13 +133,14 @@ std::pair<iceberg::ice_tea::ScanMetadata, PlannerStats> FromIcebergWithLocation(
     }
 
     std::shared_ptr<iceberg::ice_tea::IcebergEntriesStream> entries_stream;
-    if (table_metadata->current_snapshot_id.has_value()) {
-      auto schema = table_metadata->GetCurrentSchema();
-      if (!schema) {
-        return arrow::Status::ExecutionError("GetScanMetadata: failed to parse metadata " + location +
-                                             " (schema not found)");
+    auto schema = tea::GetSchemaForSnapshot(table_metadata, snapshot_id);
+    if (!schema) {
+      if (snapshot_id.has_value()) {
+        return arrow::Status::ExecutionError("Snapshot with ID " + std::to_string(*snapshot_id) +
+                                             " not found in table metadata");
       }
-
+      entries_stream = std::make_shared<EmptyIcebergStream>();
+    } else {
       std::shared_ptr<iceberg::filter::StatsFilter> partition_pruning_stats_filter;
       if (partition_pruning_filter) {
         partition_pruning_stats_filter = std::make_shared<iceberg::filter::StatsFilter>(
@@ -145,16 +148,21 @@ std::pair<iceberg::ice_tea::ScanMetadata, PlannerStats> FromIcebergWithLocation(
       }
 
       bool use_reader_schema = filter ? use_avro_reader_schema(*schema) : false;
+      std::optional<std::string> maybe_manifest_list_path =
+          tea::GetManifestListPathForSnapshot(table_metadata, snapshot_id);
+      if (!maybe_manifest_list_path.has_value()) {
+        return arrow::Status::ExecutionError("Manifest list path not found for snapshot ID " +
+                                             (snapshot_id.has_value() ? std::to_string(*snapshot_id) : "nullopt"));
+      }
       entries_stream = iceberg::ice_tea::AllEntriesStream::Make(
-          fs, table_metadata, use_reader_schema, partition_pruning_stats_filter,
+          fs, maybe_manifest_list_path.value(), use_reader_schema, table_metadata->partition_specs, schema,
+          partition_pruning_stats_filter,
           filter ? MakeScanDeserializerConfigWithFilter() : MakeFullScanDeserializerConfig());
       entries_stream = std::make_shared<CancellingStream>(entries_stream, cancel_token);
       if (filter) {
-        entries_stream = std::make_shared<FilteringEntriesStream>(
-            entries_stream, filter, table_metadata->GetCurrentSchema(), timestamp_to_timestamptz_shift_us);
+        entries_stream =
+            std::make_shared<FilteringEntriesStream>(entries_stream, filter, schema, timestamp_to_timestamptz_shift_us);
       }
-    } else {
-      entries_stream = std::make_shared<EmptyIcebergStream>();
     }
 
     return iceberg::ice_tea::GetScanMetadata(*entries_stream, *table_metadata, logger);
@@ -202,7 +210,7 @@ std::pair<iceberg::ice_tea::ScanMetadata, PlannerStats> FromIceberg(
       [&](const iceberg::Schema& schema) {
         return schema.Columns().size() >= config.features.use_avro_projection_minimum_columns;
       },
-      partition_pruning_filter, cancel_token);
+      partition_pruning_filter, cancel_token, config.snapshot_id);
   stats.Combine(fs_stats);
   return {meta, stats};
 }

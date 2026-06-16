@@ -1,5 +1,6 @@
 #pragma once
 
+#include <iceberg/table_metadata.h>
 #include <parquet/metadata.h>
 
 #include <memory>
@@ -7,11 +8,21 @@
 #include <string>
 #include <vector>
 
+#include "arrow/result.h"
+#include "arrow/status.h"
 #include "iceberg/tea_scan.h"
 
 #include "teapot/teapot.pb.h"
 
 namespace tea {
+
+arrow::Result<std::optional<int64_t>> ParseSnapshotId(std::string_view url);
+
+std::shared_ptr<iceberg::Schema> GetSchemaForSnapshot(std::shared_ptr<iceberg::TableMetadataV2> table_metadata,
+                                                      std::optional<int64_t> snapshot_id);
+
+std::optional<std::string> GetManifestListPathForSnapshot(std::shared_ptr<iceberg::TableMetadataV2> table_metadata,
+                                                          std::optional<int64_t> snapshot_id);
 
 teapot::Schema IcebergSchemaToTeapotSchema(const std::shared_ptr<iceberg::Schema>& schema);
 

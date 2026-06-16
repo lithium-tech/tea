@@ -741,6 +741,13 @@ void TeaContextPrepareTotalMetricsTable(TeaContextPtr tea_ctx, const ExternalSca
   }
   std::string location = GetLocation(tea_ctx, params);
   tea::TableId table_id = GetTableId(location);
+
+  auto maybe_snapshot_id = tea::ParseSnapshotId(location);
+  if (!maybe_snapshot_id.ok()) {
+    throw maybe_snapshot_id.status();
+  }
+  std::optional<int64_t> snapshot_id = maybe_snapshot_id.ValueUnsafe();
+
   TEA_LOG("IcebergMetricsTable: table id is " + table_id.ToString());
 
   arrow::FieldVector fields;
@@ -759,8 +766,10 @@ void TeaContextPrepareTotalMetricsTable(TeaContextPtr tea_ctx, const ExternalSca
                                                        "total-files-size",       "total-equality-deletes",
                                                        "total-position-deletes", "total-delete-files"};
 
-  auto metrics = tea::meta::Estimator::GetTotalMetricsFromIceberg(get::Config(tea_ctx), table_id,
-                                                                  get::FileSystemProvider(tea_ctx));
+  auto config = get::Config(tea_ctx);
+  config.snapshot_id = snapshot_id;
+
+  auto metrics = tea::meta::Estimator::GetTotalMetricsFromIceberg(config, table_id, get::FileSystemProvider(tea_ctx));
 
   for (std::string_view field : kFields) {
     std::string str_field = std::string(field);
@@ -823,22 +832,45 @@ bool UseDistributedMetadataParsing(const std::deque<iceberg::ManifestFile>& mani
 std::deque<iceberg::ManifestFile> GetManifestFiles(std::shared_ptr<iceberg::IFileSystemProvider> fs_provider,
                                                    std::shared_ptr<iceberg::TableMetadataV2> table_metadata,
                                                    std::shared_ptr<iceberg::filter::StatsFilter> stats_filter,
-                                                   tea::PlannerStats& stats) {
-  if (table_metadata->current_snapshot_id.value_or(-1) == -1) {
-    return {};
+                                                   tea::PlannerStats& stats, std::optional<int64_t> snapshot_id) {
+  std::shared_ptr<iceberg::Snapshot> snapshot;
+  if (snapshot_id.has_value()) {
+    for (const auto& s : table_metadata->snapshots) {
+      if (s->snapshot_id == *snapshot_id) {
+        snapshot = s;
+        break;
+      }
+    }
+    if (!snapshot) {
+      throw std::runtime_error("Snapshot with ID " + std::to_string(*snapshot_id) + " not found in table metadata");
+    }
+  } else {
+    if (table_metadata->current_snapshot_id.value_or(-1) == -1) {
+      return {};
+    }
+    for (const auto& s : table_metadata->snapshots) {
+      if (s->snapshot_id == table_metadata->current_snapshot_id.value()) {
+        snapshot = s;
+        break;
+      }
+    }
+    if (!snapshot) {
+      return {};
+    }
   }
-  auto fs = iceberg::ValueSafe(fs_provider->GetFileSystem(table_metadata->GetCurrentManifestListPathOrFail()));
+
+  auto fs = iceberg::ValueSafe(fs_provider->GetFileSystem(snapshot->manifest_list_location));
   auto metrics = std::make_shared<tea::IcebergMetrics>();
   fs = std::make_shared<tea::IcebergLoggingFileSystem>(fs, metrics);
 
   const std::string manifest_metadatas_content =
-      iceberg::ValueSafe(iceberg::ice_tea::ReadFile(fs, table_metadata->GetCurrentManifestListPathOrFail()));
+      iceberg::ValueSafe(iceberg::ice_tea::ReadFile(fs, snapshot->manifest_list_location));
 
   std::stringstream ss(manifest_metadatas_content);
 
   std::vector<iceberg::ManifestFile> manifest_metadatas = iceberg::ice_tea::ReadManifestList(ss);
 
-  auto schema = table_metadata->GetCurrentSchema();
+  auto schema = tea::GetSchemaForSnapshot(table_metadata, snapshot_id);
 
   try {
     if (stats_filter != nullptr && schema != nullptr) {
@@ -949,11 +981,19 @@ std::shared_ptr<tea::samovar::SingleQueueClient> SamovarMakePlan(TeaContextPtr t
     }
 
     {
-      std::shared_ptr<iceberg::Schema> schema = table_metadata->GetCurrentSchema();
+      std::shared_ptr<iceberg::Schema> schema = tea::GetSchemaForSnapshot(table_metadata, config.config.snapshot_id);
+      if (!schema) {
+        if (config.config.snapshot_id.has_value()) {
+          throw std::runtime_error("Snapshot with ID " + std::to_string(*config.config.snapshot_id) +
+                                   " not found in table metadata");
+        }
+        throw std::runtime_error("Failed to get schema for snapshot");
+      }
       TEA_LOG("Samovar: getting manifest files");
 
       std::deque<iceberg::ManifestFile> manifest_files_queue =
-          GetManifestFiles(get::FileSystemProvider(tea_ctx), table_metadata, stats_filter, get::PlannerStats(tea_ctx));
+          GetManifestFiles(get::FileSystemProvider(tea_ctx), table_metadata, stats_filter, get::PlannerStats(tea_ctx),
+                           config.config.snapshot_id);
 
       if (UseDistributedMetadataParsing(manifest_files_queue,
                                         config.config.limits.samovar_distributed_metadata_parsing_files_threshold)) {
@@ -971,8 +1011,7 @@ std::shared_ptr<tea::samovar::SingleQueueClient> SamovarMakePlan(TeaContextPtr t
 
         return samovar_client;
       } else {
-        const bool use_reader_schema =
-            config.config.UseReaderSchema(table_metadata->GetCurrentSchema()->Columns().size());
+        const bool use_reader_schema = config.config.UseReaderSchema(schema->Columns().size());
 
         std::shared_ptr<arrow::fs::FileSystem> fs =
             iceberg::ValueSafe(get::FileSystemProvider(tea_ctx)->GetFileSystem(table_metadata->location));
@@ -986,8 +1025,8 @@ std::shared_ptr<tea::samovar::SingleQueueClient> SamovarMakePlan(TeaContextPtr t
                 node_filter ? tea::MakeScanDeserializerConfigWithFilter() : tea::MakeFullScanDeserializerConfig());
         entries_stream = std::make_shared<tea::CancellingStream>(entries_stream, get::CancelToken(tea_ctx));
         if (node_filter) {
-          entries_stream = std::make_shared<tea::FilteringEntriesStream>(
-              entries_stream, node_filter, table_metadata->GetCurrentSchema(), tea::TimestampToTimestamptzShiftUs());
+          entries_stream = std::make_shared<tea::FilteringEntriesStream>(entries_stream, node_filter, schema,
+                                                                         tea::TimestampToTimestamptzShiftUs());
         }
 
         auto logger = std::make_shared<tea::Logger>();
