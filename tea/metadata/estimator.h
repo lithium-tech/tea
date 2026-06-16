@@ -2,7 +2,6 @@
 
 #include <map>
 #include <memory>
-#include <optional>
 #include <string>
 
 #include "arrow/result.h"
@@ -25,12 +24,12 @@ class Estimator {
   static arrow::Result<ColumnStats> GetIcebergColumnStats(const Config& config, TableId table_id,
                                                           const std::string& column_name,
                                                           std::shared_ptr<iceberg::IFileSystemProvider> fs_provider,
-                                                          std::optional<int64_t> snapshot_id = std::nullopt);
+                                                          SnapshotRef snapshot_ref = CurrentSnapshot{});
 #endif
 
   static arrow::Result<RelationSize> GetRelationSizeFromIceberg(
       const Config& config, TableId table_id, std::shared_ptr<iceberg::IFileSystemProvider> fs_provider,
-      std::optional<int64_t> snapshot_id = std::nullopt);
+      SnapshotRef snapshot_ref = CurrentSnapshot{});
 
   static arrow::Result<RelationSize> GetRelationSizeFromDataFiles(
       const iceberg::ice_tea::ScanMetadata& metadata, std::shared_ptr<iceberg::IFileSystemProvider> fs_provider,
@@ -38,7 +37,7 @@ class Estimator {
 
   static std::map<std::string, int64_t> GetTotalMetricsFromIceberg(
       const Config& config, TableId table_id, std::shared_ptr<iceberg::IFileSystemProvider> fs_provider,
-      std::optional<int64_t> snapshot_id = std::nullopt);
+      SnapshotRef snapshot_ref = CurrentSnapshot{});
 };
 
 }  // namespace tea::meta

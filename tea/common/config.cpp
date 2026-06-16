@@ -650,15 +650,15 @@ TableConfig ConfigSource::GetTableConfig(std::string_view url, const std::string
     }
   }
 
-  auto maybe_snapshot_id = ParseSnapshotId(url);
-  if (!maybe_snapshot_id.ok()) {
-    throw maybe_snapshot_id.status();
+  auto maybe_snapshot_ref = ParseSnapshotRef(url);
+  if (!maybe_snapshot_ref.ok()) {
+    throw maybe_snapshot_ref.status();
   }
-  std::optional<int64_t> snapshot_id = maybe_snapshot_id.ValueUnsafe();
+  SnapshotRef snapshot_ref = maybe_snapshot_ref.ValueUnsafe();
 
   TableConfig table_config;
   table_config.config = GetConfig(profile);
-  table_config.snapshot_id = snapshot_id;
+  table_config.snapshot_ref = snapshot_ref;
 
   const auto schema =
       (components.schema.empty()) ? table_config.config.meta_access.default_schema : std::string(components.schema);

@@ -216,6 +216,26 @@ TEST_F(OtherEngineGeneratedTable, SnapshotSelectionLatest) {
   EXPECT_EQ(result.values.size(), 8);
 }
 
+TEST_F(OtherEngineGeneratedTable, SnapshotSelectionBranch) {
+  std::vector<GreenplumColumnInfo> columns = {GreenplumColumnInfo{.name = "c1", .type = "int4"},
+                                              GreenplumColumnInfo{.name = "c2", .type = "int4"}};
+
+  auto ice_loc =
+      IcebergLocation("test", "snapshot_selection", Options{.profile = Environment::GetProfile(), .branch_id = "main"});
+  auto loc = Location(std::move(ice_loc));
+  std::optional<pq::DropTableDefer> defer;
+  if (Environment::GetTableType() == TestTableType::kForeign) {
+    ASSIGN_OR_FAIL(auto d, pq::CreateForeignTableQuery(columns, kDefaultTableName, loc).Run(*conn_));
+    defer.emplace(std::move(d));
+  } else {
+    ASSIGN_OR_FAIL(auto d, pq::CreateExternalTableQuery(columns, kDefaultTableName, loc).Run(*conn_));
+    defer.emplace(std::move(d));
+  }
+
+  ASSIGN_OR_FAIL(auto result, pq::TableScanQuery(kDefaultTableName).Run(*conn_));
+  EXPECT_EQ(result.values.size(), 8);
+}
+
 TEST_F(OtherEngineGeneratedTable, SnapshotSelectionEmpty) {
   std::vector<GreenplumColumnInfo> columns = {GreenplumColumnInfo{.name = "c1", .type = "int4"},
                                               GreenplumColumnInfo{.name = "c2", .type = "int4"}};
