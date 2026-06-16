@@ -133,14 +133,18 @@ std::pair<iceberg::ice_tea::ScanMetadata, PlannerStats> FromIcebergWithLocation(
     }
 
     std::shared_ptr<iceberg::ice_tea::IcebergEntriesStream> entries_stream;
-    auto schema = tea::GetSchemaForSnapshot(table_metadata, snapshot_id);
-    if (!schema) {
-      if (snapshot_id.has_value()) {
-        return arrow::Status::ExecutionError("Snapshot with ID " + std::to_string(*snapshot_id) +
-                                             " not found in table metadata");
-      }
+    if (!snapshot_id.has_value() && !table_metadata->current_snapshot_id.has_value()) {
       entries_stream = std::make_shared<EmptyIcebergStream>();
     } else {
+      auto schema = tea::GetSchemaForSnapshot(table_metadata, snapshot_id);
+      if (!schema) {
+        if (snapshot_id.has_value()) {
+          return arrow::Status::ExecutionError("Snapshot with ID " + std::to_string(*snapshot_id) +
+                                               " not found in table metadata");
+        }
+        return arrow::Status::ExecutionError("Current schema not found in table metadata");
+      }
+
       std::shared_ptr<iceberg::filter::StatsFilter> partition_pruning_stats_filter;
       if (partition_pruning_filter) {
         partition_pruning_stats_filter = std::make_shared<iceberg::filter::StatsFilter>(
@@ -196,7 +200,8 @@ std::pair<iceberg::ice_tea::ScanMetadata, PlannerStats> FromIcebergWithLocation(
 std::pair<iceberg::ice_tea::ScanMetadata, PlannerStats> FromIceberg(
     const Config& config, TableId table_id, iceberg::filter::NodePtr filter,
     std::shared_ptr<iceberg::IFileSystemProvider> fs_provider, int64_t timestamp_to_timestamptz_shift_us,
-    iceberg::filter::NodePtr partition_pruning_filter, const CancelToken& cancel_token) {
+    iceberg::filter::NodePtr partition_pruning_filter, const CancelToken& cancel_token,
+    std::optional<int64_t> snapshot_id) {
   PlannerStats stats;
   std::string table_metadata_location;
   {
@@ -210,7 +215,7 @@ std::pair<iceberg::ice_tea::ScanMetadata, PlannerStats> FromIceberg(
       [&](const iceberg::Schema& schema) {
         return schema.Columns().size() >= config.features.use_avro_projection_minimum_columns;
       },
-      partition_pruning_filter, cancel_token, config.snapshot_id);
+      partition_pruning_filter, cancel_token, snapshot_id);
   stats.Combine(fs_stats);
   return {meta, stats};
 }

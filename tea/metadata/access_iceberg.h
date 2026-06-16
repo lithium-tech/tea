@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -17,7 +18,8 @@ namespace tea::meta::access {
 std::pair<iceberg::ice_tea::ScanMetadata, PlannerStats> FromIceberg(
     const Config& config, TableId table_id, iceberg::filter::NodePtr filter,
     std::shared_ptr<iceberg::IFileSystemProvider> fs_provider, int64_t timestamp_to_timestamptz_shift_us,
-    iceberg::filter::NodePtr partition_pruning_filter, const CancelToken& cancel_token);
+    iceberg::filter::NodePtr partition_pruning_filter, const CancelToken& cancel_token,
+    std::optional<int64_t> snapshot_id = std::nullopt);
 
 std::pair<iceberg::ice_tea::ScanMetadata, PlannerStats> FromIcebergWithLocation(
     iceberg::filter::NodePtr filter, std::shared_ptr<iceberg::IFileSystemProvider> fs_provider,

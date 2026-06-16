@@ -135,7 +135,7 @@ TEST_F(ConfigSourceTest, TableTypes) {
 
   config = ConfigSource::GetTableConfig("tea://iceberg://table.id?snapshot_id=123");
   EXPECT_THAT(config.source, testing::VariantWith<IcebergTable>(IcebergTable{.table_id = {"table", "id"}}));
-  EXPECT_EQ(config.config.snapshot_id, 123);
+  EXPECT_EQ(config.snapshot_id, 123);
 }
 
 TEST_F(ConfigSourceTest, InvalidUrl) {

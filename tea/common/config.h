@@ -203,7 +203,6 @@ struct Config {
   JsonConfig json;
   SamovarConfig samovar_config;
   MetadataAccess meta_access;
-  std::optional<int64_t> snapshot_id = std::nullopt;
 
   bool operator==(const Config&) const = default;
 
@@ -262,12 +261,12 @@ using TableSource = std::variant<EmptyTable, TeapotTable, IcebergTable, FileTabl
 struct TableConfig {
   TableSource source;
   Config config;
+  std::optional<int64_t> snapshot_id = std::nullopt;
 };
 
 class ConfigSource {
  public:
-  static Config GetConfig(std::string_view profile = std::string_view(),
-                          std::optional<int64_t> snapshot_id = std::nullopt);
+  static Config GetConfig(std::string_view profile = std::string_view());
   static TableConfig GetTableConfig(std::string_view url, const std::string& overrided_profile = "");
 };
 

@@ -610,7 +610,7 @@ arrow::Status Config::FromJsonFile(const std::string& file_path, const std::opti
   return FromJsonStream(input_config, schema_content, profile);
 }
 
-Config ConfigSource::GetConfig(std::string_view profile, std::optional<int64_t> snapshot_id) {
+Config ConfigSource::GetConfig(std::string_view profile) {
   auto json_config_path = Config::GetJsonFilePath();
   auto json_schema_config_path = Config::GetJsonSchemaFilePath();
 
@@ -634,7 +634,6 @@ Config ConfigSource::GetConfig(std::string_view profile, std::optional<int64_t> 
     TEA_LOG("Incorrect json config " + status.message());
     throw arrow::Status::ExecutionError("Incorrect configuration file ", *json_config_path);
   }
-  config.snapshot_id = snapshot_id;
   return config;
 }
 
@@ -658,7 +657,8 @@ TableConfig ConfigSource::GetTableConfig(std::string_view url, const std::string
   std::optional<int64_t> snapshot_id = maybe_snapshot_id.ValueUnsafe();
 
   TableConfig table_config;
-  table_config.config = GetConfig(profile, snapshot_id);
+  table_config.config = GetConfig(profile);
+  table_config.snapshot_id = snapshot_id;
 
   const auto schema =
       (components.schema.empty()) ? table_config.config.meta_access.default_schema : std::string(components.schema);
