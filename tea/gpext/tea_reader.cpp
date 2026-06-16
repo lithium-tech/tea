@@ -1025,7 +1025,7 @@ std::shared_ptr<tea::samovar::SingleQueueClient> SamovarMakePlan(TeaContextPtr t
         });
 
         iceberg::ice_tea::ScanMetadata all_meta =
-            iceberg::ValueSafe(iceberg::ice_tea::GetScanMetadata(*entries_stream, *table_metadata, logger));
+            iceberg::ValueSafe(iceberg::ice_tea::GetScanMetadata(*entries_stream, *table_metadata, schema, logger));
 
         ValidateAllMetadata(get::Config(tea_ctx), all_meta);
 

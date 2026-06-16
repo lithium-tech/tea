@@ -132,10 +132,13 @@ std::pair<iceberg::ice_tea::ScanMetadata, PlannerStats> FromIcebergWithLocation(
     }
 
     std::shared_ptr<iceberg::ice_tea::IcebergEntriesStream> entries_stream;
+    std::shared_ptr<iceberg::Schema> scan_schema;
     if (IsCurrentSnapshot(snapshot_ref) && !ResolveSnapshotId(table_metadata, snapshot_ref).has_value()) {
       entries_stream = std::make_shared<EmptyIcebergStream>();
+      scan_schema = std::make_shared<iceberg::Schema>(iceberg::Schema(0, {}));
     } else {
       auto schema = tea::GetSchemaForSnapshot(table_metadata, snapshot_ref);
+      scan_schema = schema;
 
       std::shared_ptr<iceberg::filter::StatsFilter> partition_pruning_stats_filter;
       if (partition_pruning_filter) {
@@ -160,7 +163,7 @@ std::pair<iceberg::ice_tea::ScanMetadata, PlannerStats> FromIcebergWithLocation(
       }
     }
 
-    return iceberg::ice_tea::GetScanMetadata(*entries_stream, *table_metadata, logger);
+    return iceberg::ice_tea::GetScanMetadata(*entries_stream, *table_metadata, scan_schema, logger);
   }();
 
   if (result.ok()) {
