@@ -217,23 +217,77 @@ TEST_F(OtherEngineGeneratedTable, SnapshotSelectionLatest) {
 }
 
 TEST_F(OtherEngineGeneratedTable, SnapshotSelectionBranch) {
-  std::vector<GreenplumColumnInfo> columns = {GreenplumColumnInfo{.name = "c1", .type = "int4"},
-                                              GreenplumColumnInfo{.name = "c2", .type = "int4"}};
+  auto create_table = [&](const std::string& gp_table_name, const std::vector<GreenplumColumnInfo>& columns,
+                          const std::string& branch_id) -> arrow::Result<pq::DropTableDefer> {
+    auto ice_loc = IcebergLocation("mydb", "multiple_branches",
+                                   Options{.profile = Environment::GetProfile(), .branch_id = branch_id});
+    auto loc = Location(std::move(ice_loc));
+    if (Environment::GetTableType() == TestTableType::kForeign) {
+      ARROW_ASSIGN_OR_RAISE(auto result, pq::CreateForeignTableQuery(columns, gp_table_name, loc).Run(*conn_));
+      return pq::DropTableDefer(std::move(result));
+    }
+    ARROW_ASSIGN_OR_RAISE(auto result, pq::CreateExternalTableQuery(columns, gp_table_name, loc).Run(*conn_));
+    return pq::DropTableDefer(std::move(result));
+  };
 
-  auto ice_loc =
-      IcebergLocation("test", "snapshot_selection", Options{.profile = Environment::GetProfile(), .branch_id = "main"});
-  auto loc = Location(std::move(ice_loc));
-  std::optional<pq::DropTableDefer> defer;
-  if (Environment::GetTableType() == TestTableType::kForeign) {
-    ASSIGN_OR_FAIL(auto d, pq::CreateForeignTableQuery(columns, kDefaultTableName, loc).Run(*conn_));
-    defer.emplace(std::move(d));
-  } else {
-    ASSIGN_OR_FAIL(auto d, pq::CreateExternalTableQuery(columns, kDefaultTableName, loc).Run(*conn_));
-    defer.emplace(std::move(d));
-  }
+  const std::string main_table = kDefaultTableName + "_main";
+  const std::string new_branch_table = kDefaultTableName + "_new_branch";
 
-  ASSIGN_OR_FAIL(auto result, pq::TableScanQuery(kDefaultTableName).Run(*conn_));
-  EXPECT_EQ(result.values.size(), 8);
+  std::optional<pq::DropTableDefer> main_defer;
+  std::optional<pq::DropTableDefer> new_branch_defer;
+
+  std::vector<GreenplumColumnInfo> main_columns = {GreenplumColumnInfo{.name = "a", .type = "int4"}};
+  std::vector<GreenplumColumnInfo> new_branch_columns = {GreenplumColumnInfo{.name = "a", .type = "int4"},
+                                                         GreenplumColumnInfo{.name = "b", .type = "int4"}};
+
+  ASSIGN_OR_FAIL(auto main_drop, create_table(main_table, main_columns, "main"));
+  main_defer.emplace(std::move(main_drop));
+
+  ASSIGN_OR_FAIL(auto new_branch_drop, create_table(new_branch_table, new_branch_columns, "new_branch"));
+  new_branch_defer.emplace(std::move(new_branch_drop));
+
+  ASSIGN_OR_FAIL(auto main_result, pq::TableScanQuery(main_table).Run(*conn_));
+  EXPECT_EQ(main_result, pq::ScanResult({"a"}, {{"1"}, {"2"}, {"3"}, {"4"}, {"5"}, {"6"}}));
+
+  ASSIGN_OR_FAIL(auto new_branch_result, pq::TableScanQuery(new_branch_table).Run(*conn_));
+  EXPECT_EQ(new_branch_result, pq::ScanResult({"a", "b"}, {{"1", "1"}, {"2", "1"}, {"3", "2"}}));
+}
+
+TEST_F(OtherEngineGeneratedTable, SnapshotSelectionSchemaEvolution) {
+  auto create_table = [&](const std::string& gp_table_name, const std::vector<GreenplumColumnInfo>& columns,
+                          int64_t snapshot_id) -> arrow::Result<pq::DropTableDefer> {
+    auto ice_loc = IcebergLocation("mydb", "multiple_branches",
+                                   Options{.profile = Environment::GetProfile(), .snapshot_id = snapshot_id});
+    auto loc = Location(std::move(ice_loc));
+    if (Environment::GetTableType() == TestTableType::kForeign) {
+      ARROW_ASSIGN_OR_RAISE(auto result, pq::CreateForeignTableQuery(columns, gp_table_name, loc).Run(*conn_));
+      return pq::DropTableDefer(std::move(result));
+    }
+    ARROW_ASSIGN_OR_RAISE(auto result, pq::CreateExternalTableQuery(columns, gp_table_name, loc).Run(*conn_));
+    return pq::DropTableDefer(std::move(result));
+  };
+
+  const std::string old_schema_table = kDefaultTableName + "_old_schema";
+  const std::string new_schema_table = kDefaultTableName + "_new_schema";
+
+  std::optional<pq::DropTableDefer> old_schema_defer;
+  std::optional<pq::DropTableDefer> new_schema_defer;
+
+  std::vector<GreenplumColumnInfo> old_schema_columns = {GreenplumColumnInfo{.name = "a", .type = "int4"},
+                                                         GreenplumColumnInfo{.name = "b", .type = "int4"}};
+  std::vector<GreenplumColumnInfo> new_schema_columns = {GreenplumColumnInfo{.name = "a", .type = "int4"}};
+
+  ASSIGN_OR_FAIL(auto old_schema_drop, create_table(old_schema_table, old_schema_columns, 7178038598552999887LL));
+  old_schema_defer.emplace(std::move(old_schema_drop));
+
+  ASSIGN_OR_FAIL(auto new_schema_drop, create_table(new_schema_table, new_schema_columns, 4741018521999590032LL));
+  new_schema_defer.emplace(std::move(new_schema_drop));
+
+  ASSIGN_OR_FAIL(auto old_schema_result, pq::TableScanQuery(old_schema_table).Run(*conn_));
+  EXPECT_EQ(old_schema_result, pq::ScanResult({"a", "b"}, {{"1", "1"}, {"2", "1"}, {"3", "2"}}));
+
+  ASSIGN_OR_FAIL(auto new_schema_result, pq::TableScanQuery(new_schema_table).Run(*conn_));
+  EXPECT_EQ(new_schema_result, pq::ScanResult({"a"}, {{"1"}, {"2"}, {"3"}, {"4"}, {"5"}, {"6"}}));
 }
 
 TEST_F(OtherEngineGeneratedTable, SnapshotSelectionEmpty) {
