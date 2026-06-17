@@ -844,10 +844,8 @@ std::deque<iceberg::ManifestFile> GetManifestFiles(std::shared_ptr<iceberg::IFil
     if (!snapshot) {
       throw std::runtime_error("Snapshot with ID " + std::to_string(*snapshot_id) + " not found in table metadata");
     }
-  } else if (tea::IsCurrentSnapshot(snapshot_ref)) {
-    return {};
   } else {
-    throw std::runtime_error("Failed to resolve snapshot reference");
+    return {};
   }
 
   auto fs = iceberg::ValueSafe(fs_provider->GetFileSystem(snapshot->manifest_list_location));
