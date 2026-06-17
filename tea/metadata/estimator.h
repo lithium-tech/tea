@@ -22,18 +22,22 @@ class Estimator {
  public:
 #ifdef TEA_BUILD_STATS
   static arrow::Result<ColumnStats> GetIcebergColumnStats(const Config& config, TableId table_id,
-                                                          const std::string& column_name);
+                                                          const std::string& column_name,
+                                                          std::shared_ptr<iceberg::IFileSystemProvider> fs_provider,
+                                                          SnapshotRef snapshot_ref = CurrentSnapshot{});
 #endif
 
   static arrow::Result<RelationSize> GetRelationSizeFromIceberg(
-      const Config& config, TableId table_id, std::shared_ptr<iceberg::IFileSystemProvider> fs_provider);
+      const Config& config, TableId table_id, std::shared_ptr<iceberg::IFileSystemProvider> fs_provider,
+      SnapshotRef snapshot_ref = CurrentSnapshot{});
 
   static arrow::Result<RelationSize> GetRelationSizeFromDataFiles(
       const iceberg::ice_tea::ScanMetadata& metadata, std::shared_ptr<iceberg::IFileSystemProvider> fs_provider,
       ReaderProperties props);
 
   static std::map<std::string, int64_t> GetTotalMetricsFromIceberg(
-      const Config& config, TableId table_id, std::shared_ptr<iceberg::IFileSystemProvider> fs_provider);
+      const Config& config, TableId table_id, std::shared_ptr<iceberg::IFileSystemProvider> fs_provider,
+      SnapshotRef snapshot_ref = CurrentSnapshot{});
 };
 
 }  // namespace tea::meta

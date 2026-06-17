@@ -649,7 +649,8 @@ static iceberg::ice_tea::ScanMetadata GetMetaFromIceberg(TeaContextPtr tea_ctx, 
   auto res_with_stats = tea::meta::access::FromIceberg(
       table_config.config, std::get<tea::IcebergTable>(table_config.source).table_id, filter,
       get::FileSystemProvider(tea_ctx), tea::TimestampToTimestamptzShiftUs(),
-      table_config.config.features.use_iceberg_metadata_partition_pruning ? filter : nullptr, cancel_token);
+      table_config.config.features.use_iceberg_metadata_partition_pruning ? filter : nullptr, cancel_token,
+      table_config.snapshot_ref);
   get::PlannerStats(tea_ctx).Combine(res_with_stats.second);
   return std::move(res_with_stats.first);
 }
@@ -741,6 +742,13 @@ void TeaContextPrepareTotalMetricsTable(TeaContextPtr tea_ctx, const ExternalSca
   }
   std::string location = GetLocation(tea_ctx, params);
   tea::TableId table_id = GetTableId(location);
+
+  auto maybe_snapshot_ref = tea::ParseSnapshotRef(location);
+  if (!maybe_snapshot_ref.ok()) {
+    throw maybe_snapshot_ref.status();
+  }
+  tea::SnapshotRef snapshot_ref = maybe_snapshot_ref.ValueUnsafe();
+
   TEA_LOG("IcebergMetricsTable: table id is " + table_id.ToString());
 
   arrow::FieldVector fields;
@@ -760,7 +768,7 @@ void TeaContextPrepareTotalMetricsTable(TeaContextPtr tea_ctx, const ExternalSca
                                                        "total-position-deletes", "total-delete-files"};
 
   auto metrics = tea::meta::Estimator::GetTotalMetricsFromIceberg(get::Config(tea_ctx), table_id,
-                                                                  get::FileSystemProvider(tea_ctx));
+                                                                  get::FileSystemProvider(tea_ctx), snapshot_ref);
 
   for (std::string_view field : kFields) {
     std::string str_field = std::string(field);
@@ -823,25 +831,38 @@ bool UseDistributedMetadataParsing(const std::deque<iceberg::ManifestFile>& mani
 std::deque<iceberg::ManifestFile> GetManifestFiles(std::shared_ptr<iceberg::IFileSystemProvider> fs_provider,
                                                    std::shared_ptr<iceberg::TableMetadataV2> table_metadata,
                                                    std::shared_ptr<iceberg::filter::StatsFilter> stats_filter,
-                                                   tea::PlannerStats& stats) {
-  if (table_metadata->current_snapshot_id.value_or(-1) == -1) {
+                                                   tea::PlannerStats& stats, tea::SnapshotRef snapshot_ref) {
+  std::shared_ptr<iceberg::Snapshot> snapshot;
+  std::optional<int64_t> snapshot_id = tea::ResolveSnapshotId(table_metadata, snapshot_ref);
+  if (snapshot_id.has_value()) {
+    for (const auto& s : table_metadata->snapshots) {
+      if (s->snapshot_id == *snapshot_id) {
+        snapshot = s;
+        break;
+      }
+    }
+    if (!snapshot) {
+      throw std::runtime_error("Snapshot with ID " + std::to_string(*snapshot_id) + " not found in table metadata");
+    }
+  } else {
     return {};
   }
-  auto fs = iceberg::ValueSafe(fs_provider->GetFileSystem(table_metadata->GetCurrentManifestListPathOrFail()));
+
+  auto fs = iceberg::ValueSafe(fs_provider->GetFileSystem(snapshot->manifest_list_location));
   auto metrics = std::make_shared<tea::IcebergMetrics>();
   fs = std::make_shared<tea::IcebergLoggingFileSystem>(fs, metrics);
 
   const std::string manifest_metadatas_content =
-      iceberg::ValueSafe(iceberg::ice_tea::ReadFile(fs, table_metadata->GetCurrentManifestListPathOrFail()));
+      iceberg::ValueSafe(iceberg::ice_tea::ReadFile(fs, snapshot->manifest_list_location));
 
   std::stringstream ss(manifest_metadatas_content);
 
   std::vector<iceberg::ManifestFile> manifest_metadatas = iceberg::ice_tea::ReadManifestList(ss);
 
-  auto schema = table_metadata->GetCurrentSchema();
+  auto schema = tea::GetSchemaForSnapshot(table_metadata, snapshot_ref);
 
   try {
-    if (stats_filter != nullptr && schema != nullptr) {
+    if (stats_filter != nullptr) {
       std::vector<bool> can_skip =
           iceberg::ice_tea::FilterManifests(stats_filter, schema, table_metadata->partition_specs, manifest_metadatas);
       std::deque<iceberg::ManifestFile> result;
@@ -949,11 +970,12 @@ std::shared_ptr<tea::samovar::SingleQueueClient> SamovarMakePlan(TeaContextPtr t
     }
 
     {
-      std::shared_ptr<iceberg::Schema> schema = table_metadata->GetCurrentSchema();
+      std::shared_ptr<iceberg::Schema> schema = tea::GetSchemaForSnapshot(table_metadata, config.snapshot_ref);
       TEA_LOG("Samovar: getting manifest files");
 
       std::deque<iceberg::ManifestFile> manifest_files_queue =
-          GetManifestFiles(get::FileSystemProvider(tea_ctx), table_metadata, stats_filter, get::PlannerStats(tea_ctx));
+          GetManifestFiles(get::FileSystemProvider(tea_ctx), table_metadata, stats_filter, get::PlannerStats(tea_ctx),
+                           config.snapshot_ref);
 
       if (UseDistributedMetadataParsing(manifest_files_queue,
                                         config.config.limits.samovar_distributed_metadata_parsing_files_threshold)) {
@@ -971,8 +993,7 @@ std::shared_ptr<tea::samovar::SingleQueueClient> SamovarMakePlan(TeaContextPtr t
 
         return samovar_client;
       } else {
-        const bool use_reader_schema =
-            config.config.UseReaderSchema(table_metadata->GetCurrentSchema()->Columns().size());
+        const bool use_reader_schema = config.config.UseReaderSchema(schema->Columns().size());
 
         std::shared_ptr<arrow::fs::FileSystem> fs =
             iceberg::ValueSafe(get::FileSystemProvider(tea_ctx)->GetFileSystem(table_metadata->location));
@@ -986,8 +1007,8 @@ std::shared_ptr<tea::samovar::SingleQueueClient> SamovarMakePlan(TeaContextPtr t
                 node_filter ? tea::MakeScanDeserializerConfigWithFilter() : tea::MakeFullScanDeserializerConfig());
         entries_stream = std::make_shared<tea::CancellingStream>(entries_stream, get::CancelToken(tea_ctx));
         if (node_filter) {
-          entries_stream = std::make_shared<tea::FilteringEntriesStream>(
-              entries_stream, node_filter, table_metadata->GetCurrentSchema(), tea::TimestampToTimestamptzShiftUs());
+          entries_stream = std::make_shared<tea::FilteringEntriesStream>(entries_stream, node_filter, schema,
+                                                                         tea::TimestampToTimestamptzShiftUs());
         }
 
         auto logger = std::make_shared<tea::Logger>();
@@ -1002,7 +1023,7 @@ std::shared_ptr<tea::samovar::SingleQueueClient> SamovarMakePlan(TeaContextPtr t
         });
 
         iceberg::ice_tea::ScanMetadata all_meta =
-            iceberg::ValueSafe(iceberg::ice_tea::GetScanMetadata(*entries_stream, *table_metadata, logger));
+            iceberg::ValueSafe(iceberg::ice_tea::GetScanMetadata(*entries_stream, *table_metadata, schema, logger));
 
         ValidateAllMetadata(get::Config(tea_ctx), all_meta);
 
@@ -1232,7 +1253,7 @@ void TeaContextGetRelationSize(TeaContextPtr tea_ctx, const char* session_id, co
       if (is_iceberg) {
         return tea::meta::Estimator::GetRelationSizeFromIceberg(
             get::Config(tea_ctx), std::get<tea::IcebergTable>(get::Source(tea_ctx)).table_id,
-            get::FileSystemProvider(tea_ctx));
+            get::FileSystemProvider(tea_ctx), get::TableConfig(tea_ctx).snapshot_ref);
       } else {
         auto meta = GetAllMetadata(tea_ctx, get::TableConfig(tea_ctx), session_id, "", get::CancelToken(tea_ctx));
         return tea::meta::Estimator::GetRelationSizeFromDataFiles(meta, fs_provider, reader_properties);
@@ -1260,7 +1281,9 @@ void TeaContextGetIcebergColumnStats(const char* url, const char* session_id, co
 
     const auto table_id = is_iceberg ? std::get<tea::IcebergTable>(table_config.source).table_id
                                      : std::get<tea::TeapotTable>(table_config.source).table_id;
-    const auto res = tea::meta::Estimator::GetIcebergColumnStats(table_config.config, table_id, column_name);
+    const auto res = tea::meta::Estimator::GetIcebergColumnStats(table_config.config, table_id, column_name,
+                                                                 MakeFileSystemProvider(table_config.config),
+                                                                 table_config.snapshot_ref);
     TEA_RETURN_ARROW_NOT_OK(res);
     *result = res.ValueUnsafe();
   });

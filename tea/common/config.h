@@ -254,13 +254,31 @@ struct IcebergMetricsTable {
   auto operator<=>(const IcebergMetricsTable&) const = default;
 };
 
+struct CurrentSnapshot {
+  auto operator<=>(const CurrentSnapshot&) const = default;
+};
+
+struct Branch {
+  std::string name;
+
+  auto operator<=>(const Branch&) const = default;
+};
+
+struct Snapshot {
+  int64_t snapshot_id;
+
+  auto operator<=>(const Snapshot&) const = default;
+};
+
 enum TableType { kEmpty, kTeapot, kIceberg, kFile, kTotalMetrics };
 // TODO(hvintus): replace with proper interface
 using TableSource = std::variant<EmptyTable, TeapotTable, IcebergTable, FileTable, IcebergMetricsTable>;
+using SnapshotRef = std::variant<CurrentSnapshot, Branch, Snapshot>;
 
 struct TableConfig {
   TableSource source;
   Config config;
+  SnapshotRef snapshot_ref = CurrentSnapshot{};
 };
 
 class ConfigSource {

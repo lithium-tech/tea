@@ -10,4 +10,6 @@ $HMS_DIR/hive_metastore_client create-table 127.0.0.1 9090 empty empty s3://ware
 $HMS_DIR/hive_metastore_client create-table 127.0.0.1 9090 qa update_null s3://warehouse/qa_etl_table_update_null/metadata/00003-e4c28ff8-09d6-475a-b62c-7b9e5c4e694a.metadata.json
 $HMS_DIR/hive_metastore_client create-table 127.0.0.1 9090 test dangling_deletes s3://warehouse/dangling_deletes/metadata/00011-31179cfb-920d-47df-af37-7362d4028557.metadata.json
 $HMS_DIR/hive_metastore_client create-table 127.0.0.1 9090 test deletion_vectors s3://warehouse/deletion_vectors/metadata/00004-ae0294d0-1de5-4fab-97f1-cd80e0078fa4.metadata.json
+$HMS_DIR/hive_metastore_client create-table 127.0.0.1 9090 test snapshot_selection s3://warehouse/snapshot_selection/metadata/00001-d7558dd7-a9c9-491b-a2cc-c3f3ae1d0482.metadata.json
+$HMS_DIR/hive_metastore_client create-table 127.0.0.1 9090 mydb multiple_branches s3://warehouse/mydb/multiple_branches/metadata/00004-a46f8ebb-f8ac-43b1-9c83-fe85d943e939.metadata.json
 

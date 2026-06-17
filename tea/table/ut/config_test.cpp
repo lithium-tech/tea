@@ -132,6 +132,16 @@ TEST_F(ConfigSourceTest, TableTypes) {
 
   config = ConfigSource::GetTableConfig("tea://iceberg://table.id");
   EXPECT_THAT(config.source, testing::VariantWith<IcebergTable>(IcebergTable{.table_id = {"table", "id"}}));
+
+  config = ConfigSource::GetTableConfig("tea://iceberg://table.id?snapshot_id=123");
+  EXPECT_THAT(config.source, testing::VariantWith<IcebergTable>(IcebergTable{.table_id = {"table", "id"}}));
+  ASSERT_TRUE(std::holds_alternative<Snapshot>(config.snapshot_ref));
+  EXPECT_EQ(std::get<Snapshot>(config.snapshot_ref).snapshot_id, 123);
+
+  config = ConfigSource::GetTableConfig("tea://iceberg://table.id?branch=test-branch");
+  EXPECT_THAT(config.source, testing::VariantWith<IcebergTable>(IcebergTable{.table_id = {"table", "id"}}));
+  ASSERT_TRUE(std::holds_alternative<Branch>(config.snapshot_ref));
+  EXPECT_EQ(std::get<Branch>(config.snapshot_ref).name, "test-branch");
 }
 
 TEST_F(ConfigSourceTest, InvalidUrl) {
@@ -140,6 +150,8 @@ TEST_F(ConfigSourceTest, InvalidUrl) {
   EXPECT_ANY_THROW(ConfigSource::GetTableConfig("tea://hdfs://unsupported"));
   EXPECT_ANY_THROW(ConfigSource::GetTableConfig("tea://teapot://invalid_table_id"));
   EXPECT_ANY_THROW(ConfigSource::GetTableConfig("tea://iceberg://invalid_table_id"));
+  EXPECT_ANY_THROW(ConfigSource::GetTableConfig("tea://iceberg://table.id?snapshot_id=abc"));
+  EXPECT_ANY_THROW(ConfigSource::GetTableConfig("tea://iceberg://table.id?snapshot_id=123&branch=test-branch"));
 }
 
 }  // namespace

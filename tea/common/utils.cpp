@@ -2,6 +2,7 @@
 
 #include <arrow/result.h>
 #include <arrow/status.h>
+#include <iceberg/common/fs/url.h>
 #include <iceberg/streams/iceberg/plan.h>
 
 #include <algorithm>
@@ -15,15 +16,133 @@
 #include <utility>
 #include <vector>
 
+#include "absl/strings/numbers.h"
 #include "iceberg/manifest_entry.h"
 #include "iceberg/nested_field.h"
 #include "iceberg/tea_scan.h"
 #include "iceberg/type.h"
 
+#include "tea/observability/tea_log.h"
 #include "tea/smoke_test/fragment_info.h"
 #include "teapot/teapot.pb.h"
 
 namespace tea {
+
+arrow::Result<SnapshotRef> ParseSnapshotRef(std::string_view url) {
+  std::string_view nested_url = url;
+  if (url.starts_with("tea://")) {
+    nested_url = url.substr(6);
+  }
+  auto components = iceberg::SplitUrl(nested_url);
+  std::optional<int64_t> snapshot_id;
+  std::optional<std::string> branch;
+  for (auto& [key, value] : components.params) {
+    if (key == std::string_view("snapshot_id")) {
+      int64_t val;
+      if (!absl::SimpleAtoi(value, &val)) {
+        return arrow::Status::ExecutionError("Invalid snapshot_id value '", value, "' in url ", url);
+      }
+      snapshot_id = val;
+    } else if (key == std::string_view("branch")) {
+      if (value.empty()) {
+        return arrow::Status::ExecutionError("Invalid empty branch value in url ", url);
+      }
+      branch = std::string(value);
+    }
+  }
+  if (snapshot_id.has_value() && branch.has_value()) {
+    return arrow::Status::ExecutionError("Only one of snapshot_id and branch can be specified in url ", url);
+  }
+  if (snapshot_id.has_value()) {
+    return Snapshot{.snapshot_id = *snapshot_id};
+  }
+  if (branch.has_value()) {
+    return Branch{.name = *branch};
+  }
+  return CurrentSnapshot{};
+}
+
+bool IsCurrentSnapshot(const SnapshotRef& snapshot_ref) {
+  return std::holds_alternative<CurrentSnapshot>(snapshot_ref);
+}
+
+std::optional<int64_t> ResolveSnapshotId(std::shared_ptr<iceberg::TableMetadataV2> table_metadata,
+                                         const SnapshotRef& snapshot_ref) {
+  if (std::holds_alternative<CurrentSnapshot>(snapshot_ref)) {
+    if (!table_metadata->current_snapshot_id.has_value() || table_metadata->current_snapshot_id.value() == -1) {
+      return std::nullopt;
+    }
+    return table_metadata->current_snapshot_id;
+  }
+
+  if (const auto* snapshot = std::get_if<Snapshot>(&snapshot_ref); snapshot != nullptr) {
+    for (const auto& s : table_metadata->snapshots) {
+      if (s->snapshot_id == snapshot->snapshot_id) {
+        return snapshot->snapshot_id;
+      }
+    }
+    throw std::runtime_error("Snapshot with ID " + std::to_string(snapshot->snapshot_id) +
+                             " not found in table metadata");
+  }
+
+  const auto& branch = std::get<Branch>(snapshot_ref);
+  auto it = table_metadata->refs.find(branch.name);
+  if (it == table_metadata->refs.end()) {
+    throw std::runtime_error("Branch '" + branch.name + "' not found in table metadata");
+  }
+  return it->second.snapshot_id;
+}
+
+std::shared_ptr<iceberg::Schema> GetSchemaForSnapshot(std::shared_ptr<iceberg::TableMetadataV2> table_metadata,
+                                                      const SnapshotRef& snapshot_ref) {
+  auto snapshot_id = ResolveSnapshotId(table_metadata, snapshot_ref);
+  if (!snapshot_id.has_value()) {
+    auto schema = table_metadata->GetCurrentSchema();
+    if (!schema) {
+      throw std::runtime_error("Current schema not found in table metadata");
+    }
+    return schema;
+  }
+
+  std::shared_ptr<iceberg::Snapshot> target_snapshot = nullptr;
+  for (const auto& s : table_metadata->snapshots) {
+    if (s->snapshot_id == *snapshot_id) {
+      target_snapshot = s;
+      break;
+    }
+  }
+
+  if (!target_snapshot) {
+    throw std::runtime_error("Snapshot with ID " + std::to_string(*snapshot_id) + " not found in table metadata");
+  }
+
+  int32_t schema_id = target_snapshot->schema_id.value_or(table_metadata->current_schema_id);
+
+  for (const auto& schema : table_metadata->schemas) {
+    if (schema->SchemaId() == schema_id) {
+      return schema;
+    }
+  }
+
+  throw std::runtime_error("Schema with ID " + std::to_string(schema_id) + " not found in table metadata");
+}
+
+std::optional<std::string> GetManifestListPathForSnapshot(std::shared_ptr<iceberg::TableMetadataV2> table_metadata,
+                                                          const SnapshotRef& snapshot_ref) {
+  auto snapshot_id = ResolveSnapshotId(table_metadata, snapshot_ref);
+  if (!snapshot_id.has_value()) {
+    return std::nullopt;
+  }
+
+  for (const auto& snapshot : table_metadata->snapshots) {
+    if (snapshot->snapshot_id == *snapshot_id) {
+      return snapshot->manifest_list_location;
+    }
+  }
+
+  return std::nullopt;
+}
+
 namespace {
 void IcebergTypeToTeapotType(std::shared_ptr<const iceberg::types::Type> type, teapot::Field* field) {
   using IceTypeId = iceberg::TypeID;

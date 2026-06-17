@@ -1,17 +1,35 @@
 #pragma once
 
+#include <iceberg/table_metadata.h>
 #include <parquet/metadata.h>
 
 #include <memory>
+#include <optional>
 #include <set>
 #include <string>
 #include <vector>
 
+#include "arrow/result.h"
+#include "arrow/status.h"
 #include "iceberg/tea_scan.h"
 
+#include "tea/common/config.h"
 #include "teapot/teapot.pb.h"
 
 namespace tea {
+
+arrow::Result<SnapshotRef> ParseSnapshotRef(std::string_view url);
+
+bool IsCurrentSnapshot(const SnapshotRef& snapshot_ref);
+
+std::optional<int64_t> ResolveSnapshotId(std::shared_ptr<iceberg::TableMetadataV2> table_metadata,
+                                         const SnapshotRef& snapshot_ref);
+
+std::shared_ptr<iceberg::Schema> GetSchemaForSnapshot(std::shared_ptr<iceberg::TableMetadataV2> table_metadata,
+                                                      const SnapshotRef& snapshot_ref);
+
+std::optional<std::string> GetManifestListPathForSnapshot(std::shared_ptr<iceberg::TableMetadataV2> table_metadata,
+                                                          const SnapshotRef& snapshot_ref);
 
 teapot::Schema IcebergSchemaToTeapotSchema(const std::shared_ptr<iceberg::Schema>& schema);
 

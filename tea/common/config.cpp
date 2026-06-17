@@ -22,6 +22,7 @@
 #include "rapidjson/istreamwrapper.h"
 #include "rapidjson/schema.h"
 
+#include "tea/common/utils.h"
 #include "tea/observability/tea_log.h"
 
 namespace tea {
@@ -516,10 +517,12 @@ arrow::Status Load(const rapidjson::Document& document, std::string_view profile
     if (!document["profiles"].IsObject()) {
       return arrow::Status::OK();
     }
-    if (!document["profiles"].HasMember(profile.data())) {
+    // rapidjson expects a null-terminated string, but profile is a std::string_view and may not be null-terminated.
+    std::string profile_str(profile);
+    if (!document["profiles"].HasMember(profile_str.c_str())) {
       return arrow::Status::OK();
     }
-    return ReadValues(&document["profiles"][profile.data()], config, "");
+    return ReadValues(&document["profiles"][profile_str.c_str()], config, "");
   }
   return arrow::Status::OK();
 }
@@ -648,8 +651,15 @@ TableConfig ConfigSource::GetTableConfig(std::string_view url, const std::string
     }
   }
 
+  auto maybe_snapshot_ref = ParseSnapshotRef(url);
+  if (!maybe_snapshot_ref.ok()) {
+    throw maybe_snapshot_ref.status();
+  }
+  SnapshotRef snapshot_ref = maybe_snapshot_ref.ValueUnsafe();
+
   TableConfig table_config;
   table_config.config = GetConfig(profile);
+  table_config.snapshot_ref = snapshot_ref;
 
   const auto schema =
       (components.schema.empty()) ? table_config.config.meta_access.default_schema : std::string(components.schema);
