@@ -511,13 +511,14 @@ arrow::Status Load(const rapidjson::Document& document, std::string_view profile
     config->must_read_profile_to_tables_file = document[kMustReadProfileConfig].GetBool();
   }
   if (!profile.empty()) {
-    std::string profile_str(profile);
     if (!document.HasMember("profiles")) {
       return arrow::Status::OK();
     }
     if (!document["profiles"].IsObject()) {
       return arrow::Status::OK();
     }
+    // rapidjson expects a null-terminated string, but profile is a std::string_view and may not be null-terminated.
+    std::string profile_str(profile);
     if (!document["profiles"].HasMember(profile_str.c_str())) {
       return arrow::Status::OK();
     }
