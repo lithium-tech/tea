@@ -9,7 +9,7 @@ namespace tea {
 struct Options {
   std::string profile;
   std::optional<int64_t> snapshot_id;
-  std::optional<std::string> branch_id;
+  std::optional<std::string> branch;
 };
 
 struct LocationBase {
@@ -32,8 +32,8 @@ struct LocationBase {
     if (options.snapshot_id.has_value()) {
       append_param("snapshot_id", std::to_string(*options.snapshot_id));
     }
-    if (options.branch_id.has_value()) {
-      append_param("branch_id", *options.branch_id);
+    if (options.branch.has_value()) {
+      append_param("branch", *options.branch);
     }
     return opt_str;
   }
@@ -74,8 +74,8 @@ struct IcebergLocation : public LocationBase {
       if (LocationBase::options.snapshot_id.has_value()) {
         res += "&snapshot_id=" + std::to_string(*LocationBase::options.snapshot_id);
       }
-      if (LocationBase::options.branch_id.has_value()) {
-        res += "&branch_id=" + *LocationBase::options.branch_id;
+      if (LocationBase::options.branch.has_value()) {
+        res += "&branch=" + *LocationBase::options.branch;
       }
       return res;
     }

@@ -35,7 +35,7 @@ arrow::Result<SnapshotRef> ParseSnapshotRef(std::string_view url) {
   }
   auto components = iceberg::SplitUrl(nested_url);
   std::optional<int64_t> snapshot_id;
-  std::optional<std::string> branch_id;
+  std::optional<std::string> branch;
   for (auto& [key, value] : components.params) {
     if (key == std::string_view("snapshot_id")) {
       int64_t val;
@@ -43,21 +43,21 @@ arrow::Result<SnapshotRef> ParseSnapshotRef(std::string_view url) {
         return arrow::Status::ExecutionError("Invalid snapshot_id value '", value, "' in url ", url);
       }
       snapshot_id = val;
-    } else if (key == std::string_view("branch_id")) {
+    } else if (key == std::string_view("branch")) {
       if (value.empty()) {
-        return arrow::Status::ExecutionError("Invalid empty branch_id value in url ", url);
+        return arrow::Status::ExecutionError("Invalid empty branch value in url ", url);
       }
-      branch_id = std::string(value);
+      branch = std::string(value);
     }
   }
-  if (snapshot_id.has_value() && branch_id.has_value()) {
-    return arrow::Status::ExecutionError("Only one of snapshot_id and branch_id can be specified in url ", url);
+  if (snapshot_id.has_value() && branch.has_value()) {
+    return arrow::Status::ExecutionError("Only one of snapshot_id and branch can be specified in url ", url);
   }
   if (snapshot_id.has_value()) {
     return Snapshot{.snapshot_id = *snapshot_id};
   }
-  if (branch_id.has_value()) {
-    return Branch{.name = *branch_id};
+  if (branch.has_value()) {
+    return Branch{.name = *branch};
   }
   return CurrentSnapshot{};
 }

@@ -218,9 +218,9 @@ TEST_F(OtherEngineGeneratedTable, SnapshotSelectionLatest) {
 
 TEST_F(OtherEngineGeneratedTable, SnapshotSelectionBranch) {
   auto create_table = [&](const std::string& gp_table_name, const std::vector<GreenplumColumnInfo>& columns,
-                          const std::string& branch_id) -> arrow::Result<pq::DropTableDefer> {
-    auto ice_loc = IcebergLocation("mydb", "multiple_branches",
-                                   Options{.profile = Environment::GetProfile(), .branch_id = branch_id});
+                          const std::string& branch) -> arrow::Result<pq::DropTableDefer> {
+    auto ice_loc =
+        IcebergLocation("mydb", "multiple_branches", Options{.profile = Environment::GetProfile(), .branch = branch});
     auto loc = Location(std::move(ice_loc));
     if (Environment::GetTableType() == TestTableType::kForeign) {
       ARROW_ASSIGN_OR_RAISE(auto result, pq::CreateForeignTableQuery(columns, gp_table_name, loc).Run(*conn_));
