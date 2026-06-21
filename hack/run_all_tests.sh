@@ -6,7 +6,19 @@ COMPILE_DIR="/root/compile"
 INSTALL_PREFIX="/root/compile/bin"
 GPDB_PREFIX="/root/compile/gpdb_bin"
 TEA_DIR="/workspaces/tea"
+# Dynamically limit cores based on available RAM to avoid OOM crashes (allow ~2GB per job)
+AVAILABLE_RAM_GB=$(($(free -m | awk '/^Mem:/{print $2}') / 1024))
+CORES_BY_RAM=$((AVAILABLE_RAM_GB / 2))
+if [ "$CORES_BY_RAM" -lt 1 ]; then
+    CORES_BY_RAM=1
+fi
 NPROC=$(nproc)
+if [ "$NPROC" -gt "$CORES_BY_RAM" ]; then
+    NPROC=$CORES_BY_RAM
+fi
+if [ "$NPROC" -gt 4 ]; then
+    NPROC=4
+fi
 
 # Colors for output
 RED='\033[0;31m'
@@ -122,10 +134,10 @@ cmake .. -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo \
   -DTEA_USE_THREAD_SANITIZER=OFF \
   -DUSE_REST=OFF
 
-log "Compiling Tea..."
-ninja
-ninja hive_metastore_server hive_metastore_client
-ninja install
+log "Compiling Tea (using up to $NPROC concurrent jobs)..."
+ninja -j$NPROC
+ninja -j$NPROC hive_metastore_server hive_metastore_client
+ninja -j$NPROC install
 success "Tea built and installed successfully!"
 
 # --- 5. Unit Testing ---

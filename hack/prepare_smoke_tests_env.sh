@@ -67,8 +67,16 @@ done
 sleep 2
 
 rm -f /tmp/minio /tmp/mc
-wget -q -c https://dl.min.io/server/minio/release/linux-amd64/minio -O /tmp/minio
-wget -q -c https://dl.min.io/client/mc/release/linux-amd64/mc -O /tmp/mc
+ARCH=$(uname -m)
+if [ "$ARCH" = "x86_64" ]; then
+  MINIO_ARCH="linux-amd64"
+elif [ "$ARCH" = "aarch64" ]; then
+  MINIO_ARCH="linux-arm64"
+else
+  MINIO_ARCH="linux-amd64"
+fi
+wget -q -c "https://dl.min.io/server/minio/release/${MINIO_ARCH}/minio" -O /tmp/minio
+wget -q -c "https://dl.min.io/client/mc/release/${MINIO_ARCH}/mc" -O /tmp/mc
 chmod +x /tmp/minio /tmp/mc
 
 # Copy HMS tools AFTER killing old processes

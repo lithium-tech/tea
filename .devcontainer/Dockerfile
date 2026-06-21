@@ -64,10 +64,12 @@ RUN add-apt-repository ppa:ubuntu-toolchain-r/test -y && \
     apt-get install -y gcc-11 g++-11 gcc-13 g++-13 && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
-RUN wget https://github.com/Kitware/CMake/releases/download/v3.31.11/cmake-3.31.11-linux-x86_64.tar.gz && \
-    tar xf cmake-3.31.11-linux-x86_64.tar.gz && \
-    rm cmake-3.31.11-linux-x86_64.tar.gz && \
-    mv cmake-3.31.11-linux-x86_64 /opt/cmake
+RUN ARCH=$(uname -m) && \
+    if [ "$ARCH" = "x86_64" ]; then CMAKE_ARCH="x86_64"; else CMAKE_ARCH="aarch64"; fi && \
+    wget https://github.com/Kitware/CMake/releases/download/v3.31.11/cmake-3.31.11-linux-${CMAKE_ARCH}.tar.gz && \
+    tar xf cmake-3.31.11-linux-${CMAKE_ARCH}.tar.gz && \
+    rm cmake-3.31.11-linux-${CMAKE_ARCH}.tar.gz && \
+    mv cmake-3.31.11-linux-${CMAKE_ARCH} /opt/cmake
 ENV PATH=/opt/cmake/bin:$PATH
 
 RUN locale-gen en_US.UTF-8
