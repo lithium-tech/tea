@@ -37,6 +37,11 @@
 #include "utils/memutils.h"
 #include "utils/palloc.h"
 #include "utils/rel.h"
+#ifdef OPENGPDB
+/* open-gpdb moved the sampling helpers into their own public header;
+ * Greengage 6 still declares the legacy anl_* API in commands/vacuum.h */
+#include "utils/sampling.h"
+#endif
 
 #include "tea/filter/gp/convert.h"
 #include "tea/gpext/tea_column.h"
@@ -860,7 +865,12 @@ static int TeaAcquireSampleRowsFunc(Relation relation, int elevel, HeapTuple* ro
    * see Jeff Vitter's paper.
    */
   double rowstoskip = 0;
-  double rstate = 0;
+#ifdef OPENGPDB
+  ReservoirStateData rstate;
+  reservoir_init_selection_state(&rstate, targrows);
+#else
+  double rstate = 0; /* Greengage 6: legacy anl_* API */
+#endif
   while (has_row) {
     CHECK_FOR_INTERRUPTS();
 
@@ -877,13 +887,21 @@ static int TeaAcquireSampleRowsFunc(Relation relation, int elevel, HeapTuple* ro
     samplerows += 1;
     rowstoskip -= 1;
     if (rowstoskip < 0) {
+#ifdef OPENGPDB
+      rowstoskip = reservoir_get_next_S(&rstate, samplerows, targrows);
+#else
       rowstoskip = anl_get_next_S(samplerows, targrows, &rstate);
+#endif
     }
     const bool replace_element = (rowstoskip <= 0);
 
     if (replace_element) {
       /* Choose a random reservoir element to replace. */
+#ifdef OPENGPDB
+      int pos = (int)(targrows * sampler_random_fract());
+#else
       int pos = (int)(targrows * anl_random_fract());
+#endif
       Assert(pos >= 0 && pos < targrows);
       heap_freetuple(rows[pos]);
 
