@@ -96,7 +96,12 @@ std::optional<int64_t> ResolveSnapshotId(std::shared_ptr<iceberg::TableMetadataV
 std::shared_ptr<iceberg::Schema> GetSchemaForSnapshot(std::shared_ptr<iceberg::TableMetadataV2> table_metadata,
                                                       const SnapshotRef& snapshot_ref) {
   auto snapshot_id = ResolveSnapshotId(table_metadata, snapshot_ref);
-  if (!snapshot_id.has_value()) {
+
+  // The current snapshot and branches use the table's current schema, while an explicit
+  // snapshot id uses the schema bound to that snapshot.
+  // See https://iceberg.apache.org/docs/latest/branching/#schema-selection-with-branches-and-tags
+  if (std::holds_alternative<CurrentSnapshot>(snapshot_ref) || std::holds_alternative<Branch>(snapshot_ref) ||
+      !snapshot_id.has_value()) {
     auto schema = table_metadata->GetCurrentSchema();
     if (!schema) {
       throw std::runtime_error("Current schema not found in table metadata");
