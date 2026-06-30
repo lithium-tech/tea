@@ -252,6 +252,33 @@ TEST_F(OtherEngineGeneratedTable, SnapshotSelectionBranch) {
   EXPECT_EQ(new_branch_result, pq::ScanResult({"a"}, {{"1"}, {"2"}, {"3"}}));
 }
 
+// A branch uses the table's current schema (column "a" only), even though the branch's snapshot was written with
+// schema (a, b). Declaring the column "b" must therefore fail: it does not exist in the current schema.
+// See https://iceberg.apache.org/docs/latest/branching/#schema-selection-with-branches-and-tags
+TEST_F(OtherEngineGeneratedTable, SnapshotSelectionBranchMissingColumn) {
+  auto ice_loc = IcebergLocation("mydb", "multiple_branches",
+                                 Options{.profile = Environment::GetProfile(), .branch = "new_branch"});
+  auto loc = Location(std::move(ice_loc));
+
+  std::vector<GreenplumColumnInfo> columns = {GreenplumColumnInfo{.name = "a", .type = "int4"},
+                                              GreenplumColumnInfo{.name = "b", .type = "int4"}};
+
+  std::optional<pq::DropTableDefer> defer;
+  if (Environment::GetTableType() == TestTableType::kForeign) {
+    ASSIGN_OR_FAIL(auto d, pq::CreateForeignTableQuery(columns, kDefaultTableName, loc).Run(*conn_));
+    defer.emplace(std::move(d));
+  } else {
+    ASSIGN_OR_FAIL(auto d, pq::CreateExternalTableQuery(columns, kDefaultTableName, loc).Run(*conn_));
+    defer.emplace(std::move(d));
+  }
+
+  auto maybe_result = pq::TableScanQuery(kDefaultTableName).Run(*conn_);
+  ASSERT_NE(maybe_result.status(), arrow::Status::OK());
+
+  std::string message = maybe_result.status().message();
+  EXPECT_TRUE(message.find("Greenplum column 'b' not found in Iceberg schema") != std::string::npos) << message;
+}
+
 TEST_F(OtherEngineGeneratedTable, SnapshotSelectionSchemaEvolution) {
   auto create_table = [&](const std::string& gp_table_name, const std::vector<GreenplumColumnInfo>& columns,
                           int64_t snapshot_id) -> arrow::Result<pq::DropTableDefer> {
