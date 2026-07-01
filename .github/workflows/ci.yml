@@ -27,251 +27,42 @@ jobs:
             | xargs -r clang-format --dry-run -Werror
 
   build-tea-agp:
-    runs-on: ubuntu-22.04
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Clear cache
-        run: bash ci/clear-runner-cache.sh
-
-      - name: Install dependencies
-        run: bash ci/install-build-deps.sh
-
-      - name: Prepare directories
-        run: bash ci/prepare-dirs.sh
-
-      - name: Cache installed dependencies
-        id: cache-deps
-        uses: actions/cache@v4
-        with:
-          path: ~/local
-          key: deps-gp-6.29.1_arenadata68-arrow-15.0.2-grpc-1.62.3-gcc13-${{ runner.os }}-v6
-
-      - name: Cache Arrow third-party downloads
-        id: cache-arrow-thirdparty
-        uses: actions/cache@v4
-        with:
-          path: build/arrow-thirdparty
-          key: arrow-thirdparty-15.0.2
-
-      - name: Build and install Greenplum 6
-        if: steps.cache-deps.outputs.cache-hit != 'true'
-        run: bash ci/build-gpdb.sh https://github.com/arenadata/gpdb.git 6.29.1_arenadata68
-
-      - name: Build and install Arrow 15
-        if: steps.cache-deps.outputs.cache-hit != 'true'
-        run: bash ci/build-arrow.sh
-
-      - name: Build and install gRPC
-        if: steps.cache-deps.outputs.cache-hit != 'true'
-        run: bash ci/build-grpc.sh
-
-      - name: Build Tea
-        run: bash ci/build-tea.sh
-
-      - name: Run unit tests
-        run: |
-          cd build
-          ctest --output-on-failure
-
-      - name: Pack runtime artifacts
-        run: bash ci/pack-artifacts.sh
-
-      - name: Upload runtime artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: tea-runtime
-          path: ci-artifacts
-          retention-days: 1
+    uses: ./.github/workflows/build.yml
+    with:
+      gpdb_repo: https://github.com/arenadata/gpdb.git
+      gpdb_ref: 6.29.1_arenadata68
+      cache_key: deps-gp-6.29.1_arenadata68-arrow-15.0.2-grpc-1.62.3-gcc13-Linux-v6
+      artifact_name: tea-runtime
 
   # Build tea against open-gpdb (instead of arenadata/gpdb) to make sure it
   # keeps compiling/linking there. open-gpdb diverges from other Greenplum
   # forks (e.g. it moved the sampling helpers into utils/sampling.h and
   # removed the legacy anl_* API); tea selects the right API via the OPENGPDB
   # macro that open-gpdb defines in pg_config_manual.h. This job guards that
-  # path. NOTE: it requires the OPENGPDB define to be present in the cloned
-  # open-gpdb branch.
+  # path (open_gpdb: true enables the fork-specific build fixups and checks).
   build-tea-open-gpdb:
-    runs-on: ubuntu-22.04
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Clear cache
-        run: bash ci/clear-runner-cache.sh
-
-      - name: Install dependencies
-        run: bash ci/install-build-deps.sh
-
-      - name: Prepare directories
-        run: bash ci/prepare-dirs.sh
-
-      - name: Cache installed dependencies
-        id: cache-deps
-        uses: actions/cache@v4
-        with:
-          path: ~/local
-          key: deps-open-gpdb-OPENGPDB_STABLE-arrow-15.0.2-grpc-1.62.3-gcc13-${{ runner.os }}-v4
-
-      - name: Cache Arrow third-party downloads
-        id: cache-arrow-thirdparty
-        uses: actions/cache@v4
-        with:
-          path: build/arrow-thirdparty
-          key: arrow-thirdparty-15.0.2
-
-      - name: Free disk space
-        run: bash ci/free-disk-space.sh
-
-      - name: Build and install open-gpdb
-        if: steps.cache-deps.outputs.cache-hit != 'true'
-        run: bash ci/build-gpdb.sh https://github.com/open-gpdb/gpdb.git OPENGPDB_STABLE open-gpdb
-
-      - name: Build and install Arrow 15
-        if: steps.cache-deps.outputs.cache-hit != 'true'
-        run: bash ci/build-arrow.sh
-
-      - name: Build and install gRPC
-        if: steps.cache-deps.outputs.cache-hit != 'true'
-        run: bash ci/build-grpc.sh
-
-      - name: Verify open-gpdb defines OPENGPDB
-        run: bash ci/verify-opengpdb-define.sh
-
-      - name: Build Tea against open-gpdb
-        run: bash ci/build-tea.sh
-
-      - name: Run unit tests
-        run: |
-          cd build
-          ctest --output-on-failure
-
-      - name: Pack runtime artifacts
-        run: bash ci/pack-artifacts.sh
-
-      - name: Upload runtime artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: tea-runtime-open-gpdb
-          path: ci-artifacts
-          retention-days: 1
-
-  # Run the full tea smoke-test suite (not just ANALYZE) against open-gpdb.
-  # Mirrors the smoke-tests job below, which only covers arenadata/gpdb.
-  # Kept as a separate job (needs only build-tea-open-gpdb) so the arenadata
-  # smoke-tests do not wait on the open-gpdb build.
-  smoke-tests-open-gpdb:
-    needs: build-tea-open-gpdb
-    runs-on: ubuntu-22.04
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - metadata_type: teapot
-            table_type: foreign
-            profile: ""
-          - metadata_type: teapot
-            table_type: external
-            profile: ""
-          - metadata_type: iceberg
-            table_type: foreign
-            profile: samovar
-          - metadata_type: iceberg
-            table_type: external
-            profile: samovar
-          - metadata_type: iceberg
-            table_type: foreign
-            profile: ""
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install runtime dependencies
-        run: bash ci/install-runtime-deps.sh
-
-      - name: Download runtime artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: tea-runtime-open-gpdb
-          path: ci-artifacts
-
-      - name: Restore runtime files
-        run: bash ci/restore-runtime.sh
-
-      - name: Initialize Greenplum cluster
-        run: bash ci/start-cluster.sh --create-extension
-
-      - name: Start Iceberg services (Minio + HMS) and upload test data
-        run: bash ci/start-iceberg.sh
-
-      - name: Deploy tea config
-        run: bash ci/deploy-tea-config.sh
-
-      - name: Start Redis
-        run: |
-          sudo systemctl start redis-server
-          redis-cli ping
-
-      - name: Run smoke tests
-        run: bash ci/run-smoke.sh "${{ matrix.metadata_type }}" "${{ matrix.table_type }}" "${{ matrix.profile }}"
+    uses: ./.github/workflows/build.yml
+    with:
+      gpdb_repo: https://github.com/open-gpdb/gpdb.git
+      gpdb_ref: OPENGPDB_STABLE
+      cache_key: deps-open-gpdb-OPENGPDB_STABLE-arrow-15.0.2-grpc-1.62.3-gcc13-Linux-v4
+      artifact_name: tea-runtime-open-gpdb
+      open_gpdb: true
 
   smoke-tests-agp:
     needs: build-tea-agp
-    runs-on: ubuntu-22.04
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - metadata_type: teapot
-            table_type: foreign
-            profile: ""
-          - metadata_type: teapot
-            table_type: external
-            profile: ""
-          - metadata_type: iceberg
-            table_type: foreign
-            profile: samovar
-          - metadata_type: iceberg
-            table_type: external
-            profile: samovar
-          - metadata_type: iceberg
-            table_type: foreign
-            profile: ""
+    uses: ./.github/workflows/smoke-tests.yml
+    with:
+      artifact_name: tea-runtime
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install runtime dependencies
-        run: bash ci/install-runtime-deps.sh
-
-      - name: Download runtime artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: tea-runtime
-          path: ci-artifacts
-
-      - name: Restore runtime files
-        run: bash ci/restore-runtime.sh
-
-      - name: Initialize Greenplum cluster
-        run: bash ci/start-cluster.sh --create-extension
-
-      - name: Start Iceberg services (Minio + HMS) and upload test data
-        run: bash ci/start-iceberg.sh
-
-      - name: Deploy tea config
-        run: bash ci/deploy-tea-config.sh
-
-      - name: Start Redis
-        run: |
-          sudo systemctl start redis-server
-          redis-cli ping
-
-      - name: Run smoke tests
-        run: bash ci/run-smoke.sh "${{ matrix.metadata_type }}" "${{ matrix.table_type }}" "${{ matrix.profile }}"
+  # Run the full tea smoke-test suite against open-gpdb. Kept separate (needs
+  # only build-tea-open-gpdb) so the arenadata smoke-tests do not wait on the
+  # open-gpdb build.
+  smoke-tests-open-gpdb:
+    needs: build-tea-open-gpdb
+    uses: ./.github/workflows/smoke-tests.yml
+    with:
+      artifact_name: tea-runtime-open-gpdb
 
   rest-tests-agp:
     needs: build-tea-agp

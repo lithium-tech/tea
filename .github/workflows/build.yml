@@ -1,0 +1,96 @@
+name: build
+
+# Reusable workflow: build tea against a given Greenplum fork and upload the
+# runtime artifacts. Called by ci.yml once per fork (arenadata + open-gpdb).
+on:
+  workflow_call:
+    inputs:
+      gpdb_repo:
+        description: Git URL of the Greenplum fork to build
+        required: true
+        type: string
+      gpdb_ref:
+        description: Branch or tag of the Greenplum fork
+        required: true
+        type: string
+      cache_key:
+        description: actions/cache key for the installed dependencies (~/local)
+        required: true
+        type: string
+      artifact_name:
+        description: Name of the uploaded runtime artifact
+        required: true
+        type: string
+      open_gpdb:
+        description: Apply the open-gpdb-specific build fixups and checks
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Clear cache
+        run: bash ci/clear-runner-cache.sh
+
+      - name: Install dependencies
+        run: bash ci/install-build-deps.sh
+
+      - name: Prepare directories
+        run: bash ci/prepare-dirs.sh
+
+      - name: Cache installed dependencies
+        id: cache-deps
+        uses: actions/cache@v4
+        with:
+          path: ~/local
+          key: ${{ inputs.cache_key }}
+
+      - name: Cache Arrow third-party downloads
+        id: cache-arrow-thirdparty
+        uses: actions/cache@v4
+        with:
+          path: build/arrow-thirdparty
+          key: arrow-thirdparty-15.0.2
+
+      - name: Free disk space
+        if: inputs.open_gpdb
+        run: bash ci/free-disk-space.sh
+
+      - name: Build and install Greenplum
+        if: steps.cache-deps.outputs.cache-hit != 'true'
+        run: bash ci/build-gpdb.sh "${{ inputs.gpdb_repo }}" "${{ inputs.gpdb_ref }}" ${{ inputs.open_gpdb && 'open-gpdb' || '' }}
+
+      - name: Build and install Arrow 15
+        if: steps.cache-deps.outputs.cache-hit != 'true'
+        run: bash ci/build-arrow.sh
+
+      - name: Build and install gRPC
+        if: steps.cache-deps.outputs.cache-hit != 'true'
+        run: bash ci/build-grpc.sh
+
+      - name: Verify open-gpdb defines OPENGPDB
+        if: inputs.open_gpdb
+        run: bash ci/verify-opengpdb-define.sh
+
+      - name: Build Tea
+        run: bash ci/build-tea.sh
+
+      - name: Run unit tests
+        run: |
+          cd build
+          ctest --output-on-failure
+
+      - name: Pack runtime artifacts
+        run: bash ci/pack-artifacts.sh
+
+      - name: Upload runtime artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact_name }}
+          path: ci-artifacts
+          retention-days: 1

@@ -1,0 +1,67 @@
+name: smoke-tests
+
+# Reusable workflow: run the full tea smoke-test suite against a prebuilt
+# runtime artifact. Called by ci.yml once per fork (arenadata + open-gpdb).
+on:
+  workflow_call:
+    inputs:
+      artifact_name:
+        description: Name of the runtime artifact to download
+        required: true
+        type: string
+
+jobs:
+  smoke:
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - metadata_type: teapot
+            table_type: foreign
+            profile: ""
+          - metadata_type: teapot
+            table_type: external
+            profile: ""
+          - metadata_type: iceberg
+            table_type: foreign
+            profile: samovar
+          - metadata_type: iceberg
+            table_type: external
+            profile: samovar
+          - metadata_type: iceberg
+            table_type: foreign
+            profile: ""
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install runtime dependencies
+        run: bash ci/install-runtime-deps.sh
+
+      - name: Download runtime artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.artifact_name }}
+          path: ci-artifacts
+
+      - name: Restore runtime files
+        run: bash ci/restore-runtime.sh
+
+      - name: Initialize Greenplum cluster
+        run: bash ci/start-cluster.sh --create-extension
+
+      - name: Start Iceberg services (Minio + HMS) and upload test data
+        run: bash ci/start-iceberg.sh
+
+      - name: Deploy tea config
+        run: bash ci/deploy-tea-config.sh
+
+      - name: Start Redis
+        run: |
+          sudo systemctl start redis-server
+          redis-cli ping
+
+      - name: Run smoke tests
+        run: bash ci/run-smoke.sh "${{ matrix.metadata_type }}" "${{ matrix.table_type }}" "${{ matrix.profile }}"
