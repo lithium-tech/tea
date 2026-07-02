@@ -32,6 +32,7 @@
 #include "parser/parsetree.h"
 #include "storage/ipc.h"
 #include "storage/itemptr.h"
+#include "utils/builtins.h"
 #include "utils/elog.h"
 #include "utils/lsyscache.h"
 #include "utils/memutils.h"
@@ -55,6 +56,7 @@
 
 PG_FUNCTION_INFO_V1(tea_fdw_handler);
 PG_FUNCTION_INFO_V1(tea_fdw_validator);
+PG_FUNCTION_INFO_V1(tea_fdw_get_create_query);
 
 /*
  * Indexes of FDW-private information stored in fdw_private lists.
@@ -1035,3 +1037,12 @@ Datum tea_fdw_handler(PG_FUNCTION_ARGS) {
  * Raise an ERROR if the option or its value is considered invalid.
  */
 Datum tea_fdw_validator(PG_FUNCTION_ARGS) { PG_RETURN_VOID(); }
+
+Datum tea_fdw_get_create_query(PG_FUNCTION_ARGS) {
+  char* name = text_to_cstring(PG_GETARG_TEXT_P(0));
+  char* location = text_to_cstring(PG_GETARG_TEXT_P(1));
+  char* query = TeaFDWGetCreateQuery(name, location);
+  pfree(location);
+  pfree(name);
+  PG_RETURN_CSTRING(query);
+}

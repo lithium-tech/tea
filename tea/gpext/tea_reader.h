@@ -136,6 +136,8 @@ void TeaContextGetOptions(TeaContextPtr tea_ctx, ReaderOptions* options);
  */
 void TeaContextLogStats(const TeaContextPtr tea_ctx, const char* event);
 
+char* TeaFDWGetCreateQuery(const char* name, const char* location);
+
 #ifdef __cplusplus
 }
 #endif

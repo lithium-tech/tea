@@ -136,7 +136,12 @@ jobs:
           source $HOME/local/gpdb/greenplum_path.sh
           export PGDATABASE=tea_ci
           psql -c 'CREATE EXTENSION tea'
-          psql -c "CREATE FOREIGN TABLE rest_test (a bigint, b bigint) server tea_server options(location 'tea://iceberg://gperov.test')"
+
+          CFT=`psql -Atc "SELECT tea_fdw_get_create_query('rest_test', 'tea://iceberg://gperov.test')"`
+          echo $CFT
+          [[ "$CFT" = "create foreign table rest_test (a bigint, b bigint) server tea_server options(location 'tea://iceberg://gperov.test');" ]] || exit 1
+          
+          psql -c "$CFT"
           OUT=`psql -Atc "SELECT count(*), sum(a), sum(b) FROM rest_test"`
           echo $OUT
           [[ "$OUT" = "9999|49992899|99985798" ]] || exit 1

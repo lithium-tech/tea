@@ -73,6 +73,13 @@ OPTIONS(location 'tea://iceberg_namespace.iceberg_table');
 It creates a `FOREIGN TABLE` linked to an Iceberg table `iceberg_namespace.iceberg_table` declared in Iceberg catalog.
 Created table is accessible for reading.
 
+You can use `tea_fdw_get_create_query` to get the `CREATE FOREIGN TABLE` query. The function fetches columns names and types from Iceberg.
+
+```
+SELECT tea_fdw_get_create_query('table_name', 'tea://iceberg://iceberg_namespace.iceberg_table') as cft \gset
+:cft
+```
+
 ## Update Tea
 
 Extract a new version

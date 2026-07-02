@@ -40,6 +40,7 @@
 #include "iceberg/common/batch.h"
 #include "iceberg/common/fs/filesystem_provider.h"
 #include "iceberg/common/fs/filesystem_provider_impl.h"
+#include "iceberg/common/json_parse.h"
 #include "iceberg/filter/representation/serializer.h"
 #include "iceberg/tea_scan.h"
 #include "iceberg/uuid.h"
@@ -1387,4 +1388,83 @@ void TeaContextLogStats(const TeaContextPtr tea_ctx, const char* event) {
           }
         }
       }));
+}
+
+// Get Greenplum type name by Iceberg type name
+static std::string GetGreenplumTypeName(std::string type) {
+  const static struct {
+    const char* iceberg_type_name;
+    const char* pg_type_name;
+  } types_map[] = {
+      {"long", "bigint"}, {"float", "float4"}, {"double", "float8"}, {"string", "text"}, {"binary", "bytea"}};
+
+  for (size_t i = 0; i < sizeof(types_map) / sizeof(*types_map); i++)
+    if (type == types_map[i].iceberg_type_name) return types_map[i].pg_type_name;
+
+  return type;
+}
+
+char* TeaFDWGetCreateQuery(const char* name, const char* location) {
+  using namespace iceberg;
+  using namespace json_parse;
+
+  char* query;
+  TEA_INVOKE_WO_PRINT_LOGS(ERROR, ([name, location, &query] {
+                             // Download JSON
+                             TeaContextPtr tea_ctx = TeaContextCreate(location);
+                             const tea::TableConfig& table_config = get::TableConfig(tea_ctx);
+                             std::string table_metadata_location = tea::meta::access::GetIcebergTableLocation(
+                                 table_config.config, std::get<tea::IcebergTable>(table_config.source).table_id);
+                             auto maybe_fs = get::FileSystemProvider(tea_ctx)->GetFileSystem(table_metadata_location);
+                             TeaContextDestroy(tea_ctx);
+                             arrow::Result<std::string> maybe_json =
+                                 ice_tea::ReadFile(ValueSafe(maybe_fs), table_metadata_location);
+                             std::string json = ValueSafe(maybe_json);
+
+                             // Parse JSON
+                             rapidjson::Document document;
+                             document.Parse(json.c_str(), json.size());
+                             Ensure(document.IsObject(), "JSON file doesn't contain an object");
+
+                             // Get current schema id
+                             int32_t schema_id = ExtractInt32Field(document, "current-schema-id");
+
+                             // Get columns names and types from the current schema
+                             Ensure(document.HasMember("schemas"), "JSON file doesn't contain the schemas array");
+                             rapidjson::Value& schemas = document["schemas"];
+                             Ensure(schemas.IsArray(), "schemas is not an array");
+
+                             StringInfoData out;
+                             initStringInfo(&out);
+                             appendStringInfo(&out, "create foreign table %s (", name);
+                             for (const auto& schema : schemas.GetArray()) {
+                               Ensure(schema.IsObject(), "schemas element is not an object");
+
+                               if (ExtractInt32Field(schema, "schema-id") != schema_id) continue;
+
+                               Ensure(schema.HasMember("fields"), "schema doesn't contain fields");
+                               const rapidjson::Value& fields = schema["fields"];
+                               Ensure(fields.IsArray(), "fields is not an array");
+
+                               bool first_field = true;
+                               for (const auto& fld : fields.GetArray()) {
+                                 Ensure(fld.IsObject(), "fields element is not an object");
+
+                                 if (first_field)
+                                   first_field = false;
+                                 else
+                                   appendStringInfoString(&out, ", ");
+
+                                 appendStringInfo(&out, "%s %s", ExtractStringField(fld, "name").c_str(),
+                                                  GetGreenplumTypeName(ExtractStringField(fld, "type")).c_str());
+                               }
+
+                               appendStringInfo(&out, ") server tea_server options(location '%s');", location);
+                               query = out.data;
+                               return;
+                             }
+
+                             throw std::runtime_error("There is no schema with schema-id = current-schema-id");
+                           }));
+  return query;
 }
