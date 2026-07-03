@@ -4,6 +4,7 @@ option(ICECXX_GENERATOR "" ON)
 option(USE_NESSIE "Enable Nessie catalog" ON)
 option(USE_REST "Enable REST catalog" ON)
 option(TEA_USE_THREAD_SANITIZER "Enable running tests with ThreadSanitizer" ON)
+option(FDW_GET_CREATE_QUERY "Enable the fdw_get_create_query function" ON)
 
 cmake_minimum_required(VERSION 3.25)
 project(tea)
@@ -62,6 +63,10 @@ endif()
 
 if(USE_REST)
   add_compile_definitions(USE_REST)
+endif()
+
+if(FDW_GET_CREATE_QUERY)
+  add_compile_definitions(FDW_GET_CREATE_QUERY)
 endif()
 
 enable_testing()

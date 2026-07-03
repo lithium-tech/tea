@@ -32,7 +32,6 @@
 #include "parser/parsetree.h"
 #include "storage/ipc.h"
 #include "storage/itemptr.h"
-#include "utils/builtins.h"
 #include "utils/elog.h"
 #include "utils/lsyscache.h"
 #include "utils/memutils.h"
@@ -42,6 +41,10 @@
 /* open-gpdb moved the sampling helpers into their own public header;
  * Greengage 6 still declares the legacy anl_* API in commands/vacuum.h */
 #include "utils/sampling.h"
+#endif
+
+#ifdef FDW_GET_CREATE_QUERY
+#include "utils/builtins.h"
 #endif
 
 #include "tea/filter/gp/convert.h"
@@ -56,7 +59,9 @@
 
 PG_FUNCTION_INFO_V1(tea_fdw_handler);
 PG_FUNCTION_INFO_V1(tea_fdw_validator);
+#ifdef FDW_GET_CREATE_QUERY
 PG_FUNCTION_INFO_V1(tea_fdw_get_create_query);
+#endif
 
 /*
  * Indexes of FDW-private information stored in fdw_private lists.
@@ -1038,6 +1043,7 @@ Datum tea_fdw_handler(PG_FUNCTION_ARGS) {
  */
 Datum tea_fdw_validator(PG_FUNCTION_ARGS) { PG_RETURN_VOID(); }
 
+#ifdef FDW_GET_CREATE_QUERY
 Datum tea_fdw_get_create_query(PG_FUNCTION_ARGS) {
   char* name = text_to_cstring(PG_GETARG_TEXT_P(0));
   char* location = text_to_cstring(PG_GETARG_TEXT_P(1));
@@ -1046,3 +1052,4 @@ Datum tea_fdw_get_create_query(PG_FUNCTION_ARGS) {
   pfree(name);
   PG_RETURN_CSTRING(query);
 }
+#endif

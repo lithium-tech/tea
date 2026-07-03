@@ -40,10 +40,13 @@
 #include "iceberg/common/batch.h"
 #include "iceberg/common/fs/filesystem_provider.h"
 #include "iceberg/common/fs/filesystem_provider_impl.h"
-#include "iceberg/common/json_parse.h"
 #include "iceberg/filter/representation/serializer.h"
 #include "iceberg/tea_scan.h"
 #include "iceberg/uuid.h"
+
+#ifdef FDW_GET_CREATE_QUERY
+#include "iceberg/common/json_parse.h"
+#endif
 
 #include "tea/common/cancel.h"
 #include "tea/common/config.h"
@@ -1390,6 +1393,7 @@ void TeaContextLogStats(const TeaContextPtr tea_ctx, const char* event) {
       }));
 }
 
+#ifdef FDW_GET_CREATE_QUERY
 // Get Greenplum type name by Iceberg type name
 static std::string GetGreenplumTypeName(std::string type) {
   const static struct {
@@ -1468,3 +1472,4 @@ char* TeaFDWGetCreateQuery(const char* name, const char* location) {
                            }));
   return query;
 }
+#endif
