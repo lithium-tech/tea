@@ -971,8 +971,7 @@ std::shared_ptr<tea::samovar::SingleQueueClient> SamovarMakePlan(TeaContextPtr t
 
     {
       std::shared_ptr<iceberg::Schema> schema = tea::GetSchemaForSnapshot(table_metadata, config.snapshot_ref);
-      std::optional<std::string> schema_name_mapping =
-          tea::meta::access::GetSchemaNameMappingDefault(*table_metadata);
+      std::optional<std::string> schema_name_mapping = tea::meta::access::GetSchemaNameMappingDefault(*table_metadata);
       TEA_LOG("Samovar: getting manifest files");
 
       std::deque<iceberg::ManifestFile> manifest_files_queue =

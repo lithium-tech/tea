@@ -170,8 +170,7 @@ class TestState {
   }
 
   // Set Iceberg table properties written into the table metadata (see IMetadataWriter::SetProperties).
-  void SetProperties(std::map<std::string, std::string> properties,
-                     const TableName& table_name = kDefaultTableName) {
+  void SetProperties(std::map<std::string, std::string> properties, const TableName& table_name = kDefaultTableName) {
     BuildMetadataWriterIfNecessary(table_name);
     metadata_writer_.at(table_name)->SetProperties(std::move(properties));
   }

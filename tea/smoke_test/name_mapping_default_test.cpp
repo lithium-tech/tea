@@ -84,10 +84,9 @@ TEST_F(NameMappingDefaultTest, ResolvesFieldIdsByName) {
 
   // The Iceberg schema field-ids come from table metadata, not the data file.
   state_->SetSchema(MakeIcebergSchema());
-  state_->SetProperties({{"schema.name-mapping.default",
-                          R"([{"field-id":1,"names":["col1"]},)"
-                          R"({"field-id":2,"names":["col2"]},)"
-                          R"({"field-id":3,"names":["col3"]}])"}});
+  state_->SetProperties({{"schema.name-mapping.default", R"([{"field-id":1,"names":["col1"]},)"
+                                                         R"({"field-id":2,"names":["col2"]},)"
+                                                         R"({"field-id":3,"names":["col3"]}])"}});
 
   ASSIGN_OR_FAIL(auto defer, state_->CreateTable({GreenplumColumnInfo{.name = "col1", .type = "text"},
                                                   GreenplumColumnInfo{.name = "col2", .type = "int4"},
@@ -115,10 +114,9 @@ TEST_F(NameMappingDefaultTest, PhysicalNameDiffersFromIcebergName) {
   ASSERT_OK(state_->AddDataFiles({data_path}));
 
   state_->SetSchema(MakeIcebergSchema());
-  state_->SetProperties({{"schema.name-mapping.default",
-                          R"([{"field-id":1,"names":["old_col1"]},)"
-                          R"({"field-id":2,"names":["old_col2"]},)"
-                          R"({"field-id":3,"names":["old_col3"]}])"}});
+  state_->SetProperties({{"schema.name-mapping.default", R"([{"field-id":1,"names":["old_col1"]},)"
+                                                         R"({"field-id":2,"names":["old_col2"]},)"
+                                                         R"({"field-id":3,"names":["old_col3"]}])"}});
 
   ASSIGN_OR_FAIL(auto defer, state_->CreateTable({GreenplumColumnInfo{.name = "col1", .type = "text"},
                                                   GreenplumColumnInfo{.name = "col2", .type = "int4"},
