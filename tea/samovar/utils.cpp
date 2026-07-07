@@ -71,10 +71,8 @@ samovar::ScanMetadata ConvertIcebergScanMetaToSamovarRepresentation(iceberg::ice
   };
 
   samovar::ScanMetadata result;
-  *result.mutable_schema() = IcebergSchemaToTeapotSchema(scan_metadata.schema);
-  if (scan_metadata.schema_name_mapping.has_value()) {
-    result.set_schema_name_mapping(*scan_metadata.schema_name_mapping);
-  }
+  AttachSchema(result, scan_metadata.schema, scan_metadata.schema_name_mapping);
+
   for (const auto& partition : scan_metadata.partitions) {
     auto* samovar_partition = result.add_partitions();
     for (const auto& layer : partition) {

@@ -83,10 +83,7 @@ arrow::Result<PlannerStats> FillSamovarWithManifests(const Config& config, std::
   std::optional<ScopedTimerTicks> timer = ScopedTimerTicks(stats.plan_duration);
 
   samovar::ScanMetadata result;
-  *result.mutable_schema() = IcebergSchemaToTeapotSchema(schema);
-  if (schema_name_mapping.has_value()) {
-    result.set_schema_name_mapping(*schema_name_mapping);
-  }
+  AttachSchema(result, schema, schema_name_mapping);
 
   std::vector<samovar::ManifestList> samovar_manifests = ConvertToSamovarManifestLists(manifests);
 

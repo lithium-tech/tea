@@ -11,6 +11,7 @@
 #include "iceberg/tea_scan.h"
 
 #include "tea/common/config.h"
+#include "tea/common/utils.h"
 #include "tea/metadata/metadata.h"
 #include "tea/samovar/network_layer/samovar_client.h"
 #include "tea/samovar/proto/samovar.pb.h"
@@ -53,6 +54,14 @@ bool ContainsPositionalDeletes(const samovar::ScanMetadata& scan_metadata);
 void SendDataEntries(const std::shared_ptr<ISamovarClient> client,
                      const std::vector<samovar::AnnotatedDataEntry>& additional_data_entries,
                      const std::string& queue_id, std::chrono::seconds ttl_seconds, uint32_t batch_size);
+
+inline void AttachSchema(samovar::ScanMetadata& result, std::shared_ptr<iceberg::Schema> schema,
+                         const std::optional<std::string>& schema_name_mapping) {
+  *result.mutable_schema() = IcebergSchemaToTeapotSchema(schema);
+  if (schema_name_mapping.has_value()) {
+    result.set_schema_name_mapping(*schema_name_mapping);
+  }
+}
 
 samovar::ScanMetadata ClearDataEntries(const samovar::ScanMetadata& scan_metadata);
 
