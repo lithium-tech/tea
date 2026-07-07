@@ -2,7 +2,7 @@ diff --git a/iceberg/tea_scan.h b/iceberg/tea_scan.h
 index 87b0e71..6b658ca 100644
 --- a/iceberg/tea_scan.h
 +++ b/iceberg/tea_scan.h
-@@ -98,6 +98,11 @@ struct ScanMetadata {
+@@ -98,6 +98,8 @@ struct ScanMetadata {
    std::shared_ptr<Schema> schema;
    std::vector<Partition> partitions;
  
