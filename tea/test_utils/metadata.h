@@ -44,15 +44,8 @@ class IMetadataWriter {
                                                const std::vector<int32_t>& field_ids) = 0;
   virtual arrow::Result<Location> Finalize() = 0;
 
-  // Override the Iceberg table schema instead of deriving it from the field-ids
-  // embedded in the written data files. Needed to model tables whose data files
-  // have no embedded field-ids (e.g. add_files / migrated tables), where the
-  // schema field-ids come from the table metadata, not the Parquet file.
-  virtual void SetSchema(std::shared_ptr<iceberg::Schema> /*schema*/) {}
-
-  // Set Iceberg table properties (e.g. schema.name-mapping.default) to be
-  // written into the table metadata.
-  virtual void SetProperties(std::map<std::string, std::string> /*properties*/) {}
+  virtual void SetSchema(std::shared_ptr<iceberg::Schema>) = 0;
+  virtual void SetProperties(std::map<std::string, std::string>) = 0;
 
   virtual ~IMetadataWriter() = default;
 };

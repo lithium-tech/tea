@@ -103,8 +103,7 @@ std::string GetIcebergTableLocation(const Config& config, TableId table_id) {
 }
 
 std::optional<std::string> GetSchemaNameMappingDefault(const iceberg::TableMetadataV2& table_metadata) {
-  if (auto it = table_metadata.properties.find(std::string(kSchemaNameMappingDefaultProperty));
-      it != table_metadata.properties.end()) {
+  if (auto it = table_metadata.properties.find("schema.name-mapping.default"); it != table_metadata.properties.end()) {
     return it->second;
   }
   return std::nullopt;

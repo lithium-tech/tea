@@ -579,7 +579,7 @@ class LowercaseRenamingStream : public iceberg::IcebergStream {
 
 arrow::Status Reader::Plan(meta::PlannedMeta meta, const Reader::SerializedFilter& filter, bool postfilter_on_gp) {
   schema_ = meta.GetDeletes().schema;
-  schema_name_mapping_ = meta.GetDeletes().schema_name_mapping;
+  auto schema_name_mapping = meta.GetDeletes().schema_name_mapping;
   iceberg::Ensure(schema_ != nullptr, std::string(__PRETTY_FUNCTION__) + ": schema is nullptr");
 
   // empty table
@@ -700,7 +700,7 @@ arrow::Status Reader::Plan(meta::PlannedMeta meta, const Reader::SerializedFilte
 
   stream_ = iceberg::IcebergScanBuilder::MakeIcebergStream(
       meta_stream, std::move(positional_deletes), std::move(equality_deletes), std::move(equality_delete_config),
-      rg_filter, ice_filter, *schema_, std::move(field_ids_to_retrieve), file_reader_provider, schema_name_mapping_,
+      rg_filter, ice_filter, *schema_, std::move(field_ids_to_retrieve), file_reader_provider, schema_name_mapping,
       logger_);
 
   stream_ = std::make_shared<LowercaseRenamingStream>(stream_);

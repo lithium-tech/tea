@@ -13,6 +13,7 @@ namespace tea::meta {
 
 class PlannedMeta {
  public:
+  // this field also contains schema and schema_name_mapping. TODO(gmusya): refactor and rename
   iceberg::ice_tea::ScanMetadata& GetDeletes() { return metadata_; }
   std::shared_ptr<AnnotatedDataEntryStream> GetStream() { return data_meta_stream_; }
 

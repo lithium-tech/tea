@@ -7,7 +7,6 @@
 #include <iceberg/streams/iceberg/iceberg_batch.h>
 
 #include <memory>
-#include <optional>
 #include <string>
 #include <tuple>
 #include <vector>
@@ -99,7 +98,6 @@ class Reader {
 
   std::shared_ptr<meta::AnnotatedDataEntryStream> entries_stream_;
   std::shared_ptr<iceberg::Schema> schema_;
-  std::optional<std::string> schema_name_mapping_;
 
   mutable bool at_least_one_matching_row_in_file_ = true;
   mutable bool potential_row_group_filter_logged_ = false;

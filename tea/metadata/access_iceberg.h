@@ -16,10 +16,6 @@
 
 namespace tea::meta::access {
 
-// Iceberg table property holding the default JSON name mapping. See
-// https://iceberg.apache.org/spec/#column-projection
-inline constexpr std::string_view kSchemaNameMappingDefaultProperty = "schema.name-mapping.default";
-
 std::pair<iceberg::ice_tea::ScanMetadata, PlannerStats> FromIceberg(
     const Config& config, TableId table_id, iceberg::filter::NodePtr filter,
     std::shared_ptr<iceberg::IFileSystemProvider> fs_provider, int64_t timestamp_to_timestamptz_shift_us,
@@ -35,7 +31,6 @@ std::pair<iceberg::ice_tea::ScanMetadata, PlannerStats> FromIcebergWithLocation(
 
 std::string GetIcebergTableLocation(const Config& config, TableId table_id);
 
-// Returns the `schema.name-mapping.default` property value, or std::nullopt if absent.
 std::optional<std::string> GetSchemaNameMappingDefault(const iceberg::TableMetadataV2& table_metadata);
 
 }  // namespace tea::meta::access

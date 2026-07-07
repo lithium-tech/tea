@@ -2,6 +2,7 @@
 
 #include <map>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
@@ -76,6 +77,14 @@ class TeapotMetadataWriter : public IMetadataWriter {
     teapot_ptr->SetResponse("db." + table_name_, teapot_resp);
     return Location(TeapotLocation("db", table_name_, teapot_ptr->GetHost(), teapot_ptr->GetPort(),
                                    Options{.profile = Environment::GetProfile()}));
+  }
+
+  void SetSchema(std::shared_ptr<iceberg::Schema>) override {
+    throw std::runtime_error("Internal error in test. SetSchema is not supported for TeapotMetadataWriter");
+  }
+
+  void SetProperties(std::map<std::string, std::string>) override {
+    throw std::runtime_error("Internal error in test. SetSchema is not supported for TeapotMetadataWriter");
   }
 
  private:
@@ -163,13 +172,11 @@ class TestState {
     return table_creator_->CreateTable(column_infos, table_name, location);
   }
 
-  // Override the Iceberg schema used in the table metadata (see IMetadataWriter::SetSchema).
   void SetSchema(std::shared_ptr<iceberg::Schema> schema, const TableName& table_name = kDefaultTableName) {
     BuildMetadataWriterIfNecessary(table_name);
     metadata_writer_.at(table_name)->SetSchema(std::move(schema));
   }
 
-  // Set Iceberg table properties written into the table metadata (see IMetadataWriter::SetProperties).
   void SetProperties(std::map<std::string, std::string> properties, const TableName& table_name = kDefaultTableName) {
     BuildMetadataWriterIfNecessary(table_name);
     metadata_writer_.at(table_name)->SetProperties(std::move(properties));
