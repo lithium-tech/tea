@@ -31,6 +31,9 @@ std::pair<iceberg::ice_tea::ScanMetadata, PlannerStats> FromIcebergWithLocation(
 
 std::string GetIcebergTableLocation(const Config& config, TableId table_id);
 
+std::optional<std::string> GetMetadataProperty(const iceberg::TableMetadataV2& table_metadata,
+                                               const std::string& property_name);
+
 std::optional<std::string> GetSchemaNameMappingDefault(const iceberg::TableMetadataV2& table_metadata);
 
 }  // namespace tea::meta::access

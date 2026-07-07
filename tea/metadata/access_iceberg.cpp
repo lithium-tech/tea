@@ -102,11 +102,16 @@ std::string GetIcebergTableLocation(const Config& config, TableId table_id) {
   return table->Location();
 }
 
-std::optional<std::string> GetSchemaNameMappingDefault(const iceberg::TableMetadataV2& table_metadata) {
-  if (auto it = table_metadata.properties.find("schema.name-mapping.default"); it != table_metadata.properties.end()) {
+std::optional<std::string> GetMetadataProperty(const iceberg::TableMetadataV2& table_metadata,
+                                               const std::string& property_name) {
+  if (auto it = table_metadata.properties.find(property_name); it != table_metadata.properties.end()) {
     return it->second;
   }
   return std::nullopt;
+}
+
+std::optional<std::string> GetSchemaNameMappingDefault(const iceberg::TableMetadataV2& table_metadata) {
+  return GetMetadataProperty(table_metadata, "schema.name-mapping.default");
 }
 
 namespace {
