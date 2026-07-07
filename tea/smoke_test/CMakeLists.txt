@@ -63,6 +63,7 @@ set(smoke_test_sources
   real_parquet_test.cpp
   row_group_filter_test.cpp
   mapping_test.cpp
+  name_mapping_default_test.cpp
   self_join_test.cpp
   large_metadata_test.cpp
   mismatching_types_test.cpp

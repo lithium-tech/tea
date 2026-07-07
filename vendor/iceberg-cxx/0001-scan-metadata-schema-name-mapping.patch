@@ -1,0 +1,16 @@
+diff --git a/iceberg/tea_scan.h b/iceberg/tea_scan.h
+index 87b0e71..6b658ca 100644
+--- a/iceberg/tea_scan.h
++++ b/iceberg/tea_scan.h
+@@ -98,6 +98,11 @@ struct ScanMetadata {
+   std::shared_ptr<Schema> schema;
+   std::vector<Partition> partitions;
+ 
++  // JSON name mapping from the `schema.name-mapping.default` table property. Used
++  // to assign field-ids to data files that have no embedded field-ids (e.g. files
++  // added via add_files or migrated tables). Empty when the property is absent.
++  std::optional<std::string> schema_name_mapping;
++
+   bool operator==(const ScanMetadata& scan_meta) const = default;
+ };
+ 

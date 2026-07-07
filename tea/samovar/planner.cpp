@@ -76,6 +76,7 @@ std::shared_ptr<SingleQueueClient> MakeSamovarDataClient(const SamovarConfig& co
 }
 
 arrow::Result<PlannerStats> FillSamovarWithManifests(const Config& config, std::shared_ptr<iceberg::Schema> schema,
+                                                     std::optional<std::string> schema_name_mapping,
                                                      std::deque<iceberg::ManifestFile> manifests, int segment_count,
                                                      std::shared_ptr<SingleQueueClient> samovar_client) {
   PlannerStats stats;
@@ -83,6 +84,9 @@ arrow::Result<PlannerStats> FillSamovarWithManifests(const Config& config, std::
 
   samovar::ScanMetadata result;
   *result.mutable_schema() = IcebergSchemaToTeapotSchema(schema);
+  if (schema_name_mapping.has_value()) {
+    result.set_schema_name_mapping(*schema_name_mapping);
+  }
 
   std::vector<samovar::ManifestList> samovar_manifests = ConvertToSamovarManifestLists(manifests);
 
@@ -398,6 +402,9 @@ arrow::Result<std::pair<meta::PlannedMeta, PlannerStats>> FromSamovar(
 
     iceberg::ice_tea::ScanMetadata metadata;
     metadata.schema = TeapotSchemaToIcebergSchema(response.schema());
+    if (response.has_schema_name_mapping()) {
+      metadata.schema_name_mapping = response.schema_name_mapping();
+    }
 
     // process tasks from the entries queue
     auto sched = std::make_shared<SamovarMetadataScheduler>(config, samovar_client);

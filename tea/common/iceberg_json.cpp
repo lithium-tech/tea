@@ -31,6 +31,7 @@ constexpr std::string_view kNameField = "name";
 constexpr std::string_view kTypeField = "type";
 constexpr std::string_view kFieldsField = "type";
 constexpr std::string_view kSchemaField = "schema";
+constexpr std::string_view kSchemaNameMappingField = "schema_name_mapping";
 constexpr std::string_view kScanMetadata = "scan_metadata";
 constexpr std::string_view kScanMetadataIdentifier = "scan_metadata_identifier";
 constexpr std::string_view kPartitionsField = "partitions";
@@ -204,6 +205,9 @@ rapidjson::Value Serializer::Serialize(iceberg::ice_tea::ScanMetadata&& scan_met
   rapidjson::Value result(rapidjson::kObjectType);
   AddMember(result, kSchemaField, std::move(*scan_metadata.schema));
   AddMember(result, kPartitionsField, std::move(scan_metadata.partitions));
+  if (scan_metadata.schema_name_mapping.has_value()) {
+    AddMember(result, kSchemaNameMappingField, std::move(*scan_metadata.schema_name_mapping));
+  }
   return result;
 }
 
@@ -375,7 +379,13 @@ iceberg::ice_tea::ScanMetadata Deserialize(const rapidjson::Value& value) {
 
   auto schema = std::make_shared<iceberg::Schema>(Extract<iceberg::Schema>(value, kSchemaField));
   auto partitions = Extract<std::vector<iceberg::ice_tea::ScanMetadata::Partition>>(value, kPartitionsField);
-  return iceberg::ice_tea::ScanMetadata{.schema = std::move(schema), .partitions = std::move(partitions)};
+  std::optional<std::string> schema_name_mapping;
+  if (value.HasMember(kSchemaNameMappingField.data())) {
+    schema_name_mapping = Extract<std::string>(value, kSchemaNameMappingField);
+  }
+  return iceberg::ice_tea::ScanMetadata{.schema = std::move(schema),
+                                        .partitions = std::move(partitions),
+                                        .schema_name_mapping = std::move(schema_name_mapping)};
 }
 
 template <>

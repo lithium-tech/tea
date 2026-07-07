@@ -102,6 +102,14 @@ std::string GetIcebergTableLocation(const Config& config, TableId table_id) {
   return table->Location();
 }
 
+std::optional<std::string> GetSchemaNameMappingDefault(const iceberg::TableMetadataV2& table_metadata) {
+  if (auto it = table_metadata.properties.find(std::string(kSchemaNameMappingDefaultProperty));
+      it != table_metadata.properties.end()) {
+    return it->second;
+  }
+  return std::nullopt;
+}
+
 namespace {
 class EmptyIcebergStream : public iceberg::ice_tea::IcebergEntriesStream {
  public:
@@ -177,7 +185,10 @@ std::pair<iceberg::ice_tea::ScanMetadata, PlannerStats> FromIcebergWithLocation(
       }
     }
 
-    return iceberg::ice_tea::GetScanMetadata(*entries_stream, *table_metadata, scan_schema, logger);
+    ARROW_ASSIGN_OR_RAISE(auto scan_metadata,
+                          iceberg::ice_tea::GetScanMetadata(*entries_stream, *table_metadata, scan_schema, logger));
+    scan_metadata.schema_name_mapping = GetSchemaNameMappingDefault(*table_metadata);
+    return scan_metadata;
   }();
 
   if (result.ok()) {

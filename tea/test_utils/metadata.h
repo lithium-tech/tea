@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <cstdlib>
+#include <map>
 #include <memory>
 #include <string>
 #include <utility>
@@ -42,6 +43,16 @@ class IMetadataWriter {
   virtual arrow::Status AddEqualityDeleteFiles(const std::vector<iceberg::FilePath>& paths,
                                                const std::vector<int32_t>& field_ids) = 0;
   virtual arrow::Result<Location> Finalize() = 0;
+
+  // Override the Iceberg table schema instead of deriving it from the field-ids
+  // embedded in the written data files. Needed to model tables whose data files
+  // have no embedded field-ids (e.g. add_files / migrated tables), where the
+  // schema field-ids come from the table metadata, not the Parquet file.
+  virtual void SetSchema(std::shared_ptr<iceberg::Schema> /*schema*/) {}
+
+  // Set Iceberg table properties (e.g. schema.name-mapping.default) to be
+  // written into the table metadata.
+  virtual void SetProperties(std::map<std::string, std::string> /*properties*/) {}
 
   virtual ~IMetadataWriter() = default;
 };
@@ -297,7 +308,17 @@ class IcebergMetadataWriter : public IMetadataWriter {
                                          " for column " + column->name());
   }
 
+  void SetSchema(std::shared_ptr<iceberg::Schema> schema) override { forced_schema_ = std::move(schema); }
+
+  void SetProperties(std::map<std::string, std::string> properties) override {
+    table_properties_ = std::move(properties);
+  }
+
   arrow::Result<std::shared_ptr<iceberg::Schema>> GetSchema() const {
+    if (forced_schema_) {
+      return forced_schema_;
+    }
+
     if (!some_data_path_.has_value()) {
       return arrow::Status::ExecutionError("No data file to extract schema");
     }
@@ -379,6 +400,7 @@ class IcebergMetadataWriter : public IMetadataWriter {
         std::make_shared<iceberg::SortOrder>(iceberg::SortOrder{.order_id = 0, .fields = {}}));
     builder.default_sort_order_id = 0;
     builder.partition_specs = {std::make_shared<iceberg::PartitionSpec>(partition_spec_)};
+    builder.properties = table_properties_;
 
     std::shared_ptr<iceberg::TableMetadataV2> meta = builder.Build();
     {
@@ -414,6 +436,9 @@ class IcebergMetadataWriter : public IMetadataWriter {
   std::optional<iceberg::FilePath> some_data_path_;
   const std::string profile_;
   const iceberg::PartitionSpec partition_spec_;
+
+  std::shared_ptr<iceberg::Schema> forced_schema_;
+  std::map<std::string, std::string> table_properties_;
 
   uint64_t data_files_count_ = 0;
   uint64_t delete_files_count_ = 0;

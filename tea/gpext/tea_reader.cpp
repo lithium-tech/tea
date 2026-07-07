@@ -971,6 +971,8 @@ std::shared_ptr<tea::samovar::SingleQueueClient> SamovarMakePlan(TeaContextPtr t
 
     {
       std::shared_ptr<iceberg::Schema> schema = tea::GetSchemaForSnapshot(table_metadata, config.snapshot_ref);
+      std::optional<std::string> schema_name_mapping =
+          tea::meta::access::GetSchemaNameMappingDefault(*table_metadata);
       TEA_LOG("Samovar: getting manifest files");
 
       std::deque<iceberg::ManifestFile> manifest_files_queue =
@@ -987,8 +989,8 @@ std::shared_ptr<tea::samovar::SingleQueueClient> SamovarMakePlan(TeaContextPtr t
             CreateSamovarClient(tea_ctx, queue_name, query_scans_count_key, segment_id, segment_count,
                                 tea::samovar::SamovarRole::kFollower);
         TEA_LOG("Samovar: filling manifests queue");
-        auto maybe_stats = tea::samovar::FillSamovarWithManifests(get::Config(tea_ctx), schema, manifest_files_queue,
-                                                                  segment_count, samovar_client);
+        auto maybe_stats = tea::samovar::FillSamovarWithManifests(get::Config(tea_ctx), schema, schema_name_mapping,
+                                                                  manifest_files_queue, segment_count, samovar_client);
         get::PlannerStats(tea_ctx).Combine(iceberg::ValueSafe(maybe_stats));
 
         return samovar_client;
@@ -1024,6 +1026,7 @@ std::shared_ptr<tea::samovar::SingleQueueClient> SamovarMakePlan(TeaContextPtr t
 
         iceberg::ice_tea::ScanMetadata all_meta =
             iceberg::ValueSafe(iceberg::ice_tea::GetScanMetadata(*entries_stream, *table_metadata, schema, logger));
+        all_meta.schema_name_mapping = schema_name_mapping;
 
         ValidateAllMetadata(get::Config(tea_ctx), all_meta);
 

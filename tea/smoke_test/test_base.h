@@ -163,6 +163,19 @@ class TestState {
     return table_creator_->CreateTable(column_infos, table_name, location);
   }
 
+  // Override the Iceberg schema used in the table metadata (see IMetadataWriter::SetSchema).
+  void SetSchema(std::shared_ptr<iceberg::Schema> schema, const TableName& table_name = kDefaultTableName) {
+    BuildMetadataWriterIfNecessary(table_name);
+    metadata_writer_.at(table_name)->SetSchema(std::move(schema));
+  }
+
+  // Set Iceberg table properties written into the table metadata (see IMetadataWriter::SetProperties).
+  void SetProperties(std::map<std::string, std::string> properties,
+                     const TableName& table_name = kDefaultTableName) {
+    BuildMetadataWriterIfNecessary(table_name);
+    metadata_writer_.at(table_name)->SetProperties(std::move(properties));
+  }
+
   void SetFileWriter(std::shared_ptr<IFileWriter> file_writer) { file_writer_ = file_writer; }
   void SetMetadataWriterBuilder(std::shared_ptr<IMetadataWriterBuilder> metadata_writer_builder) {
     metadata_writer_.clear();

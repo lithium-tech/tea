@@ -5,6 +5,7 @@
 
 #include <deque>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 
@@ -28,6 +29,7 @@ arrow::Result<PlannerStats> FillSamovar(const Config& config, iceberg::ice_tea::
                                         std::shared_ptr<SingleQueueClient> samovar_client);
 
 arrow::Result<PlannerStats> FillSamovarWithManifests(const Config& config, std::shared_ptr<iceberg::Schema> schema,
+                                                     std::optional<std::string> schema_name_mapping,
                                                      std::deque<iceberg::ManifestFile>, int segment_count,
                                                      std::shared_ptr<SingleQueueClient> samovar_client);
 

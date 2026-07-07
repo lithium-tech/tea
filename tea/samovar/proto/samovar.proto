@@ -55,6 +55,9 @@ message ScanMetadata {
 
   bool use_distributed_metadata_processing = 3;
   bool scan_already_finished = 4;
+
+  // JSON name mapping from the `schema.name-mapping.default` table property.
+  optional string schema_name_mapping = 5;
 }
 
 message AnnotatedDataEntry {

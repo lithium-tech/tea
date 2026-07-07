@@ -914,6 +914,7 @@ iceberg::ice_tea::ScanMetadata SplitPartitionsAndFilter(iceberg::ice_tea::ScanMe
   const auto& partitions = scan_metadata.partitions;
   iceberg::ice_tea::ScanMetadata result;
   result.schema = scan_metadata.schema;
+  result.schema_name_mapping = scan_metadata.schema_name_mapping;
 
   int iterator = 0;
   for (const auto& partition : partitions) {
