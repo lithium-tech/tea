@@ -362,7 +362,7 @@ arrow::Result<std::pair<meta::PlannedMeta, PlannerStats>> FromSamovar(
   auto response = samovar_client->GetPlannedMetadata();
   if (response.scan_already_finished()) {
     iceberg::ice_tea::ScanMetadata metadata;
-    metadata.schema = TeapotSchemaToIcebergSchema(response.schema());
+    AttachSchema(metadata, response);
 
     auto sched = std::make_shared<EmptyMetadataScheduler>();
 
@@ -398,10 +398,7 @@ arrow::Result<std::pair<meta::PlannedMeta, PlannerStats>> FromSamovar(
     samovar_client->WaitForManifestsQueue();
 
     iceberg::ice_tea::ScanMetadata metadata;
-    metadata.schema = TeapotSchemaToIcebergSchema(response.schema());
-    if (response.has_schema_name_mapping()) {
-      metadata.schema_name_mapping = response.schema_name_mapping();
-    }
+    AttachSchema(metadata, response);
 
     // process tasks from the entries queue
     auto sched = std::make_shared<SamovarMetadataScheduler>(config, samovar_client);

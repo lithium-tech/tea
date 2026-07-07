@@ -55,6 +55,13 @@ void SendDataEntries(const std::shared_ptr<ISamovarClient> client,
                      const std::vector<samovar::AnnotatedDataEntry>& additional_data_entries,
                      const std::string& queue_id, std::chrono::seconds ttl_seconds, uint32_t batch_size);
 
+inline void AttachSchema(iceberg::ice_tea::ScanMetadata& result, const samovar::ScanMetadata& source) {
+  result.schema = TeapotSchemaToIcebergSchema(source.schema());
+  if (source.has_schema_name_mapping()) {
+    result.schema_name_mapping = source.schema_name_mapping();
+  }
+}
+
 inline void AttachSchema(samovar::ScanMetadata& result, std::shared_ptr<iceberg::Schema> schema,
                          const std::optional<std::string>& schema_name_mapping) {
   *result.mutable_schema() = IcebergSchemaToTeapotSchema(schema);

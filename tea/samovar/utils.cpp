@@ -140,10 +140,7 @@ iceberg::ice_tea::ScanMetadata ConvertSamovarRepresentationToScanMeta(const samo
     result.partitions.push_back(std::move(ice_partition));
   }
 
-  result.schema = TeapotSchemaToIcebergSchema(scan_metadata.schema());
-  if (scan_metadata.has_schema_name_mapping()) {
-    result.schema_name_mapping = scan_metadata.schema_name_mapping();
-  }
+  AttachSchema(result, scan_metadata);
 
   return result;
 }
