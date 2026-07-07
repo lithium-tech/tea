@@ -34,6 +34,7 @@ FetchContent_Declare(
   PATCH_COMMAND git reset --hard HEAD
     && git apply ${CMAKE_CURRENT_SOURCE_DIR}/iceberg-cxx/0001-scan-metadata-schema-name-mapping.patch
 )
+# TODO(gmusya): support schema.name-mapping.default in GetScanMetadata and add this patch to iceberg-cxx
 
 FetchContent_MakeAvailable(googletest hiredis)
 
