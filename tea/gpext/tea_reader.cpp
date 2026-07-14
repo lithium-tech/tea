@@ -472,14 +472,37 @@ static uint32_t GetScanId(const char* session_id) {
   return ++scan_identifier;
 }
 
+/**
+ * Initialize shared state of the library.
+ */
+static void TeaContextInitialize(const tea::Config* config) {
+  TEA_INVOKE(ERROR, [config] {
+    tea::InitializeLogger();
+    if (config->features.use_helper_thread) {
+      tea::SignalBlocker signal_blocker;
+      tea::thread_pool = new tea::ThreadPool(1);
+    }
+  });
+  TEA_INVOKE_IN_HELPER_THREAD(ERROR, [=] { TEA_RETURN_ARROW_NOT_OK(tea::Reader::Initialize(config, GetDatabaseEncoding())); });
+}
+
 TeaContextPtr TeaContextCreateUntracked(const char* url) {
+  tea::InternalContext* internal_ctx;
+  TEA_INVOKE(ERROR, ([&internal_ctx, url] {
+	  internal_ctx = new tea::InternalContext();
+	  internal_ctx->table_config = tea::ConfigSource::GetTableConfig(url);
+  }));
+
+  static bool context_initialized = false;
+  if (!context_initialized) {
+    TeaContextInitialize(&internal_ctx->table_config.config);
+    context_initialized = true;
+  }
+
   TeaContextPtr result = nullptr;
   TEA_INVOKE_IN_HELPER_THREAD(
-      ERROR, ([url, &result]() {
+      ERROR, ([url, &result, internal_ctx]() {
         result = new TeaContext();
-
-        auto internal_ctx = new tea::InternalContext();
-        internal_ctx->table_config = tea::ConfigSource::GetTableConfig(url);
 
         result->ctx = internal_ctx;
 
@@ -546,18 +569,6 @@ void TeaContextFinalize() {
     }
     tea::FinalizeLogger();
   });
-}
-
-void TeaContextInitialize(int db_encoding) {
-  TEA_INVOKE(ERROR, [] {
-    tea::InitializeLogger();
-    auto config = tea::ConfigSource::GetConfig();
-    if (config.features.use_helper_thread) {
-      tea::SignalBlocker signal_blocker;
-      tea::thread_pool = new tea::ThreadPool(1);
-    }
-  });
-  TEA_INVOKE_IN_HELPER_THREAD(ERROR, [=] { TEA_RETURN_ARROW_NOT_OK(tea::Reader::Initialize(db_encoding)); });
 }
 
 static tea::TableType TableTypeFromSource(const tea::TableSource& source) {

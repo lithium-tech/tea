@@ -44,7 +44,7 @@ class Reader {
 
   static arrow::Status Finalize();
 
-  static arrow::Status Initialize(int db_encoding);
+  static arrow::Status Initialize(const Config* config, int db_encoding);
 
  public:
   arrow::Result<std::optional<iceberg::BatchWithSelectionVector>> GetNextBatch();
