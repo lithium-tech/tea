@@ -64,11 +64,6 @@ typedef struct ReaderOptions {
 } ReaderOptions;
 
 /**
- * Initialize shared state of the library.
- */
-void TeaContextInitialize(int db_encoding);
-
-/**
  * Finalize shared state.
  */
 void TeaContextFinalize();

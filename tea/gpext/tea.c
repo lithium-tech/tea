@@ -8,7 +8,6 @@
 
 #include "tea/gpext/tea_reader.h"
 
-static bool reader_initialized = false;
 static List* readers = NULL;
 
 PG_MODULE_MAGIC;
@@ -48,11 +47,11 @@ static void OnExitCallback(int code, Datum arg) {
 }
 
 TeaContextPtr TeaContextCreate(const char* url) {
-  if (!reader_initialized) {
-    TeaContextInitialize(GetDatabaseEncoding());
+  static bool callbacks_set = false;
+  if (!callbacks_set) {
     RegisterXactCallback(XactCallbackTea, NULL);
     on_shmem_exit(OnExitCallback, 0);
-    reader_initialized = true;
+    callbacks_set = true;
   }
   TeaContextPtr tea_ctx = TeaContextCreateUntracked(url);
   if (tea_ctx) {

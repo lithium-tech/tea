@@ -89,6 +89,62 @@ extern "C" {
 #include "utils/builtins.h"
 }
 
+#define TEA_RETURN_ARROW_NOT_OK(status_or_value_expr)                                  \
+  do {                                                                                 \
+    if (const auto& status_or_value = (status_or_value_expr); !status_or_value.ok()) { \
+      tea::SetArrowError(status_or_value);                                             \
+      return;                                                                          \
+    }                                                                                  \
+  } while (0)
+
+#define TEA_INVOKE(log_level, fn)                             \
+  do {                                                        \
+    tea::is_call_successful = true;                           \
+    tea::Invoke(fn);                                          \
+    tea::PrintLogs();                                         \
+    if (!tea::is_call_successful) {                           \
+      elog((log_level), "Tea error: %s", tea::error_message); \
+    }                                                         \
+  } while (0)
+
+#define TEA_INVOKE_WO_PRINT_LOGS(log_level, fn)               \
+  do {                                                        \
+    tea::is_call_successful = true;                           \
+    tea::Invoke(fn);                                          \
+    if (!tea::is_call_successful) {                           \
+      elog((log_level), "Tea error: %s", tea::error_message); \
+    }                                                         \
+  } while (0)
+
+#define TEA_INVOKE_IN_HELPER_THREAD(log_level, fn)            \
+  do {                                                        \
+    tea::is_call_successful = true;                           \
+    if (tea::thread_pool) {                                   \
+      tea::thread_pool->Invoke([&]() { tea::Invoke(fn); });   \
+    } else {                                                  \
+      tea::Invoke(fn);                                        \
+    }                                                         \
+    tea::PrintLogs();                                         \
+    if (!tea::is_call_successful) {                           \
+      elog((log_level), "Tea error: %s", tea::error_message); \
+    }                                                         \
+  } while (0)
+
+#define TEA_INVOKE_IN_HELPER_THREAD_WITH_INTERRUPTS(log_level, fn)                   \
+  do {                                                                               \
+    tea::is_call_successful = true;                                                  \
+    if (tea::thread_pool) {                                                          \
+      std::future<void> task = tea::thread_pool->Submit([&]() { tea::Invoke(fn); }); \
+      WaitTaskWithInterrupts(task, get::CancelToken(tea_ctx));                       \
+    } else {                                                                         \
+      tea::Invoke(fn);                                                               \
+    }                                                                                \
+    tea::PrintLogs();                                                                \
+    if (!tea::is_call_successful) {                                                  \
+      elog((log_level), "Tea error: %s", tea::error_message);                        \
+    }                                                                                \
+  } while (0)
+
 namespace tea {
 namespace {
 
@@ -275,64 +331,23 @@ uint64_t CountPositionalDeleteFiles(const iceberg::ice_tea::ScanMetadata& scan_m
   return result;
 }
 
+/**
+ * Initialize shared state of the library.
+ */
+void TeaContextInitialize(const tea::Config& config) {
+  TEA_INVOKE(ERROR, [&config] {
+    tea::InitializeLogger();
+    if (config.features.use_helper_thread) {
+      tea::SignalBlocker signal_blocker;
+      tea::thread_pool = new tea::ThreadPool(1);
+    }
+  });
+  TEA_INVOKE_IN_HELPER_THREAD(ERROR,
+                              [=] { TEA_RETURN_ARROW_NOT_OK(tea::Reader::Initialize(config, GetDatabaseEncoding())); });
+}
+
 }  // namespace
 }  // namespace tea
-
-#define TEA_RETURN_ARROW_NOT_OK(status_or_value_expr)                                  \
-  do {                                                                                 \
-    if (const auto& status_or_value = (status_or_value_expr); !status_or_value.ok()) { \
-      tea::SetArrowError(status_or_value);                                             \
-      return;                                                                          \
-    }                                                                                  \
-  } while (0)
-
-#define TEA_INVOKE(log_level, fn)                             \
-  do {                                                        \
-    tea::is_call_successful = true;                           \
-    tea::Invoke(fn);                                          \
-    tea::PrintLogs();                                         \
-    if (!tea::is_call_successful) {                           \
-      elog((log_level), "Tea error: %s", tea::error_message); \
-    }                                                         \
-  } while (0)
-
-#define TEA_INVOKE_WO_PRINT_LOGS(log_level, fn)               \
-  do {                                                        \
-    tea::is_call_successful = true;                           \
-    tea::Invoke(fn);                                          \
-    if (!tea::is_call_successful) {                           \
-      elog((log_level), "Tea error: %s", tea::error_message); \
-    }                                                         \
-  } while (0)
-
-#define TEA_INVOKE_IN_HELPER_THREAD(log_level, fn)            \
-  do {                                                        \
-    tea::is_call_successful = true;                           \
-    if (tea::thread_pool) {                                   \
-      tea::thread_pool->Invoke([&]() { tea::Invoke(fn); });   \
-    } else {                                                  \
-      tea::Invoke(fn);                                        \
-    }                                                         \
-    tea::PrintLogs();                                         \
-    if (!tea::is_call_successful) {                           \
-      elog((log_level), "Tea error: %s", tea::error_message); \
-    }                                                         \
-  } while (0)
-
-#define TEA_INVOKE_IN_HELPER_THREAD_WITH_INTERRUPTS(log_level, fn)                   \
-  do {                                                                               \
-    tea::is_call_successful = true;                                                  \
-    if (tea::thread_pool) {                                                          \
-      std::future<void> task = tea::thread_pool->Submit([&]() { tea::Invoke(fn); }); \
-      WaitTaskWithInterrupts(task, get::CancelToken(tea_ctx));                       \
-    } else {                                                                         \
-      tea::Invoke(fn);                                                               \
-    }                                                                                \
-    tea::PrintLogs();                                                                \
-    if (!tea::is_call_successful) {                                                  \
-      elog((log_level), "Tea error: %s", tea::error_message);                        \
-    }                                                                                \
-  } while (0)
 
 namespace get {
 
@@ -473,13 +488,22 @@ static uint32_t GetScanId(const char* session_id) {
 }
 
 TeaContextPtr TeaContextCreateUntracked(const char* url) {
+  tea::InternalContext* internal_ctx;
+  TEA_INVOKE(ERROR, ([&internal_ctx, url] {
+               internal_ctx = new tea::InternalContext();
+               internal_ctx->table_config = tea::ConfigSource::GetTableConfig(url);
+             }));
+
+  static bool context_initialized = false;
+  if (!context_initialized) {
+    tea::TeaContextInitialize(internal_ctx->table_config.config);
+    context_initialized = true;
+  }
+
   TeaContextPtr result = nullptr;
   TEA_INVOKE_IN_HELPER_THREAD(
-      ERROR, ([url, &result]() {
+      ERROR, ([url, &result, internal_ctx]() {
         result = new TeaContext();
-
-        auto internal_ctx = new tea::InternalContext();
-        internal_ctx->table_config = tea::ConfigSource::GetTableConfig(url);
 
         result->ctx = internal_ctx;
 
@@ -546,18 +570,6 @@ void TeaContextFinalize() {
     }
     tea::FinalizeLogger();
   });
-}
-
-void TeaContextInitialize(int db_encoding) {
-  TEA_INVOKE(ERROR, [] {
-    tea::InitializeLogger();
-    auto config = tea::ConfigSource::GetConfig();
-    if (config.features.use_helper_thread) {
-      tea::SignalBlocker signal_blocker;
-      tea::thread_pool = new tea::ThreadPool(1);
-    }
-  });
-  TEA_INVOKE_IN_HELPER_THREAD(ERROR, [=] { TEA_RETURN_ARROW_NOT_OK(tea::Reader::Initialize(db_encoding)); });
 }
 
 static tea::TableType TableTypeFromSource(const tea::TableSource& source) {

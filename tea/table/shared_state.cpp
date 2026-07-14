@@ -18,8 +18,8 @@
 
 namespace tea {
 
-arrow::Status SharedState::InitializeConverter(int db_encoding) {
-  if (!ConfigSource::GetConfig().features.substitute_illegal_code_points) {
+arrow::Status SharedState::InitializeConverter(const Config& config, int db_encoding) {
+  if (!config.features.substitute_illegal_code_points) {
     return arrow::Status::OK();
   }
   auto enc = InitializeIconv(db_encoding);

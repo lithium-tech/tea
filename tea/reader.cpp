@@ -241,12 +241,10 @@ static arrow::Status EnsureThreadsCreated(arrow::internal::ThreadPool* pool) {
   return arrow::Status::OK();
 }
 
-arrow::Status Reader::Initialize(int db_encoding) {
+arrow::Status Reader::Initialize(const Config& config, int db_encoding) {
   SignalBlocker blocker;
 
   InitializeSharedState();
-
-  Config config = ConfigSource::GetConfig();
 
   // Max threads for CPU-bound tasks.
   if (auto max_threads = config.limits.max_cpu_threads) {
@@ -264,7 +262,7 @@ arrow::Status Reader::Initialize(int db_encoding) {
   RETURN_FL_NOT_OK(
       EnsureThreadsCreated(static_cast<arrow::internal::ThreadPool*>(arrow::io::default_io_context().executor())));
 
-  if (auto status = GetSharedState()->InitializeConverter(db_encoding); !status.ok()) {
+  if (auto status = GetSharedState()->InitializeConverter(config, db_encoding); !status.ok()) {
     return status;
   }
 

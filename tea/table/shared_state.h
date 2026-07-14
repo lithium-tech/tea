@@ -4,13 +4,14 @@
 
 #include "arrow/status.h"
 
+#include "tea/common/config.h"
 #include "tea/table/bridge.h"
 
 namespace tea {
 
 class SharedState {
  public:
-  arrow::Status InitializeConverter(int db_encoding);
+  arrow::Status InitializeConverter(const Config& config, int db_encoding);
   arrow::Status FinalizeConverter();
   CharsetConverter GetCharsetConverter(struct FmgrInfo* proc);
 
