@@ -63,7 +63,7 @@ jobs:
         with:
           filters: |
             ubuntu22.04:
-              - 'devops/deploy/docker/build/ubuntu22.04/**'
+              - 'devops/build/ubuntu22.04/**'
 
       - name: Set up QEMU
         if: ${{ steps.platform-filter.outputs[matrix.platform] == 'true' || github.event_name == 'workflow_dispatch' }}
