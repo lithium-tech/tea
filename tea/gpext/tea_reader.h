@@ -14,6 +14,8 @@ extern "C" {
 #include "tea/observability/ext_stats.h"
 #include "tea/table/gp_fwd.h"
 
+typedef struct List List;
+
 typedef void* InternalContextPtr;
 
 typedef struct TeaContext {
@@ -71,12 +73,12 @@ void TeaContextFinalize();
 /**
  * Create reader instance.
  */
-TeaContextPtr TeaContextCreate(const char* url);
+TeaContextPtr TeaContextCreate(const List* server_options, const char* url);
 
 /**
  * Create reader instance. Does not to checks for initialization or tracks the instance for automatic deinitialization.
  */
-TeaContextPtr TeaContextCreateUntracked(const char* url);
+TeaContextPtr TeaContextCreateUntracked(const List* server_options, const char* url);
 
 /**
  * Destroy reader instance.
@@ -132,7 +134,7 @@ void TeaContextGetOptions(TeaContextPtr tea_ctx, ReaderOptions* options);
 void TeaContextLogStats(const TeaContextPtr tea_ctx, const char* event);
 
 #ifdef FDW_GET_CREATE_QUERY
-char* TeaFDWGetCreateQuery(const char* name, const char* location);
+char* TeaFDWGetCreateQuery(const char* name, const char* location, const List* server_options);
 #endif
 
 #ifdef __cplusplus

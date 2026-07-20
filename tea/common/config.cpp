@@ -235,6 +235,17 @@ bool Get(const rapidjson::Value* doc, std::string_view section_prefix, std::stri
   return false;
 }
 
+CatalogConfig::CatalogType StrToCatalogType(std::string s) {
+  std::transform(s.begin(), s.end(), s.begin(), tolower);
+  if (s.empty() || s == "hms") return CatalogConfig::CatalogType::kHMS;
+  if (s == "nessie") return CatalogConfig::CatalogType::kNessie;
+#if USE_REST
+  if (s == "rest") return CatalogConfig::CatalogType::kREST;
+#endif
+
+  throw std::runtime_error("Catalog type '" + s + "' is not supported");
+}
+
 bool Get(const rapidjson::Value* doc, std::string_view section_prefix, std::string_view section, const std::string& key,
          CatalogConfig::CatalogType* out) {
   const rapidjson::Value* value = Advance(doc, {std::string(section), key});
@@ -244,23 +255,9 @@ bool Get(const rapidjson::Value* doc, std::string_view section_prefix, std::stri
   if (!value->IsString()) {
     return false;
   }
-  std::string str = value->GetString();
-  std::transform(str.begin(), str.end(), str.begin(), tolower);
-  if (str.empty() || str == "hms") {
-    *out = CatalogConfig::CatalogType::kHMS;
-    return true;
-  } else if (str == "nessie") {
-    *out = CatalogConfig::CatalogType::kNessie;
-    return true;
-  }
-#if USE_REST
-  if (str == "rest") {
-    *out = CatalogConfig::CatalogType::kREST;
-    return true;
-  }
-#endif
 
-  throw std::runtime_error("Catalog type '" + str + "' is not supported");
+  *out = StrToCatalogType(value->GetString());
+  return true;
 }
 
 bool Get(const rapidjson::Value* doc, std::string_view section_prefix, std::string_view section, const std::string& key,
@@ -537,6 +534,27 @@ arrow::Status Load(const rapidjson::Document& document, std::string_view profile
   return arrow::Status::OK();
 }
 
+void LoadFDWServerOptions(Config& config, const std::unordered_map<std::string, std::string>& m_server_options) {
+  auto LoadStr = [&m_server_options](std::string& value, const char* key) {
+    if (auto i = m_server_options.find(key); i != m_server_options.end()) {
+      value = i->second;
+    }
+  };
+
+  // s3
+  LoadStr(config.s3.access_key, "s3_access_key");
+  LoadStr(config.s3.secret_key, "s3_secret_key");
+  LoadStr(config.s3.endpoint_override, "s3_endpoint_override");
+  LoadStr(config.s3.scheme, "s3_scheme");
+
+  // catalog
+  if (auto i = m_server_options.find("catalog_type"); i != m_server_options.end())
+    config.catalog.type = StrToCatalogType(i->second);
+
+  LoadStr(config.catalog.rest_url, "catalog_rest_url");
+  LoadStr(config.catalog.rest_warehouse_id, "catalog_rest_warehouse_id");
+}
+
 }  // namespace
 
 TableId TableId::FromString(std::string_view s) {
@@ -621,34 +639,45 @@ arrow::Status Config::FromJsonFile(const std::string& file_path, const std::opti
   return FromJsonStream(input_config, schema_content, profile);
 }
 
-Config ConfigSource::GetConfig(std::string_view profile) {
-  auto json_config_path = Config::GetJsonFilePath();
-  auto json_schema_config_path = Config::GetJsonSchemaFilePath();
-
-  if (!json_config_path.ok()) {
-    throw json_config_path.status();
-  }
-
+Config ConfigSource::GetConfig(const std::unordered_map<std::string, std::string>& m_server_options,
+                               std::string_view profile) {
+  auto i_read_config_file = m_server_options.find("read_config_file");
+  bool read_config = (i_read_config_file == m_server_options.end() || i_read_config_file->second != "false");
   std::optional<std::string> result_file_schema_path;
-  if (std::filesystem::exists(*json_schema_config_path)) {
-    result_file_schema_path = *json_schema_config_path;
-  } else {
-    result_file_schema_path = std::nullopt;
-  }
+  std::string json_config_path;
+  if (read_config) {
+    auto maybe_json_config_path = Config::GetJsonFilePath();
+    auto json_schema_config_path = Config::GetJsonSchemaFilePath();
 
-  if (!std::filesystem::exists(*json_config_path)) {
-    throw arrow::Status::ExecutionError("Cannot load configuration file ", *json_config_path);
+    if (!maybe_json_config_path.ok()) {
+      throw maybe_json_config_path.status();
+    }
+
+    if (std::filesystem::exists(*json_schema_config_path)) {
+      result_file_schema_path = *json_schema_config_path;
+    } else {
+      result_file_schema_path = std::nullopt;
+    }
+
+    json_config_path = *maybe_json_config_path;
+    if (!std::filesystem::exists(json_config_path)) {
+      throw arrow::Status::ExecutionError("Cannot load configuration file ", json_config_path);
+    }
   }
   Config config;
   LoadEnvDefaults(&config);
-  if (auto status = config.FromJsonFile(*json_config_path, result_file_schema_path, profile); !status.ok()) {
-    TEA_LOG("Incorrect json config " + status.message());
-    throw arrow::Status::ExecutionError("Incorrect configuration file ", *json_config_path);
+  if (read_config) {
+    if (auto status = config.FromJsonFile(json_config_path, result_file_schema_path, profile); !status.ok()) {
+      TEA_LOG("Incorrect json config " + status.message());
+      throw arrow::Status::ExecutionError("Incorrect configuration file ", json_config_path);
+    }
   }
+  LoadFDWServerOptions(config, m_server_options);
   return config;
 }
 
-TableConfig ConfigSource::GetTableConfig(std::string_view url, const std::string& overrided_profile) {
+TableConfig ConfigSource::GetTableConfig(const std::unordered_map<std::string, std::string>& m_server_options,
+                                         std::string_view url, const std::string& overrided_profile) {
   if (!url.starts_with(kTeaSchema)) {
     throw arrow::Status::ExecutionError("Url must start with ", kTeaSchema, " but ", url, " found");
   }
@@ -668,7 +697,7 @@ TableConfig ConfigSource::GetTableConfig(std::string_view url, const std::string
   SnapshotRef snapshot_ref = maybe_snapshot_ref.ValueUnsafe();
 
   TableConfig table_config;
-  table_config.config = GetConfig(profile);
+  table_config.config = GetConfig(m_server_options, profile);
   table_config.snapshot_ref = snapshot_ref;
 
   const auto schema =

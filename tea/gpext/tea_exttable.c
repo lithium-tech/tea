@@ -193,7 +193,7 @@ static void InitImportContext(Import* context, char* url, TupleDesc tupdesc, str
   context->columns = (int*)palloc0(sizeof(int) * tupdesc->natts);
   context->values = palloc0(sizeof(Datum) * tupdesc->natts);
   context->nulls = palloc0(sizeof(bool) * tupdesc->natts);
-  context->tea_ctx = TeaContextCreate(url);
+  context->tea_ctx = TeaContextCreate(NIL, url);
   TeaContextGetOptions(context->tea_ctx, &context->options);
   context->ncolumns = GetRequiredColumns(desc, context->columns, tupdesc->natts,
                                          context->options.ext_table_filter_walker_for_projection);
