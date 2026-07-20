@@ -1,0 +1,155 @@
+# --------------------------------------------------------------------
+# GitHub Actions Workflow for Tea Build Environment Images
+# --------------------------------------------------------------------
+# Purpose:
+# Builds, tests, and publishes Docker images used to compile Tea.
+# Images are based on open-gpdb jammy, pre-install Arrow/gRPC and
+# toolchains, and are validated with TestInfra before publish.
+#
+# Image Tags (GHCR):
+# - Latest: tea-build-ubuntu22.04-latest
+# - Versioned: tea-build-ubuntu22.04-{YYYYMMDD}-{git-short-sha}
+#
+# Features:
+# - Path filtering so unrelated changes skip the build
+# - TestInfra validation before push
+# - Push only from main (PRs build + test only)
+# --------------------------------------------------------------------
+
+name: docker-tea-build-containers
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'devops/build/ubuntu22.04/**'
+  pull_request:
+    paths:
+      - 'devops/build/**'
+  workflow_dispatch:
+
+concurrency:
+  group: docker-tea-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-push:
+    # Arrow + gRPC compile is long-running
+    timeout-minutes: 180
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        platform: ['ubuntu22.04']
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set version
+        id: version
+        run: |
+          echo "BUILD_DATE=$(date -u +'%Y%m%d')" >> $GITHUB_OUTPUT
+          echo "SHA_SHORT=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Determine if platform changed
+        id: platform-filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            ubuntu22.04:
+              - 'devops/deploy/docker/build/ubuntu22.04/**'
+
+      - name: Set up QEMU
+        if: ${{ steps.platform-filter.outputs[matrix.platform] == 'true' || github.event_name == 'workflow_dispatch' }}
+        uses: docker/setup-qemu-action@v3
+
+      - name: Login to GitHub Container Registry
+        if: ${{ (steps.platform-filter.outputs[matrix.platform] == 'true' || github.event_name == 'workflow_dispatch') && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        if: ${{ steps.platform-filter.outputs[matrix.platform] == 'true' || github.event_name == 'workflow_dispatch' }}
+        uses: docker/setup-buildx-action@v3
+        with:
+          buildkitd-flags: --debug
+
+      - name: Build and test image
+        if: ${{ steps.platform-filter.outputs[matrix.platform] == 'true' || github.event_name == 'workflow_dispatch' }}
+        run: |
+          IMAGE_TAG="ghcr.io/${{ github.repository_owner }}/tea-build:${{ matrix.platform }}-test"
+
+          docker buildx build \
+            --platform linux/amd64 \
+            --load \
+            -t "${IMAGE_TAG}" \
+            ./devops/deploy/docker/build/${{ matrix.platform }}
+
+          docker run -d \
+            -h cdw \
+            --name tea-build-${{ matrix.platform }}-test \
+            "${IMAGE_TAG}" \
+            bash -c "sleep 30"
+
+          docker exec tea-build-${{ matrix.platform }}-test pytest \
+            --cache-clear \
+            -o cache_dir=/tmp/pytest-cache \
+            --disable-warnings \
+            -p no:warnings \
+            /tests/testinfra/test_tea_build_env.py
+
+          docker rm -f tea-build-${{ matrix.platform }}-test
+
+      - name: Build and Push Docker image
+        if: ${{ (steps.platform-filter.outputs[matrix.platform] == 'true' || github.event_name == 'workflow_dispatch') && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        uses: docker/build-push-action@v6
+        with:
+          context: ./devops/deploy/docker/build/${{ matrix.platform }}
+          push: true
+          platforms: linux/amd64
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/tea-build:${{ matrix.platform }}-latest
+            ghcr.io/${{ github.repository_owner }}/tea-build:${{ matrix.platform }}-${{ steps.version.outputs.BUILD_DATE }}-${{ steps.version.outputs.SHA_SHORT }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.created=${{ steps.version.outputs.BUILD_DATE }}
+            org.opencontainers.image.version=${{ steps.version.outputs.BUILD_DATE }}-${{ steps.version.outputs.SHA_SHORT }}
+            org.opencontainers.image.description="Containerized environment for building Tea (Arrow, gRPC, gcc-13). Greenplum and Tea are built in CI."
+            org.opencontainers.image.title="Tea Build Environment"
+
+      - name: Build Summary
+        if: always()
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            echo "#### Pull Request Build" >> $GITHUB_STEP_SUMMARY
+            echo "Validation build: image is built and tested locally but **not pushed**." >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "### Build Summary for ${{ matrix.platform }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "#### Build Information" >> $GITHUB_STEP_SUMMARY
+          echo "- **Build Status**: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Platform**: ${{ matrix.platform }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Architecture**: amd64" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit SHA**: [\`${{ github.sha }}\`](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})" >> $GITHUB_STEP_SUMMARY
+          echo "- **Build Date**: ${{ steps.version.outputs.BUILD_DATE }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "#### Docker Images" >> $GITHUB_STEP_SUMMARY
+          echo "- Latest tag: \`ghcr.io/${{ github.repository_owner }}/tea-build:${{ matrix.platform }}-latest\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Version tag: \`ghcr.io/${{ github.repository_owner }}/tea-build:${{ matrix.platform }}-${{ steps.version.outputs.BUILD_DATE }}-${{ steps.version.outputs.SHA_SHORT }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "#### Quick Reference" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ghcr.io/${{ github.repository_owner }}/tea-build:${{ matrix.platform }}-latest" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
