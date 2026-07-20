@@ -293,7 +293,7 @@ static void TeaGetForeignRelSize(PlannerInfo* root, RelOptInfo* baserel, Oid for
 #endif
   fpinfo->location = TeaGetLocation(RelationGetRelid(rel));
 
-  TeaContextPtr reader = TeaContextCreate(fpinfo->location);
+  TeaContextPtr reader = TeaContextCreate(fpinfo->server->options, fpinfo->location);
   ReaderOptions options;
   TeaContextGetOptions(reader, &options);
   fpinfo->postfilter_on_gp = options.postfilter_on_gp;
@@ -699,7 +699,9 @@ static TupleTableSlot* TeaIterateForeignScan(ForeignScanState* node) {
      * Get connection to the foreign server.  Connection manager will
      * establish new connection if necessary.
      */
-    import->tea_ctx = TeaContextCreate(fsstate->location);
+    ForeignTable* ft = GetForeignTable(node->ss.ss_currentRelation->rd_id);
+    ForeignServer* server = GetForeignServer(ft->serverid);
+    import->tea_ctx = TeaContextCreate(server->options, fsstate->location);
     TeaContextGetOptions(import->tea_ctx, &import->options);
     if (import->options.use_custom_heap_form_tuple) {
       InitHeapFormTupleInfo(&import->heap_form_tuple_info, import->columns, import->ncolumns);
@@ -842,7 +844,9 @@ static int TeaAcquireSampleRowsFunc(Relation relation, int elevel, HeapTuple* ro
 
   const char* url = fsstate->location;
 
-  import->tea_ctx = TeaContextCreate(url);
+  ForeignTable* ft = GetForeignTable(RelationGetRelid(relation));
+  ForeignServer* server = GetForeignServer(ft->serverid);
+  import->tea_ctx = TeaContextCreate(server->options, url);
   AnalyzeParams* params = MakeAnalyzeParams(fsstate, url);
 
   TeaContextPlanAnalyze(import->tea_ctx, params);
@@ -966,7 +970,9 @@ static bool TeaAnalyzeForeignTable(Relation relation, AcquireSampleRowsFunc* fun
   GetScanSessionId(session_id, SESSION_ID_LEN);
 
   {
-    TeaContextPtr tea_ctx = TeaContextCreate(url);
+    ForeignTable* ft = GetForeignTable(RelationGetRelid(relation));
+    ForeignServer* server = GetForeignServer(ft->serverid);
+    TeaContextPtr tea_ctx = TeaContextCreate(server->options, url);
     TupleDesc desc = RelationGetDescr(relation);
     int ncolumns = desc->natts;
     bool* is_remote_only = (bool*)palloc0(sizeof(bool) * ncolumns);
@@ -1047,7 +1053,8 @@ Datum tea_fdw_validator(PG_FUNCTION_ARGS) { PG_RETURN_VOID(); }
 Datum tea_fdw_get_create_query(PG_FUNCTION_ARGS) {
   char* name = text_to_cstring(PG_GETARG_TEXT_P(0));
   char* location = text_to_cstring(PG_GETARG_TEXT_P(1));
-  char* query = TeaFDWGetCreateQuery(name, location);
+  ForeignServer* fs = GetForeignServerByName("tea_server", false);
+  char* query = TeaFDWGetCreateQuery(name, location, fs->options);
   pfree(location);
   pfree(name);
   PG_RETURN_CSTRING(query);

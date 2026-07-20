@@ -36,7 +36,7 @@ void GetStatsPrepare(FunctionCallInfo fcinfo, FuncCallContext* funcctx) {
   if (user_ctx->table_location == NULL) {
     elog(ERROR, "Tea error: cannot tea options");
   }
-  user_ctx->tea_ctx = TeaContextCreate(user_ctx->table_location);
+  user_ctx->tea_ctx = TeaContextCreate(NIL, user_ctx->table_location);
 }
 
 ColumnStats GetColumnStats(FunctionCallInfo fcinfo, FuncCallContext* funcctx, int attrno_to_process) {

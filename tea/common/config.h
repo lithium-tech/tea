@@ -290,8 +290,10 @@ struct TableConfig {
 
 class ConfigSource {
  public:
-  static Config GetConfig(std::string_view profile = std::string_view());
-  static TableConfig GetTableConfig(std::string_view url, const std::string& overrided_profile = "");
+  static Config GetConfig(const std::unordered_map<std::string, std::string>& m_server_options,
+                          std::string_view profile = std::string_view());
+  static TableConfig GetTableConfig(const std::unordered_map<std::string, std::string>& m_server_options,
+                                    std::string_view url, const std::string& overrided_profile = "");
 };
 
 arrow::Result<std::unordered_map<std::string, std::string>> GetTableToProfileMapping(const std::string& file_content);
