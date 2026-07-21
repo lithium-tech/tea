@@ -92,7 +92,7 @@ jobs:
             --platform linux/amd64 \
             --load \
             -t "${IMAGE_TAG}" \
-            ./devops/deploy/docker/build/${{ matrix.platform }}
+            ./devops/build/${{ matrix.platform }}
 
           docker run -d \
             -h cdw \
