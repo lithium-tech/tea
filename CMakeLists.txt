@@ -1,4 +1,5 @@
 option(TEA_BUILD_FDW "Build Foreign Data Wrapper" ON)
+option(TEA_BUILD_EXT "Build External Tables" ON)
 option(HAS_ARROW_CSV "Arrow built with csv" ON)
 option(ICECXX_GENERATOR "" ON)
 option(USE_NESSIE "Enable Nessie catalog" ON)

@@ -1,0 +1,49 @@
+SELECT COUNT(*) = 1 AS tea_extension_exists
+FROM pg_extension
+WHERE extname = 'tea';
+ tea_extension_exists 
+----------------------
+ t
+(1 row)
+
+SELECT extname, extversion IS NOT NULL AS has_version
+FROM pg_extension
+WHERE extname = 'tea';
+ extname | has_version 
+---------+-------------
+ tea     | t
+(1 row)
+
+CREATE FOREIGN TABLE tea_fdw_empty_probe (a bigint)
+SERVER tea_server
+OPTIONS (location 'tea://special://empty');
+CREATE FOREIGN TABLE
+SELECT count(*)::int AS rows_read
+FROM tea_fdw_empty_probe;
+ rows_read 
+-----------
+         0
+(1 row)
+
+DO $$
+DECLARE
+  external_table_failed boolean := false;
+BEGIN
+  BEGIN
+    CREATE READABLE EXTERNAL TABLE tea_ext_disabled_probe (a bigint)
+    LOCATION ('tea://special://empty')
+    FORMAT 'custom' (formatter = tea_import);
+  EXCEPTION WHEN others THEN
+    external_table_failed := true;
+    RAISE NOTICE 'external table creation failed as expected';
+  END;
+
+  IF NOT external_table_failed THEN
+    RAISE EXCEPTION 'external table creation unexpectedly succeeded';
+  END IF;
+END
+$$;
+NOTICE:  external table creation failed as expected
+DO
+DROP FOREIGN TABLE IF EXISTS tea_fdw_empty_probe;
+DROP FOREIGN TABLE
