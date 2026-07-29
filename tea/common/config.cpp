@@ -551,8 +551,10 @@ void LoadFDWServerOptions(Config& config, const std::unordered_map<std::string, 
   if (auto i = m_server_options.find("catalog_type"); i != m_server_options.end())
     config.catalog.type = StrToCatalogType(i->second);
 
+#if USE_REST
   LoadStr(config.catalog.rest_url, "catalog_rest_url");
   LoadStr(config.catalog.rest_warehouse_id, "catalog_rest_warehouse_id");
+#endif
 }
 
 }  // namespace
