@@ -84,6 +84,7 @@ extern "C" {
 #include "postgres.h"  // NOLINT build/include_subdir
 
 #include "cdb/cdbvars.h"
+#include "commands/defrem.h"
 #include "mb/pg_wchar.h"
 #include "miscadmin.h"
 #include "utils/builtins.h"
@@ -414,7 +415,8 @@ std::shared_ptr<iceberg::IFileSystemProvider> MakeFileSystemProvider(const tea::
 }
 
 void UpdateConfig(const std::string& profile_to_tables_path, std::shared_ptr<iceberg::IFileSystemProvider> fs_provider,
-                  const std::string& table_url, tea::TableConfig& config) {
+                  const std::unordered_map<std::string, std::string>& m_server_options, const std::string& table_url,
+                  tea::TableConfig& config) {
   arrow::Result<std::string> maybe_file_content = tea::ReadFile(fs_provider, profile_to_tables_path);
   if (!maybe_file_content.ok()) {
     std::string message = "Failed to read profile-to-tables config: " + maybe_file_content.status().message();
@@ -443,7 +445,7 @@ void UpdateConfig(const std::string& profile_to_tables_path, std::shared_ptr<ice
       }();
       if (table_id.has_value() && table_to_profile.contains(*table_id)) {
         TEA_LOG("Profile for table '" + *table_id + "' is overrided as " + table_to_profile.at(*table_id));
-        config = tea::ConfigSource::GetTableConfig(table_url, table_to_profile.at(*table_id));
+        config = tea::ConfigSource::GetTableConfig(m_server_options, table_url, table_to_profile.at(*table_id));
       }
     }
   }
@@ -487,11 +489,17 @@ static uint32_t GetScanId(const char* session_id) {
   return ++scan_identifier;
 }
 
-TeaContextPtr TeaContextCreateUntracked(const char* url) {
+TeaContextPtr TeaContextCreateUntracked(const List* server_options, const char* url) {
   tea::InternalContext* internal_ctx;
-  TEA_INVOKE(ERROR, ([&internal_ctx, url] {
+  std::unordered_map<std::string, std::string> m_server_options;
+  TEA_INVOKE(ERROR, ([&internal_ctx, &m_server_options, server_options, url] {
                internal_ctx = new tea::InternalContext();
-               internal_ctx->table_config = tea::ConfigSource::GetTableConfig(url);
+               ListCell* lc;
+               foreach (lc, server_options) {
+                 DefElem* def = (DefElem*)lfirst(lc);
+                 m_server_options[def->defname] = defGetString(def);
+               }
+               internal_ctx->table_config = tea::ConfigSource::GetTableConfig(m_server_options, url);
              }));
 
   static bool context_initialized = false;
@@ -502,7 +510,7 @@ TeaContextPtr TeaContextCreateUntracked(const char* url) {
 
   TeaContextPtr result = nullptr;
   TEA_INVOKE_IN_HELPER_THREAD(
-      ERROR, ([url, &result, internal_ctx]() {
+      ERROR, ([&m_server_options, url, &result, internal_ctx]() {
         result = new TeaContext();
 
         result->ctx = internal_ctx;
@@ -515,7 +523,8 @@ TeaContextPtr TeaContextCreateUntracked(const char* url) {
 
         const std::string& profile_to_tables_path = internal_ctx->table_config.config.profile_to_tables_path;
         if (!profile_to_tables_path.empty()) {
-          UpdateConfig(profile_to_tables_path, internal_ctx->fs_provider, url, internal_ctx->table_config);
+          UpdateConfig(profile_to_tables_path, internal_ctx->fs_provider, m_server_options, url,
+                       internal_ctx->table_config);
         }
 
         LogSourceType(internal_ctx->table_config.source);
@@ -1397,14 +1406,14 @@ static std::string GetGreenplumTypeName(std::string type) {
   return type;
 }
 
-char* TeaFDWGetCreateQuery(const char* name, const char* location) {
+char* TeaFDWGetCreateQuery(const char* name, const char* location, const List* server_options) {
   using namespace iceberg;
   using namespace json_parse;
 
   char* query;
-  TEA_INVOKE_WO_PRINT_LOGS(ERROR, ([name, location, &query] {
+  TEA_INVOKE_WO_PRINT_LOGS(ERROR, ([name, location, server_options, &query] {
                              // Download JSON
-                             TeaContextPtr tea_ctx = TeaContextCreate(location);
+                             TeaContextPtr tea_ctx = TeaContextCreate(server_options, location);
                              const tea::TableConfig& table_config = get::TableConfig(tea_ctx);
                              std::string table_metadata_location = tea::meta::access::GetIcebergTableLocation(
                                  table_config.config, std::get<tea::IcebergTable>(table_config.source).table_id);

@@ -46,14 +46,14 @@ static void OnExitCallback(int code, Datum arg) {
   TeaContextFinalize();
 }
 
-TeaContextPtr TeaContextCreate(const char* url) {
+TeaContextPtr TeaContextCreate(const List* server_options, const char* url) {
   static bool callbacks_set = false;
   if (!callbacks_set) {
     RegisterXactCallback(XactCallbackTea, NULL);
     on_shmem_exit(OnExitCallback, 0);
     callbacks_set = true;
   }
-  TeaContextPtr tea_ctx = TeaContextCreateUntracked(url);
+  TeaContextPtr tea_ctx = TeaContextCreateUntracked(server_options, url);
   if (tea_ctx) {
     MemoryContext oldcontext = MemoryContextSwitchTo(TopMemoryContext);
     readers = lappend(readers, tea_ctx);

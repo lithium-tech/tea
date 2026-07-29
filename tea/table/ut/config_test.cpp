@@ -106,52 +106,82 @@ struct ConfigSourceTest : public testing::Test {
 
 TEST_F(ConfigSourceTest, TableTypes) {
   TableConfig config;
+  std::unordered_map<std::string, std::string> m_server_options;
 
-  config = ConfigSource::GetTableConfig("tea://special://empty");
+  config = ConfigSource::GetTableConfig(m_server_options, "tea://special://empty");
   EXPECT_TRUE(std::holds_alternative<EmptyTable>(config.source));
 
-  config = ConfigSource::GetTableConfig("tea://file:///root/subdir/file");
+  config = ConfigSource::GetTableConfig(m_server_options, "tea://file:///root/subdir/file");
   EXPECT_THAT(config.source, testing::VariantWith<FileTable>(FileTable{"file:///root/subdir/file"}));
 
-  config = ConfigSource::GetTableConfig("tea://s3://bucket/prefix/file");
+  config = ConfigSource::GetTableConfig(m_server_options, "tea://s3://bucket/prefix/file");
   EXPECT_THAT(config.source, testing::VariantWith<FileTable>(FileTable{"s3://bucket/prefix/file"}));
 
-  config = ConfigSource::GetTableConfig("tea://teapot://table.id");
+  config = ConfigSource::GetTableConfig(m_server_options, "tea://teapot://table.id");
   EXPECT_THAT(config.source, testing::VariantWith<TeapotTable>(TeapotTable{.table_id = {"table", "id"}}));
 
-  config = ConfigSource::GetTableConfig("tea://teapot://host:1234/table.id");
+  config = ConfigSource::GetTableConfig(m_server_options, "tea://teapot://host:1234/table.id");
   EXPECT_THAT(config.source, testing::VariantWith<TeapotTable>(TeapotTable{.table_id = {"table", "id"}}));
   EXPECT_EQ(config.config.teapot.location, "host:1234");
 
-  config = ConfigSource::GetTableConfig("tea://table.id");
+  config = ConfigSource::GetTableConfig(m_server_options, "tea://table.id");
   EXPECT_THAT(config.source, testing::VariantWith<TeapotTable>(TeapotTable{.table_id = {"table", "id"}}));
 
-  config = ConfigSource::GetTableConfig("tea://table.id?profile=override");
+  config = ConfigSource::GetTableConfig(m_server_options, "tea://table.id?profile=override");
   EXPECT_THAT(config.source, testing::VariantWith<TeapotTable>(TeapotTable{.table_id = {"table", "id"}}));
   EXPECT_EQ(config.config.s3.access_key, "OVERRIDE");
 
-  config = ConfigSource::GetTableConfig("tea://iceberg://table.id");
+  config = ConfigSource::GetTableConfig(m_server_options, "tea://iceberg://table.id");
   EXPECT_THAT(config.source, testing::VariantWith<IcebergTable>(IcebergTable{.table_id = {"table", "id"}}));
 
-  config = ConfigSource::GetTableConfig("tea://iceberg://table.id?snapshot_id=123");
+  config = ConfigSource::GetTableConfig(m_server_options, "tea://iceberg://table.id?snapshot_id=123");
   EXPECT_THAT(config.source, testing::VariantWith<IcebergTable>(IcebergTable{.table_id = {"table", "id"}}));
   ASSERT_TRUE(std::holds_alternative<Snapshot>(config.snapshot_ref));
   EXPECT_EQ(std::get<Snapshot>(config.snapshot_ref).snapshot_id, 123);
 
-  config = ConfigSource::GetTableConfig("tea://iceberg://table.id?branch=test-branch");
+  config = ConfigSource::GetTableConfig(m_server_options, "tea://iceberg://table.id?branch=test-branch");
   EXPECT_THAT(config.source, testing::VariantWith<IcebergTable>(IcebergTable{.table_id = {"table", "id"}}));
   ASSERT_TRUE(std::holds_alternative<Branch>(config.snapshot_ref));
   EXPECT_EQ(std::get<Branch>(config.snapshot_ref).name, "test-branch");
 }
 
 TEST_F(ConfigSourceTest, InvalidUrl) {
-  EXPECT_ANY_THROW(ConfigSource::GetTableConfig("special://empty"));
-  EXPECT_ANY_THROW(ConfigSource::GetTableConfig("tea://special://unrecognized_special"));
-  EXPECT_ANY_THROW(ConfigSource::GetTableConfig("tea://hdfs://unsupported"));
-  EXPECT_ANY_THROW(ConfigSource::GetTableConfig("tea://teapot://invalid_table_id"));
-  EXPECT_ANY_THROW(ConfigSource::GetTableConfig("tea://iceberg://invalid_table_id"));
-  EXPECT_ANY_THROW(ConfigSource::GetTableConfig("tea://iceberg://table.id?snapshot_id=abc"));
-  EXPECT_ANY_THROW(ConfigSource::GetTableConfig("tea://iceberg://table.id?snapshot_id=123&branch=test-branch"));
+  std::unordered_map<std::string, std::string> m_server_options;
+  EXPECT_ANY_THROW(ConfigSource::GetTableConfig(m_server_options, "special://empty"));
+  EXPECT_ANY_THROW(ConfigSource::GetTableConfig(m_server_options, "tea://special://unrecognized_special"));
+  EXPECT_ANY_THROW(ConfigSource::GetTableConfig(m_server_options, "tea://hdfs://unsupported"));
+  EXPECT_ANY_THROW(ConfigSource::GetTableConfig(m_server_options, "tea://teapot://invalid_table_id"));
+  EXPECT_ANY_THROW(ConfigSource::GetTableConfig(m_server_options, "tea://iceberg://invalid_table_id"));
+  EXPECT_ANY_THROW(ConfigSource::GetTableConfig(m_server_options, "tea://iceberg://table.id?snapshot_id=abc"));
+  EXPECT_ANY_THROW(
+      ConfigSource::GetTableConfig(m_server_options, "tea://iceberg://table.id?snapshot_id=123&branch=test-branch"));
+}
+
+TEST(ConfigSourceTestWithoutConfig, ServerOptions) {
+  std::unordered_map<std::string, std::string> m_server_options = {
+    {"read_config_file", "false"},
+    {"s3_access_key", "ak"},
+    {"s3_secret_key", "sk"},
+    {"s3_endpoint_override", "storage.yandexcloud.net"},
+    {"s3_scheme", "http"},
+    {"catalog_type", "nessie"},
+#if USE_REST
+    {"catalog_rest_url", "http://127.0.0.1:8181/catalog"},
+    {"catalog_rest_warehouse_id", "91dc12d2-534d-11f1-9109-73b91866a831"}
+#endif
+  };
+
+  TableConfig tc = ConfigSource::GetTableConfig(m_server_options, "tea://iceberg://table.id");
+  Config& config = tc.config;
+  EXPECT_EQ(config.s3.access_key, "ak");
+  EXPECT_EQ(config.s3.secret_key, "sk");
+  EXPECT_EQ(config.s3.endpoint_override, "storage.yandexcloud.net");
+  EXPECT_EQ(config.s3.scheme, "http");
+  EXPECT_EQ(config.catalog.type, CatalogConfig::CatalogType::kNessie);
+#if USE_REST
+  EXPECT_EQ(config.catalog.rest_url, "http://127.0.0.1:8181/catalog");
+  EXPECT_EQ(config.catalog.rest_warehouse_id, "91dc12d2-534d-11f1-9109-73b91866a831");
+#endif
 }
 
 }  // namespace
