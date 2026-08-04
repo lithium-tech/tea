@@ -23,8 +23,12 @@ done
 # Not following ...: does not exist
 # shellcheck disable=SC1091
 source "$gp_root"/greenplum_path.sh
+export PATH="$GPHOME/bin:$src_root/test/bin:$PATH"
+export LD_LIBRARY_PATH="$GPHOME/lib:$LD_LIBRARY_PATH"
+export MASTER_DATA_DIRECTORY="" # Clear any stale setting
+export GPSSH_ENABLE_EXPERIMENTAL="YES" 
 
-mkdir "$config_dir" "$master_dir" "${seg_dirs[@]}"
+mkdir -p "$config_dir" "$master_dir" "${seg_dirs[@]}"
 readonly hostlist="$config_dir/hostlist"
 echo "$HOSTNAME" >"$hostlist"
 readonly init_config="$config_dir/gpinitsystem_config"
@@ -42,25 +46,26 @@ CHECK_POINT_SEGMENTS=8
 ENCODING=$encoding
 DATABASE_NAME=tea_ci
 IP_ALLOW=0.0.0.0/0
-
-# Path for Greenplum mgmt utils and Greenplum binaries
-PATH=$src_root/test/bin:$GPHOME/bin:$PATH
-LD_LIBRARY_PATH=$GPHOME/lib:$LD_LIBRARY_PATH
-export PATH
-export LD_LIBRARY_PATH
-export MASTER_DATA_DIRECTORY
-export TRUSTED_SHELL
 EOM
 export MASTER_DATA_DIRECTORY="$master_dir/$seg_prefix-1"
-gpinitsystem -a -D \
+echo "Locale: $locale"
+echo "Config: $init_config"
+echo "GPHOME: $GPHOME"
+echo "PATH: $PATH"
+gpinitsystem -a -D -v \
   -c "$init_config" \
   --lc-ctype="$locale" \
   --lc-collate="$locale" \
-  --locale="$locale" && rc=$? || rc=$?
-if [[ rc -ne 0 && rc -ne 1 ]]; then
-  # checking for 1 ignores warnings like open file limit and localhost in /etc/hosts
+  --locale="$locale"
+rc=$?
+if [[ $rc -ne 0 && $rc -ne 1 ]]; then
+  echo "=== gpinitsystem FAILED ==="
+  # Try to print the specific segment log if it exists
+  if [[ -f "$HOME/gpAdminLogs/gpinitsystem_$(date +%Y%m%d).log" ]]; then
+     echo "--- Last 50 lines of gpinitsystem log ---"
+     tail -n 50 "$HOME/gpAdminLogs/gpinitsystem_$(date +%Y%m%d).log"
+  fi
   exit 1
 fi
-export PATH="$src_root/test/bin:$PATH"
 gpconfig -c log_min_messages -v notice
 gpstop -u

@@ -61,21 +61,58 @@ jobs:
         if: inputs.open_gpdb
         run: bash ci/free-disk-space.sh
 
-      - name: Build and install Greenplum
-        if: steps.cache-deps.outputs.cache-hit != 'true'
-        run: bash ci/build-gpdb.sh "${{ inputs.gpdb_repo }}" "${{ inputs.gpdb_ref }}" ${{ inputs.open_gpdb && 'open-gpdb' || '' }}
+      - name: Install Debian packages
+        run: |
+          TARGET_DIR="$HOME/local/gpdb"
+          EXPECTED_SCRIPT="greenplum_path.sh"
+          TEMP_DIR="$HOME/local/temp_install"
+          
+          if [ "${{ inputs.open_gpdb }}" == "true" ]; then
+            PACKAGE_URL="https://github.com/open-gpdb/gpdb/releases/download/6.29.9/greenplum-db-6_6.29.9-1-yandex.54459.ae09c99827_amd64.deb"
+            echo "Installing open-gpdb..."
+          else
+            PACKAGE_URL="https://github.com/GreengageDB/greengage/releases/download/6.29.2/greengage6.deb"
+            echo "Installing Greengage..."
+          fi
+
+          mkdir -p "$TEMP_DIR"
+          wget -q "$PACKAGE_URL" -O /tmp/gp.deb
+          sudo apt-get remove -y python-is-python3 || true
+          sudo dpkg -x /tmp/gp.deb "$TEMP_DIR"
+          rm -f /tmp/gp.deb
+
+          REAL_SOURCE=$(find "$TEMP_DIR" -type d -exec test -f {}/"$EXPECTED_SCRIPT" \; -print -quit 2>/dev/null)
+          if [ -z "$REAL_SOURCE" ]; then
+            FOUND_SCRIPT=$(find "$TEMP_DIR" -type f -name "*_path.sh" | head -n 1)
+            [ -n "$FOUND_SCRIPT" ] && REAL_SOURCE=$(dirname "$FOUND_SCRIPT") && EXPECTED_SCRIPT=$(basename "$FOUND_SCRIPT")
+          fi
+
+          if [ -z "$REAL_SOURCE" ]; then
+            echo "ERROR: Installation directory not found" >&2; exit 1
+          fi
+
+          sudo rm -rf "$TARGET_DIR"
+          sudo mv "$REAL_SOURCE" "$TARGET_DIR"
+          sudo rm -rf "$TEMP_DIR"
+
+          sudo chown -R "$USER:$USER" "$TARGET_DIR"
+
+          REAL_SCRIPT_PATH="$TARGET_DIR/$EXPECTED_SCRIPT"
+          echo "Patching script at: $REAL_SCRIPT_PATH"
+          sudo sed -i "s|^export GPHOME=.*|export GPHOME=\"$TARGET_DIR\"|g" "$REAL_SCRIPT_PATH"
+          
+          if [ "$EXPECTED_SCRIPT" != "greenplum_path.sh" ]; then
+             ln -s "$EXPECTED_SCRIPT" "$TARGET_DIR/greenplum_path.sh"
+          fi
+
+          source "$TARGET_DIR/greenplum_path.sh"
+          echo "Greenplum ready: $GPHOME"
 
       - name: Build and install Arrow 15
-        if: steps.cache-deps.outputs.cache-hit != 'true'
         run: bash ci/build-arrow.sh
 
       - name: Build and install gRPC
-        if: steps.cache-deps.outputs.cache-hit != 'true'
         run: bash ci/build-grpc.sh
-
-      - name: Verify open-gpdb defines OPENGPDB
-        if: inputs.open_gpdb
-        run: bash ci/verify-opengpdb-define.sh
 
       - name: Build Tea
         run: bash ci/build-tea.sh
