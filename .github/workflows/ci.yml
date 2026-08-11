@@ -6,6 +6,14 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 jobs:
   clang-format:
     runs-on: ubuntu-22.04
@@ -31,7 +39,6 @@ jobs:
     with:
       gpdb_repo: https://github.com/arenadata/gpdb.git
       gpdb_ref: 6.29.1_arenadata68
-      cache_key: deps-gp-6.29.1_arenadata68-arrow-15.0.2-grpc-1.62.3-gcc13-Linux-v6
       artifact_name: tea-runtime
 
   # Build tea against open-gpdb (instead of arenadata/gpdb) to make sure it
@@ -45,7 +52,6 @@ jobs:
     with:
       gpdb_repo: https://github.com/open-gpdb/gpdb.git
       gpdb_ref: OPENGPDB_STABLE
-      cache_key: deps-open-gpdb-OPENGPDB_STABLE-arrow-15.0.2-grpc-1.62.3-gcc13-Linux-v4
       artifact_name: tea-runtime-open-gpdb
       open_gpdb: true
 
@@ -63,29 +69,45 @@ jobs:
     uses: ./.github/workflows/smoke-tests.yml
     with:
       artifact_name: tea-runtime-open-gpdb
+      enable_external_tables: false
 
   rest-tests-agp:
     needs: build-tea-agp
     runs-on: ubuntu-22.04
+    container:
+      image: ghcr.io/lithium-tech/tea-build:ubuntu22.04-latest
+      options: >-
+        --user root
+        -h cdw
+    defaults:
+      run:
+        shell: sudo -E -u gpadmin HOME=/home/gpadmin USER=gpadmin bash --noprofile --norc -eo pipefail {0}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install runtime dependencies
+      - name: Prepare workspace ownership
+        shell: bash
+        run: chown -R gpadmin:gpadmin "$GITHUB_WORKSPACE" /home/gpadmin
+
+      - name: Initialize REST test container
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libxerces-c3.2 \
-            python2 \
-            software-properties-common
+          mkdir -p build-logs/details build-logs/results
+          if [ -x /tmp/init_system.sh ]; then
+            /tmp/init_system.sh 2>&1 | tee build-logs/details/container-init.log
+          fi
+          df -h | tee build-logs/details/disk-usage-before-rest-tests.log
+          free -h | tee build-logs/details/memory-before-rest-tests.log
 
-          wget -qO- https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
-          sudo add-apt-repository -y "deb http://apt.postgresql.org/pub/repos/apt jammy-pgdg main"
-          DEBIAN_FRONTEND=noninteractive sudo apt-get install -y postgresql-16 postgresql-client-16
-          sudo pg_dropcluster 14 main
-
-          sudo ln -s -f python2 /usr/bin/python
-          sudo locale-gen "en_US.UTF-8"
+      - name: Install REST test dependencies
+        shell: bash
+        run: |
+          wget -qO- https://www.postgresql.org/media/keys/ACCC4CF8.asc | apt-key add -
+          add-apt-repository -y "deb http://apt.postgresql.org/pub/repos/apt jammy-pgdg main"
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -y postgresql-16 postgresql-client-16
+          pg_dropcluster 14 main || true
+          pg_dropcluster 16 main || true
 
       - name: Download runtime artifacts
         uses: actions/download-artifact@v4
@@ -99,7 +121,7 @@ jobs:
           tar -xzf ci-artifacts/gpdb-with-tea.tar.gz -C "$HOME/local"
 
       - name: Initialize Greenplum cluster
-        run: bash ci/start-cluster.sh
+        run: bash ci/start-cluster.sh 2>&1 | tee build-logs/details/start-cluster.log
 
       - name: Start Minio and upload test data
         run: |
@@ -111,16 +133,17 @@ jobs:
 
           MINIO_EXECUTABLE=/tmp/minio MC_EXECUTABLE=/tmp/mc \
           MINIO_DATA_DIR=/tmp/minio-data \
-            bash test/iceberg/gen/init_minio.sh
+            bash test/iceberg/gen/init_minio.sh 2>&1 | tee build-logs/details/start-minio.log
 
       - name: Deploy tea config
-        run: bash ci/deploy-tea-config.sh test/config/tea-config-rest.json
+        run: bash ci/deploy-tea-config.sh test/config/tea-config-rest.json 2>&1 | tee build-logs/details/deploy-tea-config.log
 
       - name: Start Lakekeeper
+        shell: bash
         run: |
-          sudo pg_createcluster -p 5433 16 main
-          sudo sed -i 's/scram-sha-256/trust/g' /etc/postgresql/16/main/pg_hba.conf
-          sudo /etc/init.d/postgresql start
+          pg_createcluster -p 5433 --locale=C.UTF-8 --encoding=UTF8 16 main
+          sed -i 's/scram-sha-256/trust/g' /etc/postgresql/16/main/pg_hba.conf
+          /etc/init.d/postgresql start
 
           wget -q https://github.com/lakekeeper/lakekeeper/releases/download/v0.12.1/lakekeeper-x86_64-unknown-linux-gnu.tar.gz -O - | tar -xzf -
           export LAKEKEEPER__PG_DATABASE_URL_READ="postgres://postgres@localhost:5433/postgres"
@@ -145,3 +168,91 @@ jobs:
           OUT=`psql -Atc "SELECT count(*), sum(a), sum(b) FROM rest_test"`
           echo $OUT
           [[ "$OUT" = "9999|49992899|99985798" ]] || exit 1
+
+      - name: Collect REST service logs
+        if: always()
+        run: |
+          mkdir -p build-logs/services/minio
+          cp -R /tmp/minio-data/. build-logs/services/minio/ 2>/dev/null || true
+
+      - name: Upload REST test logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rest-test-logs-tea-runtime
+          path: build-logs/
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Collect REST regression logs
+        if: failure() || cancelled()
+        run: |
+          mkdir -p build-logs/regression
+          find /gpdata -type f -path '*/log/*' -exec cp --parents '{}' build-logs/regression/ \; || true
+
+      - name: Upload REST regression logs
+        if: failure() || cancelled()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rest-regression-logs-tea-runtime
+          path: |
+            build-logs/regression/
+            **/regression.out
+            **/regression.diffs
+            **/results/
+            **/yproxy.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+  report:
+    name: Generate GP6 CI report
+    needs:
+      - clang-format
+      - build-tea-agp
+      - build-tea-open-gpdb
+      - smoke-tests-agp
+      - smoke-tests-open-gpdb
+      - rest-tests-agp
+    if: always()
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Generate final report
+        run: |
+          {
+            echo "# GP6 CI Pipeline Report"
+            echo ""
+            echo "## Job Status"
+            echo "- clang-format: ${{ needs.clang-format.result }}"
+            echo "- build-tea-agp: ${{ needs.build-tea-agp.result }}"
+            echo "- build-tea-open-gpdb: ${{ needs.build-tea-open-gpdb.result }}"
+            echo "- smoke-tests-agp: ${{ needs.smoke-tests-agp.result }}"
+            echo "- smoke-tests-open-gpdb: ${{ needs.smoke-tests-open-gpdb.result }}"
+            echo "- rest-tests-agp: ${{ needs.rest-tests-agp.result }}"
+            echo "- Completion Time: $(date -u +'%Y-%m-%d %H:%M:%S UTC')"
+            echo ""
+
+            if [[ "${{ needs.clang-format.result }}" == "success" \
+              && "${{ needs.build-tea-agp.result }}" == "success" \
+              && "${{ needs.build-tea-open-gpdb.result }}" == "success" \
+              && "${{ needs.smoke-tests-agp.result }}" == "success" \
+              && "${{ needs.smoke-tests-open-gpdb.result }}" == "success" \
+              && "${{ needs.rest-tests-agp.result }}" == "success" ]]; then
+              echo "✅ Pipeline completed successfully"
+            else
+              echo "⚠️ Pipeline completed with failures"
+              echo ""
+              echo "Check uploaded build/test logs and regression artifacts for details."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Fail report when required jobs failed
+        if: |
+          needs.clang-format.result != 'success' ||
+          needs.build-tea-agp.result != 'success' ||
+          needs.build-tea-open-gpdb.result != 'success' ||
+          needs.smoke-tests-agp.result != 'success' ||
+          needs.smoke-tests-open-gpdb.result != 'success' ||
+          needs.rest-tests-agp.result != 'success'
+        run: |
+          echo "::error::GP6 CI failed. Check job summaries and uploaded logs for details."
+          exit 1

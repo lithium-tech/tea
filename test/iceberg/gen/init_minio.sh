@@ -3,7 +3,7 @@
 # expected variables:
 # CI_PROJECT_DIR
 
-$MINIO_EXECUTABLE server $MINIO_DATA_DIR &
+nohup $MINIO_EXECUTABLE server $MINIO_DATA_DIR > minio.log 2>&1 &
 sleep 5
 $MC_EXECUTABLE alias set 'myminio' 'http://127.0.0.1:9000' 'minioadmin' 'minioadmin'
 $MC_EXECUTABLE mb myminio/warehouse

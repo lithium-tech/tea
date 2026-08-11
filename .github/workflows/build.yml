@@ -1,7 +1,8 @@
 name: build
 
-# Reusable workflow: build tea against a given Greenplum fork and upload the
-# runtime artifacts. Called by ci.yml once per fork (arenadata + open-gpdb).
+# Reusable workflow: build tea against a given Greenplum fork inside the
+# prebuilt Tea build container and upload the runtime artifacts. Called by
+# ci.yml once per fork (arenadata + open-gpdb).
 on:
   workflow_call:
     inputs:
@@ -11,10 +12,6 @@ on:
         type: string
       gpdb_ref:
         description: Branch or tag of the Greenplum fork
-        required: true
-        type: string
-      cache_key:
-        description: actions/cache key for the installed dependencies (~/local)
         required: true
         type: string
       artifact_name:
@@ -27,63 +24,68 @@ on:
         default: false
         type: boolean
 
+permissions:
+  contents: read
+  packages: read
+
 jobs:
   build:
     runs-on: ubuntu-22.04
+    container:
+      image: ghcr.io/lithium-tech/tea-build:ubuntu22.04-latest
+      options: >-
+        --user root
+        -h cdw
+    defaults:
+      run:
+        shell: sudo -E -u gpadmin HOME=/home/gpadmin USER=gpadmin bash --noprofile --norc -eo pipefail {0}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Clear cache
-        run: bash ci/clear-runner-cache.sh
+      - name: Prepare workspace ownership
+        shell: bash
+        run: chown -R gpadmin:gpadmin "$GITHUB_WORKSPACE" /home/gpadmin
 
-      - name: Install dependencies
-        run: bash ci/install-build-deps.sh
+      - name: Initialize build container
+        run: |
+          mkdir -p build-logs/details build-logs/results
+          if [ -x /tmp/init_system.sh ]; then
+            /tmp/init_system.sh 2>&1 | tee build-logs/details/container-init.log
+          fi
+          df -h | tee build-logs/details/disk-usage-before-build.log
+          free -h | tee build-logs/details/memory-before-build.log
 
       - name: Prepare directories
         run: bash ci/prepare-dirs.sh
-
-      - name: Cache installed dependencies
-        id: cache-deps
-        uses: actions/cache@v4
-        with:
-          path: ~/local
-          key: ${{ inputs.cache_key }}
-
-      - name: Cache Arrow third-party downloads
-        id: cache-arrow-thirdparty
-        uses: actions/cache@v4
-        with:
-          path: build/arrow-thirdparty
-          key: arrow-thirdparty-15.0.2
 
       - name: Free disk space
         if: inputs.open_gpdb
         run: bash ci/free-disk-space.sh
 
       - name: Build and install Greenplum
-        if: steps.cache-deps.outputs.cache-hit != 'true'
-        run: bash ci/build-gpdb.sh "${{ inputs.gpdb_repo }}" "${{ inputs.gpdb_ref }}" ${{ inputs.open_gpdb && 'open-gpdb' || '' }}
-
-      - name: Build and install Arrow 15
-        if: steps.cache-deps.outputs.cache-hit != 'true'
-        run: bash ci/build-arrow.sh
-
-      - name: Build and install gRPC
-        if: steps.cache-deps.outputs.cache-hit != 'true'
-        run: bash ci/build-grpc.sh
+        run: bash ci/build-gpdb.sh "${{ inputs.gpdb_repo }}" "${{ inputs.gpdb_ref }}" ${{ inputs.open_gpdb && 'open-gpdb' || '' }} 2>&1 | tee build-logs/details/build-gpdb.log
 
       - name: Verify open-gpdb defines OPENGPDB
         if: inputs.open_gpdb
-        run: bash ci/verify-opengpdb-define.sh
+        run: bash ci/verify-opengpdb-define.sh 2>&1 | tee build-logs/details/verify-opengpdb-define.log
 
       - name: Build Tea
-        run: bash ci/build-tea.sh
+        run: bash ci/build-tea.sh ${{ inputs.open_gpdb && 'OFF' || 'ON' }} 2>&1 | tee build-logs/details/build-tea.log
 
       - name: Run unit tests
         run: |
           cd build
-          ctest --output-on-failure
+          ctest --output-on-failure --output-junit ../build-logs/results/ctest-results.xml 2>&1 | tee ../build-logs/details/ctest.log
+
+      - name: Initialize Greenplum cluster for pg_regress
+        run: bash ci/start-cluster.sh --create-extension 2>&1 | tee build-logs/details/start-cluster-pg-regress.log
+
+      - name: Deploy tea config for pg_regress
+        run: bash ci/deploy-tea-config.sh 2>&1 | tee build-logs/details/deploy-tea-config-pg-regress.log
+
+      - name: Run Tea pg_regress installcheck
+        run: bash ci/run-pg-regress.sh gpdb tea_ci ${{ inputs.open_gpdb && 'OFF' || 'ON' }}
 
       - name: Pack runtime artifacts
         run: bash ci/pack-artifacts.sh
@@ -94,3 +96,26 @@ jobs:
           name: ${{ inputs.artifact_name }}
           path: ci-artifacts
           retention-days: 1
+
+      - name: Upload build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs-${{ inputs.artifact_name }}
+          path: build-logs/
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Upload unit and pg_regress test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ inputs.artifact_name }}
+          path: |
+            build-logs/results/
+            build-logs/pg_regress/
+            **/regression.out
+            **/regression.diffs
+            **/results/
+          if-no-files-found: ignore
+          retention-days: 7

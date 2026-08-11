@@ -1,0 +1,12 @@
+CREATE FOREIGN TABLE tea_fdw_empty_probe (a bigint)
+SERVER tea_server
+OPTIONS (location 'tea://special://empty');
+SELECT count(*)::int AS rows_read
+FROM tea_fdw_empty_probe;
+ rows_read 
+-----------
+         0
+(1 row)
+
+DROP FOREIGN TABLE tea_fdw_empty_probe;
+DROP EXTENSION tea;

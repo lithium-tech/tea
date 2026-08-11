@@ -1,4 +1,5 @@
 option(TEA_BUILD_FDW "Build Foreign Data Wrapper" ON)
+option(TEA_BUILD_EXT "Build External Tables" ON)
 option(HAS_ARROW_CSV "Arrow built with csv" ON)
 option(ICECXX_GENERATOR "" ON)
 option(USE_NESSIE "Enable Nessie catalog" ON)
@@ -51,6 +52,10 @@ add_subdirectory(vendor)
 
 if(TEA_BUILD_FDW)
   add_compile_definitions(TEA_BUILD_FDW)
+endif()
+
+if(TEA_BUILD_EXT)
+  add_compile_definitions(TEA_BUILD_EXT)
 endif()
 
 if(USE_NESSIE)

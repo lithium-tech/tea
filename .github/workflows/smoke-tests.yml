@@ -1,7 +1,8 @@
 name: smoke-tests
 
 # Reusable workflow: run the full tea smoke-test suite against a prebuilt
-# runtime artifact. Called by ci.yml once per fork (arenadata + open-gpdb).
+# runtime artifact inside the Tea build container. Called by ci.yml once per
+# fork (arenadata + open-gpdb).
 on:
   workflow_call:
     inputs:
@@ -9,36 +10,76 @@ on:
         description: Name of the runtime artifact to download
         required: true
         type: string
+      enable_external_tables:
+        description: Whether the runtime artifact was built with TEA_BUILD_EXT (external-table protocol)
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+  packages: read
 
 jobs:
-  smoke:
+  # Computes the smoke-test matrix so that external-table combinations are
+  # simply never scheduled for forks built with TEA_BUILD_EXT=OFF (open-gpdb),
+  # instead of starting the job and skipping its only meaningful step.
+  setup-matrix:
     runs-on: ubuntu-22.04
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: Compute matrix
+        id: set-matrix
+        run: |
+          if [ "${{ inputs.enable_external_tables }}" = "true" ]; then
+            matrix=$(jq -nc '{include: [
+              {metadata_type: "teapot", table_type: "foreign", profile: ""},
+              {metadata_type: "teapot", table_type: "external", profile: ""},
+              {metadata_type: "iceberg", table_type: "foreign", profile: "samovar"},
+              {metadata_type: "iceberg", table_type: "external", profile: "samovar"},
+              {metadata_type: "iceberg", table_type: "foreign", profile: ""}
+            ]}')
+          else
+            matrix=$(jq -nc '{include: [
+              {metadata_type: "teapot", table_type: "foreign", profile: ""},
+              {metadata_type: "iceberg", table_type: "foreign", profile: "samovar"},
+              {metadata_type: "iceberg", table_type: "foreign", profile: ""}
+            ]}')
+          fi
+          echo "matrix=${matrix}" >> "$GITHUB_OUTPUT"
+
+  smoke:
+    needs: setup-matrix
+    runs-on: ubuntu-22.04
+    container:
+      image: ghcr.io/lithium-tech/tea-build:ubuntu22.04-latest
+      options: >-
+        --user root
+        -h cdw
+    defaults:
+      run:
+        shell: sudo -E -u gpadmin HOME=/home/gpadmin USER=gpadmin bash --noprofile --norc -eo pipefail {0}
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - metadata_type: teapot
-            table_type: foreign
-            profile: ""
-          - metadata_type: teapot
-            table_type: external
-            profile: ""
-          - metadata_type: iceberg
-            table_type: foreign
-            profile: samovar
-          - metadata_type: iceberg
-            table_type: external
-            profile: samovar
-          - metadata_type: iceberg
-            table_type: foreign
-            profile: ""
+      matrix: ${{ fromJson(needs.setup-matrix.outputs.matrix) }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install runtime dependencies
-        run: bash ci/install-runtime-deps.sh
+      - name: Prepare workspace ownership
+        shell: bash
+        run: chown -R gpadmin:gpadmin "$GITHUB_WORKSPACE" /home/gpadmin
+
+      - name: Initialize test container
+        run: |
+          mkdir -p build-logs/details build-logs/results
+          if [ -x /tmp/init_system.sh ]; then
+            /tmp/init_system.sh 2>&1 | tee build-logs/details/container-init.log
+          fi
+          df -h | tee build-logs/details/disk-usage-before-tests.log
+          free -h | tee build-logs/details/memory-before-tests.log
 
       - name: Download runtime artifacts
         uses: actions/download-artifact@v4
@@ -50,18 +91,60 @@ jobs:
         run: bash ci/restore-runtime.sh
 
       - name: Initialize Greenplum cluster
-        run: bash ci/start-cluster.sh --create-extension
+        run: bash ci/start-cluster.sh --create-extension 2>&1 | tee build-logs/details/start-cluster.log
 
       - name: Start Iceberg services (Minio + HMS) and upload test data
-        run: bash ci/start-iceberg.sh
+        run: bash ci/start-iceberg.sh 2>&1 | tee build-logs/details/start-iceberg.log
 
       - name: Deploy tea config
-        run: bash ci/deploy-tea-config.sh
+        run: bash ci/deploy-tea-config.sh 2>&1 | tee build-logs/details/deploy-tea-config.log
 
       - name: Start Redis
         run: |
-          sudo systemctl start redis-server
+          mkdir -p build-logs/details
+          redis-server --daemonize yes --dir /tmp --logfile "$(pwd)/build-logs/details/redis.log" --pidfile /tmp/redis.pid
           redis-cli ping
 
       - name: Run smoke tests
-        run: bash ci/run-smoke.sh "${{ matrix.metadata_type }}" "${{ matrix.table_type }}" "${{ matrix.profile }}"
+        run: bash ci/run-smoke.sh "${{ matrix.metadata_type }}" "${{ matrix.table_type }}" "${{ matrix.profile }}" 2>&1 | tee build-logs/details/smoke-${{ matrix.metadata_type }}-${{ matrix.table_type }}-${{ matrix.profile || 'default' }}.log
+
+      - name: Upload smoke test logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-logs-${{ inputs.artifact_name }}-${{ matrix.metadata_type }}-${{ matrix.table_type }}-${{ matrix.profile || 'default' }}
+          path: build-logs/
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Upload smoke test results files
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-results-${{ inputs.artifact_name }}-${{ matrix.metadata_type }}-${{ matrix.table_type }}-${{ matrix.profile || 'default' }}
+          path: |
+            **/regression.out
+            **/regression.diffs
+            **/results/
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Collect smoke regression logs
+        if: failure() || cancelled()
+        run: |
+          mkdir -p build-logs/regression
+          find /gpdata -type f -path '*/log/*' -exec cp --parents '{}' build-logs/regression/ \; || true
+
+      - name: Upload smoke regression logs
+        if: failure() || cancelled()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-regression-logs-${{ inputs.artifact_name }}-${{ matrix.metadata_type }}-${{ matrix.table_type }}-${{ matrix.profile || 'default' }}
+          path: |
+            build-logs/regression/
+            **/regression.out
+            **/regression.diffs
+            **/results/
+            **/yproxy.log
+          if-no-files-found: ignore
+          retention-days: 7

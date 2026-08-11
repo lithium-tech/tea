@@ -49,4 +49,3 @@ make -j8
 make -j8 install
 
 cd ..
-rm -rf gpdb

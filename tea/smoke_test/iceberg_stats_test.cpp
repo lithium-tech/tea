@@ -14,7 +14,7 @@ namespace {
 
 class MetricsTest : public TeaTest {};
 
-#if PG_VERSION_MAJOR >= 9
+#if PG_VERSION_MAJOR >= 9 && TEA_BUILD_EXT
 TEST_F(MetricsTest, Simple) {
   ASSIGN_OR_FAIL(
       auto result,

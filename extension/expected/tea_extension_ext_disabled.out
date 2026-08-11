@@ -1,0 +1,12 @@
+CREATE READABLE EXTERNAL TABLE tea_ext_empty_probe (a bigint)
+LOCATION ('tea://special://empty')
+FORMAT 'custom' (formatter = tea_import) ENCODING 'UTF8';
+ERROR:  protocol "tea" does not exist
+SELECT count(*)::int AS rows_read
+FROM tea_ext_empty_probe;
+ERROR:  relation "tea_ext_empty_probe" does not exist
+LINE 2: FROM tea_ext_empty_probe;
+             ^
+DROP EXTERNAL TABLE tea_ext_empty_probe;
+ERROR:  table "tea_ext_empty_probe" does not exist
+DROP EXTENSION tea;
