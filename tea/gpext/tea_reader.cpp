@@ -462,7 +462,6 @@ void LogSourceType(const tea::TableSource& source) {
     TEA_LOG("Empty table");
   } else if (auto* total_metrics_table = std::get_if<tea::IcebergMetricsTable>(&source);
              total_metrics_table != nullptr) {
-    TEA_LOG("Total metrics table");
   } else {
     TEA_LOG("Unknown table type");
   }
@@ -801,10 +800,8 @@ void TeaContextPrepareTotalMetricsTable(TeaContextPtr tea_ctx, const ExternalSca
     auto iter = metrics.find(str_field);
     if (iter != metrics.end()) {
       iceberg::Ensure(builder.Append(iter->second));
-      TEA_LOG(std::string(field) + ", " + std::to_string(iter->second));
     } else {
       iceberg::Ensure(builder.AppendNull());
-      TEA_LOG(std::string(field) + ", null");
     }
 
     std::shared_ptr<arrow::Array> array = iceberg::ValueSafe(builder.Finish());

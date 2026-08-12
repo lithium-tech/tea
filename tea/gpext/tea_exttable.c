@@ -200,7 +200,12 @@ static void InitImportContext(Import* context, char* url, TupleDesc tupdesc, str
   InitHeapFormTupleInfo(&context->heap_form_tuple_info, context->columns, context->ncolumns);
   ExternalScanParams* params = MakeScanParams(context, url, desc, tupdesc, context->options.ignored_exprs);
   if (params->filter.all_extracted) {
-    elog(LOG, "Using filter %s", params->filter.all_extracted);
+    // Maintenance operations querying tea.iceberg_tables_metrics generate too many unnecessary log messages.
+    // TODO(gmusya): implement a cleaner, general solution.
+    const char* special_table_prefix = "tea://special://";
+    if (strncmp(params->filter.all_extracted, special_table_prefix, strlen(special_table_prefix)) != 0) {
+      elog(LOG, "Using filter %s", params->filter.all_extracted);
+    }
   }
   TeaContextPlanExternal(context->tea_ctx, params);
   DestroyScanParams(params);
