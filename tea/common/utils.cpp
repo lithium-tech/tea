@@ -23,7 +23,6 @@
 #include "iceberg/type.h"
 
 #include "tea/observability/tea_log.h"
-#include "tea/smoke_test/fragment_info.h"
 #include "teapot/teapot.pb.h"
 
 namespace tea {
