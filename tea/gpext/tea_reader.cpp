@@ -1166,8 +1166,7 @@ void TeaContextPlanAnalyze(TeaContextPtr tea_ctx, const AnalyzeParams* params) {
     reader->SetColumns(params->projection.columns, params->projection.columns + params->projection.ncolumns);
     get::Converter(tea_ctx)->SetColumnInfo(reader->columns());
 
-    auto all_meta =
-        GetAllMetadata(tea_ctx, get::TableConfig(tea_ctx), "", get::CancelToken(tea_ctx));
+    auto all_meta = GetAllMetadata(tea_ctx, get::TableConfig(tea_ctx), "", get::CancelToken(tea_ctx));
 
     auto maybe_plan_meta = tea::meta::FromIcebergMetadata(std::move(all_meta));
     TEA_RETURN_ARROW_NOT_OK(maybe_plan_meta.status());
