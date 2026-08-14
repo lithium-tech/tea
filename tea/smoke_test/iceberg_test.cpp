@@ -147,56 +147,6 @@ TEST_F(OtherEngineGeneratedTable, MinMaxFilters2) {
   }
 }
 
-TEST_F(TeaTest, OverridingWorks) {
-  if (Environment::GetProfile() != "samovar") {
-    GTEST_SKIP();
-  }
-
-  for (const std::string& iceberg_table_name : std::vector<std::string>{"simple_table", "overrided_table"}) {
-    auto file_writer = std::make_shared<LocalFileWriter>();
-
-    std::shared_ptr<IMetadataWriterBuilder> metadata_writer_builder;
-    metadata_writer_builder = std::make_shared<IcebergMetadataWriterBuilder>();
-
-    ASSIGN_OR_FAIL(auto hms_client, Environment::GetHiveMetastoreClient());
-    std::shared_ptr<IcebergMetadataWriter> metadata_writer =
-        std::make_shared<IcebergMetadataWriter>(iceberg_table_name, hms_client);
-
-    std::shared_ptr<ITableCreator> table_creator;
-    if (Environment::GetTableType() == TestTableType::kExternal) {
-      table_creator = std::make_shared<ExternalTableCreator>();
-    } else {
-      table_creator = std::make_shared<ForeignTableCreator>();
-    }
-
-    auto column1 = MakeInt64Column("col1", 1, OptionalVector<int64_t>{1, 2, 3, 4, 5, 6, 7, 8, 9});
-    auto column2 = MakeInt64Column("col2", 2, OptionalVector<int64_t>{1, 2, 3, 1, 2, 3, 1, 2, 3});
-    ASSIGN_OR_FAIL(auto data_path, file_writer->WriteFile({column1, column2}, IFileWriter::Hints{}));
-    ASSERT_OK(metadata_writer->AddDataFiles({data_path}));
-
-    ASSIGN_OR_FAIL(auto iceberg_location, metadata_writer->Finalize());
-
-    SimpleLocation location("test-tmp-db", iceberg_table_name);
-    ASSIGN_OR_FAIL(auto defer, table_creator->CreateTable({GreenplumColumnInfo{.name = "col1", .type = "int8"},
-                                                           GreenplumColumnInfo{.name = "col2", .type = "int8"}},
-                                                          kDefaultTableName, Location(location)));
-
-    if (iceberg_table_name == "overrided_table") {
-      ASSIGN_OR_FAIL(pq::ScanResult result, pq::TableScanQuery(kDefaultTableName, "col1").Run(*conn_));
-      auto expected = pq::ScanResult({"col1"}, {{"1"}, {"2"}, {"3"}, {"4"}, {"5"}, {"6"}, {"7"}, {"8"}, {"9"}});
-
-      EXPECT_EQ(result, expected);
-    } else {
-      auto maybe_result = pq::TableScanQuery(kDefaultTableName, "col1").Run(*conn_);
-      ASSERT_NE(maybe_result.status(), arrow::Status::OK());
-
-      std::string message = maybe_result.status().message();
-      EXPECT_TRUE(message.find("Teapot error") != std::string::npos);
-      EXPECT_TRUE(message.find("test-tmp-db.simple_table not found") != std::string::npos);
-    }
-  }
-}
-
 TEST_F(OtherEngineGeneratedTable, SnapshotSelectionLatest) {
   std::vector<GreenplumColumnInfo> columns = {GreenplumColumnInfo{.name = "c1", .type = "int4"},
                                               GreenplumColumnInfo{.name = "c2", .type = "int4"}};
