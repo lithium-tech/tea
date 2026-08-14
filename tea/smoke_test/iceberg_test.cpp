@@ -148,7 +148,7 @@ TEST_F(OtherEngineGeneratedTable, MinMaxFilters2) {
 }
 
 TEST_F(TeaTest, OverridingWorks) {
-  if (Environment::GetMetadataType() != MetadataType::kIceberg || Environment::GetProfile() != "samovar") {
+  if (Environment::GetProfile() != "samovar") {
     GTEST_SKIP();
   }
 

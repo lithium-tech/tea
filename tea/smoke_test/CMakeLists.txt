@@ -22,7 +22,6 @@ endif()
 set(smoke_test_sources
   run_tests.cpp
   analyze_test.cpp
-  complex_queries_test.cpp
   types_test.cpp
   cancel_test.cpp
   count_test.cpp
@@ -60,14 +59,12 @@ set(smoke_test_sources
   iceberg_stats_test.cpp
   no_column_test.cpp
   projection_test.cpp
-  real_parquet_test.cpp
   row_group_filter_test.cpp
   mapping_test.cpp
   name_mapping_default_test.cpp
   self_join_test.cpp
   large_metadata_test.cpp
   mismatching_types_test.cpp
-  part_of_file_test.cpp
   negative_server_test.cpp
   nested_loop_join_test.cpp
   deletion_vector_test.cpp

@@ -17,7 +17,7 @@ namespace {
 class SamovarLimitTest : public TeaTest {
  protected:
   void SetUp() override {
-    if (Environment::GetMetadataType() != MetadataType::kIceberg || Environment::GetProfile() != "samovar") {
+    if (Environment::GetProfile() != "samovar") {
       GTEST_SKIP() << "Skip test only for iceberg with Samovar profile";
     }
     TeaTest::SetUp();

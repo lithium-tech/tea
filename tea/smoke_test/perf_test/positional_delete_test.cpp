@@ -119,10 +119,7 @@ std::string Exec(const char* cmd) {
   return result;
 }
 
-class PositionalDeleteTable : public TeaTest {
- private:
-  std::optional<MetadataType> old_metadata_type_;
-};
+class PositionalDeleteTable : public TeaTest {};
 
 std::vector<Configuration> AddChoice(std::vector<Configuration> x,
                                      std::function<std::vector<Configuration>(Configuration)> transform) {
