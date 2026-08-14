@@ -235,12 +235,6 @@ struct TableId {
   auto operator<=>(const TableId&) const = default;
 };
 
-struct TeapotTable {
-  TableId table_id;
-
-  auto operator<=>(const TeapotTable&) const = default;
-};
-
 struct IcebergTable {
   TableId table_id;
 
@@ -277,9 +271,9 @@ struct Snapshot {
   auto operator<=>(const Snapshot&) const = default;
 };
 
-enum TableType { kEmpty, kTeapot, kIceberg, kFile, kTotalMetrics };
+enum TableType { kEmpty, kIceberg, kFile, kTotalMetrics };
 // TODO(hvintus): replace with proper interface
-using TableSource = std::variant<EmptyTable, TeapotTable, IcebergTable, FileTable, IcebergMetricsTable>;
+using TableSource = std::variant<EmptyTable, IcebergTable, FileTable, IcebergMetricsTable>;
 using SnapshotRef = std::variant<CurrentSnapshot, Branch, Snapshot>;
 
 struct TableConfig {
