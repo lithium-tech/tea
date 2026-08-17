@@ -68,9 +68,6 @@
 #include "tea/observability/reader_stats.h"
 #include "tea/observability/tea_log.h"
 #include "tea/reader.h"
-#include "tea/samovar/planner.h"
-#include "tea/samovar/single_queue_client.h"
-#include "tea/samovar/utils.h"
 #include "tea/table/converter.h"
 #include "tea/table/filter_convert.h"
 #include "tea/table/shared_state.h"
@@ -598,16 +595,6 @@ static std::string CommonFilterToTeapotFileFilter(std::string serialized_filter)
       tea::filter::TeapotFileFilterContext{.timestamp_to_timestamptz_shift_us_ = tea::TimestampToTimestamptzShiftUs()});
 }
 
-static std::shared_ptr<tea::samovar::SingleQueueClient> CreateSamovarClient(TeaContextPtr tea_ctx,
-                                                                            const std::string& queue_name,
-                                                                            const std::string& query_scans_count_key,
-                                                                            int segment_id, int segment_count,
-                                                                            tea::samovar::SamovarRole role) {
-  TEA_LOG("Creating samovar client with queue " + queue_name);
-  return MakeSamovarDataClient(get::SamovarConfig(tea_ctx), queue_name, query_scans_count_key, segment_id,
-                               segment_count, role, get::CancelToken(tea_ctx));
-}
-
 // invoked on segment
 void TeaContextPlanForeign(TeaContextPtr tea_ctx, const ForeignScanParams* params) {
   TEA_INVOKE_IN_HELPER_THREAD(ERROR, [=] {
@@ -621,27 +608,10 @@ void TeaContextPlanForeign(TeaContextPtr tea_ctx, const ForeignScanParams* param
     auto meta_message = tea::JSONStringToScanMetadata(params->metadata);
 
     auto maybe_plan_meta = [&]() {
-      bool from_samovar = get::SamovarConfig(tea_ctx).turn_on_samovar;
-      if (from_samovar) {
-        const std::string query_scans_count_key =
-            tea::samovar::MakeQueryScansIdentifier(get::SamovarConfig(tea_ctx).cluster_id, get::SessionId(tea_ctx));
-
-        auto samovar_data_client =
-            CreateSamovarClient(tea_ctx, meta_message.scan_metadata_identifier, query_scans_count_key,
-                                params->segment_id, params->segment_count, tea::samovar::SamovarRole::kFollower);
-
-        // We currencly do not use distributed metadata processing in FDW, so filter_expr is never used
-        // TODO(gmusya): set filter expr
-        auto result = tea::samovar::FromSamovar(
-            get::Config(tea_ctx), params->segment_id, meta_message.scan_metadata_identifier, samovar_data_client,
-            get::FileSystemProvider(tea_ctx), get::CancelToken(tea_ctx), nullptr, tea::TimestampToTimestamptzShiftUs());
-        return result;
-      } else {
         tea::ScanMetadataMessage meta = std::move(meta_message);
         meta.scan_metadata =
             tea::SplitPartitionsAndFilter(std::move(meta.scan_metadata), params->segment_id, params->segment_count);
         return tea::meta::FromIcebergMetadata(std::move(meta.scan_metadata));
-      }
     }();
 
     TEA_RETURN_ARROW_NOT_OK(maybe_plan_meta.status());
@@ -653,17 +623,6 @@ void TeaContextPlanForeign(TeaContextPtr tea_ctx, const ForeignScanParams* param
     filter.row = params->filter.row ? params->filter.row : "";
     TEA_RETURN_ARROW_NOT_OK(reader->Plan(std::move(plan_meta_with_stats.first), filter, true));
   });
-}
-
-static iceberg::ice_tea::ScanMetadata GetMetaFromTeapot(TeaContextPtr tea_ctx, const tea::TableConfig& table_config,
-                                                        int segment_id, int segment_count,
-                                                        const std::string& session_id,
-                                                        const std::string& extracted_filter) {
-  auto res_with_stats = tea::meta::access::FromTeapot(
-      table_config.config, std::get<tea::TeapotTable>(table_config.source).table_id.ToString(), session_id, segment_id,
-      segment_count, CommonFilterToTeapotFileFilter(extracted_filter));
-  get::PlannerStats(tea_ctx).Combine(res_with_stats.second);
-  return (std::move(res_with_stats.first));
 }
 
 static iceberg::ice_tea::ScanMetadata GetMetaFromIceberg(TeaContextPtr tea_ctx, const tea::TableConfig& table_config,
@@ -687,8 +646,6 @@ static iceberg::ice_tea::ScanMetadata GetMetadataForSegment(TeaContextPtr tea_ct
   switch (access_type) {
     case tea::TableType::kIceberg:
       throw arrow::Status::ExecutionError("Combination external table + iceberg access + no samovar is not supported");
-    case tea::TableType::kTeapot:
-      return GetMetaFromTeapot(tea_ctx, table_config, segment_id, segment_count, session_id, extracted_filter);
     case tea::TableType::kFile: {
       if (segment_id == 0) {
         return tea::meta::access::FromFileUrl(std::get<tea::FileTable>(table_config.source).url,
@@ -968,107 +925,6 @@ std::shared_ptr<iceberg::TableMetadataV2> GetTableMetadataNonNull(TeaContextPtr 
   return table_metadata;
 }
 
-std::shared_ptr<tea::samovar::SingleQueueClient> SamovarMakePlan(TeaContextPtr tea_ctx,
-                                                                 tea::Reader::SerializedFilter filter,
-                                                                 std::string queue_name,
-                                                                 const std::string& query_scans_count_key,
-                                                                 int segment_id, int segment_count) {
-  TEA_LOG("I am samovar coordinator");
-
-  tea::PlannerStats& stats = get::PlannerStats(tea_ctx);
-
-  std::optional<tea::ScopedTimerTicks> timer = tea::ScopedTimerTicks(stats.plan_duration);
-
-  const auto& config = get::TableConfig(tea_ctx);
-  {
-    std::shared_ptr<iceberg::TableMetadataV2> table_metadata = GetTableMetadataNonNull(tea_ctx, stats);
-
-    std::shared_ptr<iceberg::filter::StatsFilter> stats_filter;
-
-    auto node_filter = iceberg::filter::StringToFilter(filter.extracted);
-    if (node_filter) {
-      stats_filter =
-          std::make_shared<iceberg::filter::StatsFilter>(node_filter, iceberg::filter::StatsFilter::Settings{});
-    }
-
-    {
-      std::shared_ptr<iceberg::Schema> schema = tea::GetSchemaForSnapshot(table_metadata, config.snapshot_ref);
-      std::optional<std::string> schema_name_mapping = tea::meta::access::GetSchemaNameMappingDefault(*table_metadata);
-      TEA_LOG("Samovar: getting manifest files");
-
-      std::deque<iceberg::ManifestFile> manifest_files_queue =
-          GetManifestFiles(get::FileSystemProvider(tea_ctx), table_metadata, stats_filter, get::PlannerStats(tea_ctx),
-                           config.snapshot_ref);
-
-      if (UseDistributedMetadataParsing(manifest_files_queue,
-                                        config.config.limits.samovar_distributed_metadata_parsing_files_threshold)) {
-        // validation is done after partition pruning but before applying min/max filters
-        // SinglenodeMetadataParsing mode uses its own validation which is performed after applying min/max filters
-        ValidateFilesCountInDistributedMode(config.config, manifest_files_queue);
-
-        std::shared_ptr<tea::samovar::SingleQueueClient> samovar_client =
-            CreateSamovarClient(tea_ctx, queue_name, query_scans_count_key, segment_id, segment_count,
-                                tea::samovar::SamovarRole::kFollower);
-        TEA_LOG("Samovar: filling manifests queue");
-        auto maybe_stats = tea::samovar::FillSamovarWithManifests(get::Config(tea_ctx), schema, schema_name_mapping,
-                                                                  manifest_files_queue, segment_count, samovar_client);
-        get::PlannerStats(tea_ctx).Combine(iceberg::ValueSafe(maybe_stats));
-
-        return samovar_client;
-      } else {
-        const bool use_reader_schema = config.config.UseReaderSchema(schema->Columns().size());
-
-        std::shared_ptr<arrow::fs::FileSystem> fs =
-            iceberg::ValueSafe(get::FileSystemProvider(tea_ctx)->GetFileSystem(table_metadata->location));
-        auto metrics = std::make_shared<tea::IcebergMetrics>();
-        fs = std::make_shared<tea::IcebergLoggingFileSystem>(fs, metrics);
-
-        std::shared_ptr<iceberg::ice_tea::IcebergEntriesStream> entries_stream =
-            std::make_shared<iceberg::ice_tea::AllEntriesStream>(
-                fs, std::queue(std::move(manifest_files_queue)), use_reader_schema, table_metadata->partition_specs,
-                schema,
-                node_filter ? tea::MakeScanDeserializerConfigWithFilter() : tea::MakeFullScanDeserializerConfig());
-        entries_stream = std::make_shared<tea::CancellingStream>(entries_stream, get::CancelToken(tea_ctx));
-        if (node_filter) {
-          entries_stream = std::make_shared<tea::FilteringEntriesStream>(entries_stream, node_filter, schema,
-                                                                         tea::TimestampToTimestamptzShiftUs());
-        }
-
-        auto logger = std::make_shared<tea::Logger>();
-        logger->SetHandler("metrics:plan:data_files",
-                           [&](const tea::Logger::Message& msg) { stats.data_files_planned += std::stoll(msg); });
-        logger->SetHandler("metrics:plan:positional_files",
-                           [&](const tea::Logger::Message& msg) { stats.positional_files_planned += std::stoll(msg); });
-        logger->SetHandler("metrics:plan:equality_files",
-                           [&](const tea::Logger::Message& msg) { stats.equality_files_planned += std::stoll(msg); });
-        logger->SetHandler("metrics:plan:dangling_positional_files", [&](const tea::Logger::Message& msg) {
-          stats.dangling_positional_files += std::stoll(msg);
-        });
-
-        iceberg::ice_tea::ScanMetadata all_meta =
-            iceberg::ValueSafe(iceberg::ice_tea::GetScanMetadata(*entries_stream, *table_metadata, schema, logger));
-        all_meta.schema_name_mapping = schema_name_mapping;
-
-        ValidateAllMetadata(get::Config(tea_ctx), all_meta);
-
-        std::shared_ptr<tea::samovar::SingleQueueClient> samovar_client =
-            CreateSamovarClient(tea_ctx, queue_name, query_scans_count_key, segment_id, segment_count,
-                                tea::samovar::SamovarRole::kFollower);
-
-        tea::UpdatePlannerStats(stats, *metrics);
-
-        TEA_LOG("Filling queue " + queue_name);
-        auto maybe_stats =
-            tea::samovar::FillSamovar(get::Config(tea_ctx), std::move(all_meta), segment_count, samovar_client);
-        TEA_LOG("Queue filled " + queue_name);
-        stats.Combine(iceberg::ValueSafe(maybe_stats));
-
-        return samovar_client;
-      }
-    }
-  }
-}
-
 static std::chrono::milliseconds CalculateSleepTime(std::chrono::milliseconds min_time,
                                                     std::chrono::milliseconds max_time, const std::string& queue_name,
                                                     int segment_id) {
@@ -1098,85 +954,10 @@ void TeaContextPlanExternal(TeaContextPtr tea_ctx, const ExternalScanParams* par
       return;
     }
 
-    auto make_samovar_queue_name = [&]() {
-      return tea::samovar::MakeSessionIdentifier(get::Source(tea_ctx), get::SamovarConfig(tea_ctx).cluster_id,
-                                                 get::SessionId(tea_ctx), "0", params->slice_id,
-                                                 get::ScanIdentifier(tea_ctx), false);
-    };
-    auto make_samovar_query_scans_count_key = [&]() {
-      return tea::samovar::MakeQueryScansIdentifier(get::SamovarConfig(tea_ctx).cluster_id, get::SessionId(tea_ctx));
-    };
-
-    const bool from_samovar = get::SamovarConfig(tea_ctx).turn_on_samovar;
-    std::shared_ptr<tea::samovar::SingleQueueClient> samovar_client;
-    if (from_samovar) {
-      const std::string queue_name = make_samovar_queue_name();
-
-      const auto target_coordinator =
-          tea::samovar::GetCoordinator(get::SessionId(tea_ctx), get::Source(tea_ctx), params->segment_count);
-      const bool is_coordinator = params->segment_id == target_coordinator;
-
-      const auto& cfg = get::Config(tea_ctx).samovar_config;
-      const int slice_id = params->slice_id;
-      const int first_slice_to_sleep = cfg.first_slice_to_sleep;
-
-      if (slice_id > first_slice_to_sleep) {
-        std::chrono::milliseconds time_to_sleep = (slice_id - first_slice_to_sleep) * cfg.sleep_per_slice_ms;
-        time_to_sleep = std::min(time_to_sleep, cfg.max_sleep_time_ms);
-        if (time_to_sleep.count() > 0) {
-          TEA_LOG("Slice id = " + std::to_string(slice_id) + ", sleep for " + std::to_string(time_to_sleep.count()) +
-                  "ms");
-          std::this_thread::sleep_for(time_to_sleep);
-        }
-      }
-
-      if (is_coordinator) {
-        samovar_client =
-            SamovarMakePlan(tea_ctx, filter, make_samovar_queue_name(), make_samovar_query_scans_count_key(),
-                            params->segment_id, params->segment_count);
-      } else {
-        TEA_LOG("Samovar coordinator for query is " + std::to_string(target_coordinator));
-      }
-    }
-
     auto maybe_plan_meta = [&]() -> ResultType {
-      if (from_samovar) {
-        const std::string queue_name = make_samovar_queue_name();
-
-        const auto target_coordinator =
-            tea::samovar::GetCoordinator(get::SessionId(tea_ctx), get::Source(tea_ctx), params->segment_count);
-        const bool is_coordinator = params->segment_id == target_coordinator;
-
-        // Followers should wait for some time (at least 3x the average s3 request latency) since no progress is
-        // impossible until the coordinator writes the metadata to Samovar.
-        // The coordinator does not have to wait because the metadata has already been written by him.
-        if (!is_coordinator) {
-          const auto& config = get::Config(tea_ctx);
-          if (config.samovar_config.wait_before_processing) {
-            std::chrono::milliseconds sleep_time =
-                CalculateSleepTime(config.samovar_config.min_time_before_processing_ms,
-                                   config.samovar_config.max_time_before_processing_ms, queue_name, params->segment_id);
-
-            std::this_thread::sleep_for(sleep_time);
-          }
-        }
-
-        if (!samovar_client) {
-          samovar_client =
-              CreateSamovarClient(tea_ctx, queue_name, make_samovar_query_scans_count_key(), params->segment_id,
-                                  params->segment_count, tea::samovar::SamovarRole::kFollower);
-        }
-
-        auto result = tea::samovar::FromSamovar(get::Config(tea_ctx), params->segment_id, queue_name, samovar_client,
-                                                get::FileSystemProvider(tea_ctx), get::CancelToken(tea_ctx),
-                                                iceberg::filter::StringToFilter(filter.extracted),
-                                                tea::TimestampToTimestamptzShiftUs());
-        return result;
-      } else {
         auto meta_for_me = GetMetadataForSegment(tea_ctx, get::TableConfig(tea_ctx), params->segment_id,
                                                  params->segment_count, get::SessionId(tea_ctx), filter.extracted);
         return tea::meta::FromIcebergMetadata(std::move(meta_for_me));
-      }
     }();
 
     TEA_RETURN_ARROW_NOT_OK(maybe_plan_meta.status());
@@ -1317,34 +1098,8 @@ void TeaContextGetScanMetadata(const TeaContextPtr tea_ctx, const char* session_
         iceberg::ice_tea::ScanMetadata all_meta = GetAllMetadata(
             tea_ctx, get::TableConfig(tea_ctx), session_id, file_filter ? file_filter : "", get::CancelToken(tea_ctx));
         std::string serialized_meta;
-        if (get::SamovarConfig(tea_ctx).turn_on_samovar) {
-          iceberg::UuidGenerator gen;
-          std::string queue_name =
-              tea::samovar::MakeSessionIdentifier(get::Source(tea_ctx), get::SamovarConfig(tea_ctx).cluster_id,
-                                                  session_id, gen.CreateRandom().ToString(), 1, 1, true);
-          std::string query_scans_count_key =
-              tea::samovar::MakeQueryScansIdentifier(get::SamovarConfig(tea_ctx).cluster_id, session_id);
-
-          std::shared_ptr<iceberg::Schema> schema = all_meta.schema;
-
-          auto samovar_data_client = CreateSamovarClient(tea_ctx, queue_name, query_scans_count_key, 0, segment_count,
-                                                         tea::samovar::SamovarRole::kCoordinator);
-
-          TEA_LOG("Filling queue " + queue_name);
-          auto stats =
-              tea::samovar::FillSamovar(get::Config(tea_ctx), std::move(all_meta), segment_count, samovar_data_client);
-          TEA_RETURN_ARROW_NOT_OK(stats);
-          TEA_LOG("Queue filled " + queue_name);
-          get::PlannerStats(tea_ctx).Combine(stats.ValueUnsafe());
-
-          // TODO(gmusya): change tea::ScanMetadataMessage
-          serialized_meta = tea::ScanMetadataToJSONString(tea::ScanMetadataMessage{
-              .scan_metadata = iceberg::ice_tea::ScanMetadata{.schema = schema, .partitions = {}},
-              .scan_metadata_identifier = queue_name});
-        } else {
           serialized_meta = tea::ScanMetadataToJSONString(
               tea::ScanMetadataMessage{.scan_metadata = std::move(all_meta), .scan_metadata_identifier = ""});
-        }
 
         *metadata = tea::StringToPostgres(serialized_meta);
       }));

@@ -55,9 +55,6 @@
 #include "tea/common/file_errors.h"
 #include "tea/common/file_reader_provider.h"
 #include "tea/common/row_groups_utils.h"
-#include "tea/debug/stats_state.grpc.pb.h"
-#include "tea/debug/stats_state.pb.h"
-#include "tea/debug/stats_to_proto.h"
 #include "tea/metadata/metadata.h"
 #include "tea/observability/reader_stats.h"
 #include "tea/observability/return_fl.h"
@@ -718,10 +715,6 @@ void Reader::LogPotentialStatsFilter() {
   potential_row_group_filter_logged_ = true;
 
   TEA_LOG("Potential row group filter: " + row_filter_->GetFilterString());
-
-  if (config_.debug.test_stats) {
-    debug::SendPotentialRowGroupFilter(row_filter_->GetFilterString());
-  }
 }
 
 arrow::Result<std::optional<iceberg::BatchWithSelectionVector>> Reader::GetNextBatch() {
@@ -736,10 +729,6 @@ arrow::Result<std::optional<iceberg::BatchWithSelectionVector>> Reader::GetNextB
       LogPotentialStatsFilter();
     }
     return std::nullopt;
-  }
-
-  if (config_.debug.test_gandiva_filter && row_filter_) {
-    debug::SendGandivaFilter(row_filter_->GetFilterString());
   }
 
   if (batch->GetPath() != current_file_name_) {

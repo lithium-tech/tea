@@ -316,7 +316,7 @@ bool GetEndpoints(Source* source, std::string_view section_prefix, std::string_v
   }
   endpoints->clear();
   auto log_typo = [&](const std::string_view& endpoint) {
-    TEA_LOG(std::string("Typo in ") + absl::StrCat(section_prefix, section, ".", key) + ": \"" + std::string(endpoint) +
+    TEA_LOG(std::string("Typo in ") + std::string(section_prefix) + std::string(section) + "." + key + ": \"" + std::string(endpoint) +
             "\"");
   };
 
@@ -338,33 +338,6 @@ bool GetEndpoints(Source* source, std::string_view section_prefix, std::string_v
     endpoints->emplace_back(Endpoint{.host = splitted_endpoint[0], .port = static_cast<uint16_t>(port)});
   }
   return true;
-}
-
-template <typename Source>
-void GetBackoffInfo(Source* src, BackoffInfo* config, std::string_view section_prefix,
-                    std::string_view keys_prefix = "") {
-  Get(src, section_prefix, "samovar", absl::StrCat(keys_prefix, "backoff_type"), &config->backoff_type);
-  // Sleep time in milliseconds
-  Get(src, section_prefix, "samovar", absl::StrCat(keys_prefix, "linear_backoff_time_to_sleep_ms"),
-      &config->linear_backoff_time_to_sleep_ms);
-  // Increasing coefficient in exponential backoff
-  // Compat: will be removed in future versions
-  GetOptional(src, section_prefix, "samovar", absl::StrCat(keys_prefix, "exponentail_backoff_sleep_coef"),
-              &config->exponential_backoff_sleep_coef);
-
-  GetOptional(src, section_prefix, "samovar", absl::StrCat(keys_prefix, "exponential_backoff_sleep_coef"),
-              &config->exponential_backoff_sleep_coef);
-
-  // Upper bound on waiting time for exponential backoff
-  // Compat: will be removed in future versions
-  GetOptional(src, section_prefix, "samovar", absl::StrCat(keys_prefix, "exponentail_backoff_limit"),
-              &config->exponential_backoff_limit);
-
-  GetOptional(src, section_prefix, "samovar", absl::StrCat(keys_prefix, "exponential_backoff_limit"),  // deprecated
-              &config->exponential_backoff_limit);
-  GetOptional(src, section_prefix, "samovar", absl::StrCat(keys_prefix, "exponential_backoff_limit_ms"),
-              &config->exponential_backoff_limit);
-  Get(src, section_prefix, "samovar", absl::StrCat(keys_prefix, "limit_retries"), &config->limit_retries);
 }
 
 template <typename Source>
@@ -450,11 +423,6 @@ arrow::Status ReadValues(Source* src, Config* config, std::string_view section_p
   Get(src, section_prefix, "metadata_access", "default_schema", &config->meta_access.default_schema);
 
   Get(src, section_prefix, "samovar", "use_samovar", &config->samovar_config.turn_on_samovar);
-
-  // SyncBackoff = MetadataBackoff by default, but params can be overrided
-  GetBackoffInfo(src, &config->samovar_config.metadata_backoff, section_prefix, "");
-  config->samovar_config.sync_backoff = config->samovar_config.metadata_backoff;
-  GetBackoffInfo(src, &config->samovar_config.sync_backoff, section_prefix, "sync_");
 
   Get(src, section_prefix, "samovar", "balancer_type", &config->samovar_config.balancer_type);
   Get(src, section_prefix, "samovar", "cluster_id", &config->samovar_config.cluster_id);
@@ -722,7 +690,7 @@ TableConfig ConfigSource::GetTableConfig(const std::unordered_map<std::string, s
     table_config.source = IcebergMetricsTable{};
   } else if (schema == "file" || schema == "s3") {
     table_config.source =
-        FileTable{.url = absl::StrCat(components.schema, "://", components.location, components.path)};
+        FileTable{.url = absl::StrCat(std::string(components.schema), "://", std::string(components.location),std::string(components.path))};
   } else {
     throw arrow::Status::ExecutionError("Invalid table url: ", url);
   }

@@ -3,8 +3,6 @@
 #include <memory>
 #include <string>
 
-#include "tea/debug/stats_state.grpc.pb.h"
-#include "tea/debug/stats_state.pb.h"
 #include "tea/observability/reader_stats.h"
 #include "tea/observability/s3_stats.h"
 
