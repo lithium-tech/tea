@@ -1135,10 +1135,6 @@ void TeaContextLogStats(const TeaContextPtr tea_ctx, const char* event) {
           tea::Log(tea::FormatStats(event ? event : "", session_id, scan_identifier, version, ticks_passed,
                                     ticks_per_second, get::PlannerStats(tea_ctx), reader_stats, s3_stats,
                                     tea_ctx->ext_stats, pos_del_stats, eq_del_stats, wait_duration, prefetch_duration));
-          if (get::Config(tea_ctx).debug.test_stats) {
-            tea::debug::SendStats(ticks_passed, ticks_per_second, get::PlannerStats(tea_ctx), reader_stats, s3_stats,
-                                  tea_ctx->ext_stats, pos_del_stats, eq_del_stats, GpIdentity.segindex);
-          }
         }
       }));
 }
