@@ -67,7 +67,6 @@
 #include "tea/table/filter_convert.h"
 #include "tea/table/gp_funcs.h"
 #include "tea/table/shared_state.h"
-#include "tea/util/defer.h"
 #include "tea/util/logger.h"
 #include "tea/util/measure.h"
 #include "tea/util/multishot_timer.h"
@@ -109,7 +108,7 @@ class LoggingInputFile : public iceberg::InputFileWrapper {
 
   arrow::Result<int64_t> ReadAt(int64_t position, int64_t nbytes, void* out) override {
     metrics_->wait_read_stats->Resume();
-    Defer defer([&]() { metrics_->wait_read_stats->Suspend(); });
+    iceberg::Defer defer([&]() { metrics_->wait_read_stats->Suspend(); });
     TakeRequestIntoAccount(nbytes);
     auto result = InputFileWrapper::ReadAt(position, nbytes, out);
     if (!result.ok()) {
@@ -120,7 +119,7 @@ class LoggingInputFile : public iceberg::InputFileWrapper {
 
   arrow::Result<int64_t> Read(int64_t nbytes, void* out) override {
     metrics_->wait_read_stats->Resume();
-    Defer defer([&]() { metrics_->wait_read_stats->Suspend(); });
+    iceberg::Defer defer([&]() { metrics_->wait_read_stats->Suspend(); });
     TakeRequestIntoAccount(nbytes);
     auto result = InputFileWrapper::Read(nbytes, out);
     if (!result.ok()) {
@@ -131,7 +130,7 @@ class LoggingInputFile : public iceberg::InputFileWrapper {
 
   arrow::Result<std::shared_ptr<arrow::Buffer>> Read(int64_t nbytes) override {
     metrics_->wait_read_stats->Resume();
-    Defer defer([&]() { metrics_->wait_read_stats->Suspend(); });
+    iceberg::Defer defer([&]() { metrics_->wait_read_stats->Suspend(); });
     TakeRequestIntoAccount(nbytes);
     auto result = InputFileWrapper::Read(nbytes);
     if (!result.ok()) {
