@@ -35,8 +35,6 @@ teapot::Schema IcebergSchemaToTeapotSchema(const std::shared_ptr<iceberg::Schema
 
 std::shared_ptr<iceberg::Schema> TeapotSchemaToIcebergSchema(const teapot::Schema& schema);
 
-iceberg::ice_tea::ScanMetadata MetadataResponseResultToScanMetadata(const teapot::MetadataResponseResult& meta);
-
 iceberg::ice_tea::ScanMetadata SplitPartitionsAndFilter(iceberg::ice_tea::ScanMetadata&& scan_metadata,
                                                         const int segment_id, const int segment_count);
 

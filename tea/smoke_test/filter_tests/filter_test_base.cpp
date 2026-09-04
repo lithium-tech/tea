@@ -56,14 +56,6 @@ void FilterTestBase::ProcessWithFilter(const std::vector<std::string>& column_na
   } else {
     ASSERT_TRUE(maybe_result.ok()) << maybe_result.status().message();
   }
-  if (expected.iceberg_filters.has_value() && Environment::GetMetadataType() == MetadataType::kTeapot) {
-    const auto& expected_iceberg_filters = *expected.iceberg_filters;
-    auto actual_iceberg_filter = teapot_->GetLastRequest().iceberg_expression_json();
-    EXPECT_TRUE(expected_iceberg_filters.contains(actual_iceberg_filter))
-        << "condition: " << condition << "\n"
-        << "expected: " << ToString(expected_iceberg_filters) << "\n"
-        << "found: \"" << actual_iceberg_filter << "\"";
-  }
   if (expected.gandiva_filters) {
     const auto& expected_gandiva_filters = *expected.gandiva_filters;
     auto actual_gandiva_filter = stats_state_->GetLastGandivaFilter();

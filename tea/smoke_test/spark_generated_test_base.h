@@ -13,9 +13,6 @@ namespace tea {
 class OtherEngineGeneratedTable : public TeaTest {
  protected:
   void SetUp() override {
-    if (Environment::GetMetadataType() != MetadataType::kIceberg) {
-      GTEST_SKIP();
-    }
     if (Environment::GetProfile() == "samovar_0" || Environment::GetProfile() == "samovar_1") {
       GTEST_SKIP();
     }

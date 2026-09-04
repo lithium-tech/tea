@@ -9,7 +9,6 @@
 #include "tea/smoke_test/environment.h"
 #include "tea/smoke_test/pq.h"
 #include "tea/smoke_test/spark_generated_test_base.h"
-#include "tea/smoke_test/teapot_test_base.h"
 #include "tea/smoke_test/test_base.h"
 #include "tea/test_utils/metadata.h"
 
@@ -53,9 +52,6 @@ TEST_F(NegativeServer, NoRedis) {
 }
 
 TEST_F(NegativeServer, NoHMS) {
-  if (Environment::GetMetadataType() != MetadataType::kIceberg) {
-    return;
-  }
   auto prev_profile = Environment::GetProfile();
   Environment::SetProfile("broken_hms");
   [[maybe_unused]] auto change_profile_defer = Defer([&prev_profile] { Environment::SetProfile(prev_profile); });
@@ -82,8 +78,7 @@ TEST_F(NegativeServer, NoHMS) {
 }
 
 TEST_F(NegativeServer, NoSuchTable) {
-  if (Environment::GetMetadataType() != MetadataType::kIceberg || Environment::GetProfile() != "samovar" ||
-      Environment::GetTableType() != TestTableType::kExternal) {
+  if (Environment::GetProfile() != "samovar" || Environment::GetTableType() != TestTableType::kExternal) {
     return;
   }
 
@@ -184,7 +179,7 @@ TEST_F(NegativeServer, InvalidLocationOption) {
 }
 
 TEST_F(OtherEngineGeneratedTable, NoS3) {
-  if (Environment::GetMetadataType() != MetadataType::kIceberg || Environment::GetProfile() != "") {
+  if (Environment::GetProfile() != "") {
     return;
   }
   auto prev_profile = Environment::GetProfile();
@@ -197,70 +192,6 @@ TEST_F(OtherEngineGeneratedTable, NoS3) {
   auto res = pq::TableScanQuery(kDefaultTableName).Run(*conn_);
   EXPECT_FALSE(res.ok());
   EXPECT_EQ(res.status().message().substr(0, 66), "SELECT failed: ERROR:  Tea error: When reading information for key");
-}
-
-class NegativeTeapotTest : public TeapotTest {};
-
-TEST_F(NegativeTeapotTest, NoSuchTable) {
-  auto column1 = MakeInt32Column("col1", 1, OptionalVector<int32_t>{1, 2, 3});
-  auto column2 = MakeInt32Column("col2", 1, OptionalVector<int32_t>{4, 5, 6});
-  ASSIGN_OR_FAIL(auto data_path, state_->WriteFile({column1, column2}));
-  ASSERT_OK(state_->AddDataFiles({data_path}));
-
-  ASSIGN_OR_FAIL(auto defer, state_->CreateTable({GreenplumColumnInfo{.name = "col1", .type = "int4"},
-                                                  GreenplumColumnInfo{.name = "col2", .type = "int4"}}));
-
-  Environment::GetTeapotPtr()->ClearResponses();
-
-  auto maybe_result = pq::TableScanQuery(kDefaultTableName, "count(*)").Run(*conn_);
-  ASSERT_NE(maybe_result.status(), arrow::Status::OK());
-  std::string msg = maybe_result.status().message();
-  ASSERT_TRUE(msg.find("Tea error") != std::string::npos) << msg << std::endl;
-  ASSERT_TRUE(msg.find("Teapot error: (at localhost:50002, table_name 'db.test_table')") != std::string::npos)
-      << msg << std::endl;
-  ASSERT_TRUE(msg.find("1 db.test_table not found") != std::string::npos) << msg << std::endl;
-}
-
-TEST_F(NegativeTeapotTest, StaleTable) {
-  auto column1 = MakeInt32Column("col1", 1, OptionalVector<int32_t>{1, 2, 3});
-  auto column2 = MakeInt32Column("col2", 1, OptionalVector<int32_t>{4, 5, 6});
-  ASSIGN_OR_FAIL(auto data_path, state_->WriteFile({column1, column2}));
-  ASSERT_OK(state_->AddDataFiles({data_path}));
-
-  ASSIGN_OR_FAIL(auto defer, state_->CreateTable({GreenplumColumnInfo{.name = "col1", .type = "int4"},
-                                                  GreenplumColumnInfo{.name = "col2", .type = "int4"}}));
-
-  Environment::GetTeapotPtr()->ClearResponse(kDefaultTableName);
-
-  auto maybe_result = pq::TableScanQuery(kDefaultTableName, "count(*)").Run(*conn_);
-  ASSERT_NE(maybe_result.status(), arrow::Status::OK());
-  std::string msg = maybe_result.status().message();
-  ASSERT_TRUE(msg.find("Tea error") != std::string::npos) << msg << std::endl;
-  ASSERT_TRUE(msg.find("Teapot error: (at localhost:50002, table_name 'db.test_table')") != std::string::npos)
-      << msg << std::endl;
-  ASSERT_TRUE(msg.find("1 db.test_table not found") != std::string::npos) << msg << std::endl;
-}
-
-TEST_F(NegativeTeapotTest, DeadlineExceeded) {
-  auto column1 = MakeInt32Column("col1", 1, OptionalVector<int32_t>{1, 2, 3});
-  auto column2 = MakeInt32Column("col2", 1, OptionalVector<int32_t>{4, 5, 6});
-  ASSIGN_OR_FAIL(auto data_path, state_->WriteFile({column1, column2}));
-  ASSERT_OK(state_->AddDataFiles({data_path}));
-
-  ASSIGN_OR_FAIL(auto defer, state_->CreateTable({GreenplumColumnInfo{.name = "col1", .type = "int4"},
-                                                  GreenplumColumnInfo{.name = "col2", .type = "int4"}}));
-
-  Environment::GetTeapotPtr()->ClearResponses();
-  auto lg = Environment::GetTeapotPtr()->Lock();
-
-  auto maybe_result = pq::TableScanQuery(kDefaultTableName, "count(*)").Run(*conn_);
-  ASSERT_NE(maybe_result.status(), arrow::Status::OK());
-  std::string msg = maybe_result.status().message();
-  ASSERT_TRUE(msg.find("Tea error") != std::string::npos) << msg << std::endl;
-  ASSERT_TRUE(msg.find("Teapot error: (at localhost:50002, table_name 'db.test_table')") != std::string::npos)
-      << msg << std::endl;
-  ASSERT_TRUE(msg.find("4 Deadline Exceeded (Teapot did not return metadata within 5000ms)") != std::string::npos)
-      << msg << std::endl;
 }
 
 class WrongTeapotMetadataWriter : public TeapotMetadataWriter {
@@ -284,42 +215,5 @@ class WrongTeapotMetadataWriterBuilder : public IMetadataWriterBuilder {
  private:
   std::shared_ptr<WrongTeapotMetadataWriter> instance_;
 };
-
-class WrongTeapotTest : public TeapotTest {
- public:
-  void SetUp() override {
-    if (Environment::GetMetadataType() != MetadataType::kTeapot) {
-      GTEST_SKIP();
-    }
-    TeapotTest::SetUp();
-    metadata_writer_ = std::make_shared<WrongTeapotMetadataWriter>();
-
-    state_->SetMetadataWriterBuilder(std::make_shared<WrongTeapotMetadataWriterBuilder>(metadata_writer_));
-    ASSERT_OK(state_->AddDataFiles({}));
-  }
-
- private:
-  std::shared_ptr<WrongTeapotMetadataWriter> metadata_writer_;
-};
-
-TEST_F(WrongTeapotTest, Simple) {
-  auto column1 = MakeInt32Column("col1", 1, OptionalVector<int32_t>{1, 2, 3});
-  auto column2 = MakeInt32Column("col2", 1, OptionalVector<int32_t>{4, 5, 6});
-  ASSIGN_OR_FAIL(auto data_path, state_->WriteFile({column1, column2}));
-  ASSERT_OK(state_->AddDataFiles({data_path}));
-
-  ASSIGN_OR_FAIL(auto defer, state_->CreateTable({GreenplumColumnInfo{.name = "col1", .type = "int4"},
-                                                  GreenplumColumnInfo{.name = "col2", .type = "int4"}}));
-
-  auto maybe_result = pq::TableScanQuery(kDefaultTableName, "count(*)").Run(*conn_);
-  ASSERT_NE(maybe_result.status(), arrow::Status::OK());
-  std::string msg = maybe_result.status().message();
-  ASSERT_TRUE(msg.find("Tea error") != std::string::npos) << msg << std::endl;
-  ASSERT_TRUE(msg.find("Teapot error: (at iamnotteapot:50002, table_name 'db.test_table')") != std::string::npos)
-      << msg << std::endl;
-  // status code for UNAVAILABLE
-  ASSERT_TRUE(msg.find("14") != std::string::npos || msg.find("4 Deadline Exceeded") != std::string::npos)
-      << msg << std::endl;
-}
 
 }  // namespace tea

@@ -237,9 +237,7 @@ int GetCoordinator(const std::string& session_id, const TableSource& table_sourc
 
   std::string table_id;
   {
-    if (const auto* teapot_table = std::get_if<TeapotTable>(&table_source)) {
-      table_id = teapot_table->table_id.ToString();
-    } else if (const auto* file_table = std::get_if<tea::FileTable>(&table_source)) {
+    if (const auto* file_table = std::get_if<tea::FileTable>(&table_source)) {
       table_id = file_table->url;
     } else if (const auto* iceberg_table = std::get_if<tea::IcebergTable>(&table_source)) {
       table_id = iceberg_table->table_id.ToString();

@@ -207,13 +207,7 @@ class TeaTest : public ::testing::Test {
  protected:
   void SetUp() override {
     auto file_writer = std::make_shared<LocalFileWriter>();
-
-    std::shared_ptr<IMetadataWriterBuilder> metadata_writer_builder;
-    if (Environment::GetMetadataType() == MetadataType::kTeapot) {
-      metadata_writer_builder = std::make_shared<TeapotMetadataWriterBuilder>();
-    } else {
-      metadata_writer_builder = std::make_shared<IcebergMetadataWriterBuilder>();
-    }
+    std::shared_ptr<IMetadataWriterBuilder> metadata_writer_builder = std::make_shared<IcebergMetadataWriterBuilder>();
 
     std::shared_ptr<ITableCreator> table_creator;
     if (Environment::GetTableType() == TestTableType::kExternal) {
