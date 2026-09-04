@@ -519,6 +519,9 @@ void LoadFDWServerOptions(Config& config, const std::unordered_map<std::string, 
   if (auto i = m_server_options.find("catalog_type"); i != m_server_options.end())
     config.catalog.type = StrToCatalogType(i->second);
 
+  if (auto i = m_server_options.find("catalog_hsm"); i != m_server_options.end())
+    config.catalog.hms_endpoints = {{.host = i->second, .port = 9083}};
+
 #if USE_REST
   LoadStr(config.catalog.rest_url, "catalog_rest_url");
   LoadStr(config.catalog.rest_warehouse_id, "catalog_rest_warehouse_id");
