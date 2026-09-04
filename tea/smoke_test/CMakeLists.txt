@@ -59,6 +59,7 @@ set(smoke_test_sources
   iceberg_stats_test.cpp
   no_column_test.cpp
   projection_test.cpp
+  real_parquet_test.cpp
   row_group_filter_test.cpp
   mapping_test.cpp
   name_mapping_default_test.cpp
