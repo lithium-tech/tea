@@ -7,7 +7,6 @@
 #include "tea/smoke_test/environment.h"
 #include "tea/smoke_test/pq.h"
 #include "tea/smoke_test/stats_state.h"
-#include "tea/smoke_test/teapot_test_base.h"
 #include "tea/smoke_test/test_base.h"
 #include "tea/test_utils/metadata.h"
 
