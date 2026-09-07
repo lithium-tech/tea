@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Run the tea smoke_test binary for one matrix combination.
 #
-# Usage: run-smoke.sh <metadata_type> <table_type> <profile>
+# Usage: run-smoke.sh <table_type> <profile>
 set -eo pipefail
 
 source "$HOME/local/gpdb/greenplum_path.sh"
