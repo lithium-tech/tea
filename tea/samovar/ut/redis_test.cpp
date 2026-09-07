@@ -241,6 +241,62 @@ TEST(RedisClient, QueryScansLimitExceeded) {
   KillRedis();
 }
 
+TEST(RedisClient, QueryTotalBytesReadLimitDisabled) {
+  StartRedis();
+  FlushServer();
+
+  auto backoff = std::make_shared<NoBackoff>(30);
+  auto batch_size_scheduler = std::make_shared<ConstantBatchSizeScheduler>(1);
+  auto redis_client =
+      std::make_shared<SamovarRedisClient>(std::vector<Endpoint>{Endpoint{.host = "0.0.0.0", .port = kDefaultPort}},
+                                           std::chrono::milliseconds(30000), std::chrono::milliseconds(3000));
+  auto batcher = std::make_shared<Batcher>(redis_client, batch_size_scheduler);
+  const std::string query_total_bytes_read_key = MakeQueryTotalBytesReadIdentifier("cluster", "session_id");
+
+  auto client =
+      SingleQueueClient(redis_client, batcher, std::chrono::seconds(std::numeric_limits<int32_t>::max()),
+                        GetQueueName(), "", 1, std::string(compression::kIdentityCompressorName),
+                        SamovarRole::kCoordinator, 0, backoff, backoff, true, 1, query_total_bytes_read_key, 0);
+
+  // Disabled limit (max_total_bytes_read_from_s3 == 0) must not throw regardless of how much is reported.
+  client.AddBytesRead(std::numeric_limits<uint64_t>::max());
+  client.GetNextDataEntry();
+
+  KillRedis();
+}
+
+TEST(RedisClient, QueryTotalBytesReadLimitExceeded) {
+  StartRedis();
+  FlushServer();
+
+  auto backoff = std::make_shared<NoBackoff>(30);
+  auto batch_size_scheduler = std::make_shared<ConstantBatchSizeScheduler>(1);
+  auto redis_client =
+      std::make_shared<SamovarRedisClient>(std::vector<Endpoint>{Endpoint{.host = "0.0.0.0", .port = kDefaultPort}},
+                                           std::chrono::milliseconds(30000), std::chrono::milliseconds(3000));
+  auto batcher = std::make_shared<Batcher>(redis_client, batch_size_scheduler);
+  const std::string query_total_bytes_read_key = MakeQueryTotalBytesReadIdentifier("cluster", "session_id");
+  constexpr uint64_t kMaxBytesReadPerQuery = 100;
+
+  auto client = SingleQueueClient(redis_client, batcher, std::chrono::seconds(std::numeric_limits<int32_t>::max()),
+                                  GetQueueName(), "", 1, std::string(compression::kIdentityCompressorName),
+                                  SamovarRole::kCoordinator, 0, backoff, backoff, true, 1, query_total_bytes_read_key,
+                                  kMaxBytesReadPerQuery);
+
+  client.AddBytesRead(kMaxBytesReadPerQuery);
+  client.GetNextDataEntry();
+
+  try {
+    client.AddBytesRead(1);
+    client.GetNextDataEntry();
+    EXPECT_FALSE(true);
+  } catch (const std::exception& ex) {
+    EXPECT_NE(std::string(ex.what()).find("Query exceeds Samovar total bytes read from S3 limit"), std::string::npos);
+  }
+
+  KillRedis();
+}
+
 TEST(RedisClient, MultiThreading) {
   StartRedis();
   FlushServer();

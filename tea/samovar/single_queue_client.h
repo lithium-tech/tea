@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -33,7 +34,9 @@ class SingleQueueClient {
                              const std::string& query_scans_count_key, int segment_count,
                              const std::string& compressor_name, SamovarRole role, uint64_t max_query_segment_scans,
                              std::shared_ptr<IBackoff> sync_backoff, std::shared_ptr<IBackoff> metadata_backoff,
-                             bool need_sync_on_init, uint32_t queue_push_batch_size);
+                             bool need_sync_on_init, uint32_t queue_push_batch_size,
+                             const std::string& query_total_bytes_read_key = "",
+                             uint64_t max_total_bytes_read_from_s3 = 0);
 
   std::optional<samovar::AnnotatedDataEntry> GetNextDataEntry();
   std::optional<samovar::ManifestList> GetNextManifest();
@@ -57,7 +60,11 @@ class SingleQueueClient {
 
   void OnStaticBalancingProcessingEnd();
 
+  void AddBytesRead(uint64_t bytes_delta) { pending_bytes_read_.fetch_add(bytes_delta, std::memory_order_relaxed); }
+
  private:
+  void CheckTotalBytesReadLimit();
+
   std::vector<std::string> AllCells();
 
   void ClearCells();
@@ -107,6 +114,11 @@ class SingleQueueClient {
   int segment_count_ = 0;
 
   const uint32_t queue_push_batch_size_ = 1;
+
+  std::string query_total_bytes_read_key_;
+  uint64_t max_total_bytes_read_from_s3_ = 0;
+
+  std::atomic<uint64_t> pending_bytes_read_ = 0;
 };
 
 }  // namespace tea::samovar

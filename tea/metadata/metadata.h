@@ -4,6 +4,7 @@
 #include <iceberg/streams/iceberg/data_entries_meta_stream.h>
 #include <iceberg/tea_scan.h>
 
+#include <cstdint>
 #include <memory>
 #include <queue>
 #include <utility>
@@ -19,6 +20,8 @@ struct IMetadataScheduler {
   virtual std::vector<iceberg::AnnotatedDataPath> GetNextMetadata(size_t num_data_files) = 0;
 
   virtual void UpdateMetrics(ReaderStats& stats) {}
+
+  virtual void AddBytesRead(uint64_t bytes) {}
 
   virtual ~IMetadataScheduler() = default;
 };

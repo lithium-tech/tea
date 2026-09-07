@@ -49,7 +49,9 @@ namespace tea::samovar {
 std::shared_ptr<SingleQueueClient> MakeSamovarDataClient(const SamovarConfig& config, const std::string& queue_name,
                                                          const std::string& query_scans_count_key, int segment_id,
                                                          int segment_count, SamovarRole role,
-                                                         const CancelToken& cancel_token) {
+                                                         const CancelToken& cancel_token,
+                                                         const std::string& query_total_bytes_read_key,
+                                                         uint64_t max_total_bytes_read_from_s3) {
   auto sync_backoff = CreateBackoff(config.sync_backoff, cancel_token);
   auto metadata_backoff = CreateBackoff(config.metadata_backoff, cancel_token);
 
@@ -65,7 +67,8 @@ std::shared_ptr<SingleQueueClient> MakeSamovarDataClient(const SamovarConfig& co
       samovar_data_client_ = std::make_shared<SingleQueueClient>(
           samovar_client, batcher, config.ttl_seconds, queue_name, query_scans_count_key, segment_count,
           config.compressor_name, role, config.max_query_segment_scans, sync_backoff, metadata_backoff,
-          config.need_sync_on_init, config.queue_push_batch_size);
+          config.need_sync_on_init, config.queue_push_batch_size, query_total_bytes_read_key,
+          max_total_bytes_read_from_s3);
       break;
     }
     default:
@@ -204,6 +207,12 @@ class SamovarMetadataScheduler final : public meta::IMetadataScheduler {
     iceberg::Ensure(samovar_data_client_ != nullptr, std::string(__PRETTY_FUNCTION__) + ": internal error");
 
     return samovar_data_client_->GetMetricValue(metric);
+  }
+
+  void AddBytesRead(uint64_t bytes) override {
+    if (samovar_data_client_) {
+      samovar_data_client_->AddBytesRead(bytes);
+    }
   }
 
  private:
