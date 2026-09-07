@@ -26,7 +26,7 @@ const char* const kTestJsonConfig = R"__(
             "max_cpu_threads": 1,
             "max_io_threads": 2,
             "parquet_buffer_size": 1024,
-            "total_bytes_read_from_s3": 123456789
+            "max_total_s3_bytes_read": 123456789
         },
         "experimental_features": {
             "filter_ignored_op_exprs": [7,1,412,5124,19292],
@@ -71,13 +71,13 @@ TEST(JsonConfigTest, Limits) {
 
   EXPECT_EQ(config.limits.max_cpu_threads, 1u);
   EXPECT_EQ(config.limits.max_io_threads, 1u);
-  EXPECT_EQ(config.limits.total_bytes_read_from_s3, 0u);
+  EXPECT_EQ(config.limits.max_total_s3_bytes_read, 0u);
 
   ASSERT_OK(config.FromJsonString(kTestJsonConfig, std::nullopt));
   EXPECT_EQ(config.limits.max_cpu_threads, 1u);
   EXPECT_EQ(config.limits.max_io_threads, 2u);
   EXPECT_EQ(config.limits.parquet_buffer_size, 1024u);
-  EXPECT_EQ(config.limits.total_bytes_read_from_s3, 123456789u);
+  EXPECT_EQ(config.limits.max_total_s3_bytes_read, 123456789u);
 }
 
 TEST(JsonConfigTest, ProfileOverride) {
@@ -162,15 +162,15 @@ TEST_F(ConfigSourceTest, InvalidUrl) {
 
 TEST(ConfigSourceTestWithoutConfig, ServerOptions) {
   std::unordered_map<std::string, std::string> m_server_options = {
-    {"read_config_file", "false"},
-    {"s3_access_key", "ak"},
-    {"s3_secret_key", "sk"},
-    {"s3_endpoint_override", "storage.yandexcloud.net"},
-    {"s3_scheme", "http"},
-    {"catalog_type", "nessie"},
+      {"read_config_file", "false"},
+      {"s3_access_key", "ak"},
+      {"s3_secret_key", "sk"},
+      {"s3_endpoint_override", "storage.yandexcloud.net"},
+      {"s3_scheme", "http"},
+      {"catalog_type", "nessie"},
 #if USE_REST
-    {"catalog_rest_url", "http://127.0.0.1:8181/catalog"},
-    {"catalog_rest_warehouse_id", "91dc12d2-534d-11f1-9109-73b91866a831"}
+      {"catalog_rest_url", "http://127.0.0.1:8181/catalog"},
+      {"catalog_rest_warehouse_id", "91dc12d2-534d-11f1-9109-73b91866a831"}
 #endif
   };
 

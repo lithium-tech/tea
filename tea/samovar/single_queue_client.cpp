@@ -48,17 +48,17 @@ void CheckQuerySegmentScansLimit(std::shared_ptr<ISamovarClient> client, const s
 
 void CheckQueryTotalBytesReadLimit(std::shared_ptr<ISamovarClient> client,
                                    const std::string& query_total_bytes_read_key, std::chrono::seconds ttl_seconds,
-                                   uint64_t max_total_bytes_read_from_s3, uint64_t bytes_delta) {
-  if (max_total_bytes_read_from_s3 == 0) {
+                                   uint64_t max_total_s3_bytes_read, uint64_t bytes_delta) {
+  if (max_total_s3_bytes_read == 0) {
     return;
   }
   const int64_t total_bytes_read = client->IncreaseNumericCellBy(query_total_bytes_read_key, bytes_delta);
   client->UpdateTTL(query_total_bytes_read_key, ttl_seconds);
-  if (static_cast<uint64_t>(total_bytes_read) <= max_total_bytes_read_from_s3) {
+  if (static_cast<uint64_t>(total_bytes_read) <= max_total_s3_bytes_read) {
     return;
   }
   throw std::runtime_error("Query exceeds Samovar total bytes read from S3 limit: " + std::to_string(total_bytes_read) +
-                           " bytes read (limit is " + std::to_string(max_total_bytes_read_from_s3) +
+                           " bytes read (limit is " + std::to_string(max_total_s3_bytes_read) +
                            "). Consider simplifying the query or splitting it into separate queries");
 }
 }  // namespace
@@ -70,7 +70,7 @@ SingleQueueClient::SingleQueueClient(std::shared_ptr<ISamovarClient> client, std
                                      uint64_t max_query_segment_scans, std::shared_ptr<IBackoff> sync_backoff,
                                      std::shared_ptr<IBackoff> metadata_backoff, bool need_sync_on_init,
                                      uint32_t queue_push_batch_size, const std::string& query_total_bytes_read_key,
-                                     uint64_t max_total_bytes_read_from_s3)
+                                     uint64_t max_total_s3_bytes_read)
     : client_(client),
       batcher_(batcher),
       ttl_seconds_(ttl_seconds),
@@ -83,7 +83,7 @@ SingleQueueClient::SingleQueueClient(std::shared_ptr<ISamovarClient> client, std
       segment_count_(segment_count),
       queue_push_batch_size_(queue_push_batch_size),
       query_total_bytes_read_key_(query_total_bytes_read_key),
-      max_total_bytes_read_from_s3_(max_total_bytes_read_from_s3) {
+      max_total_s3_bytes_read_(max_total_s3_bytes_read) {
   CheckQuerySegmentScansLimit(client_, query_scans_count_key, ttl_seconds_, max_query_segment_scans);
 
   // role semantics in context of SingleQueueClient class:
@@ -316,7 +316,7 @@ void SingleQueueClient::OnStaticBalancingProcessingEnd() {
 void SingleQueueClient::CheckTotalBytesReadLimit() {
   const uint64_t bytes_delta = pending_bytes_read_.exchange(0, std::memory_order_relaxed);
   if (bytes_delta > 0) {
-    CheckQueryTotalBytesReadLimit(client_, query_total_bytes_read_key_, ttl_seconds_, max_total_bytes_read_from_s3_,
+    CheckQueryTotalBytesReadLimit(client_, query_total_bytes_read_key_, ttl_seconds_, max_total_s3_bytes_read_,
                                   bytes_delta);
   }
 }

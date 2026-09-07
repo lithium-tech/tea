@@ -51,7 +51,7 @@ std::shared_ptr<SingleQueueClient> MakeSamovarDataClient(const SamovarConfig& co
                                                          int segment_count, SamovarRole role,
                                                          const CancelToken& cancel_token,
                                                          const std::string& query_total_bytes_read_key,
-                                                         uint64_t max_total_bytes_read_from_s3) {
+                                                         uint64_t max_total_s3_bytes_read) {
   auto sync_backoff = CreateBackoff(config.sync_backoff, cancel_token);
   auto metadata_backoff = CreateBackoff(config.metadata_backoff, cancel_token);
 
@@ -67,8 +67,7 @@ std::shared_ptr<SingleQueueClient> MakeSamovarDataClient(const SamovarConfig& co
       samovar_data_client_ = std::make_shared<SingleQueueClient>(
           samovar_client, batcher, config.ttl_seconds, queue_name, query_scans_count_key, segment_count,
           config.compressor_name, role, config.max_query_segment_scans, sync_backoff, metadata_backoff,
-          config.need_sync_on_init, config.queue_push_batch_size, query_total_bytes_read_key,
-          max_total_bytes_read_from_s3);
+          config.need_sync_on_init, config.queue_push_batch_size, query_total_bytes_read_key, max_total_s3_bytes_read);
       break;
     }
     default:

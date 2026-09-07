@@ -258,7 +258,7 @@ TEST(RedisClient, QueryTotalBytesReadLimitDisabled) {
                         GetQueueName(), "", 1, std::string(compression::kIdentityCompressorName),
                         SamovarRole::kCoordinator, 0, backoff, backoff, true, 1, query_total_bytes_read_key, 0);
 
-  // disabled limit (max_total_bytes_read_from_s3 == 0) must not throw regardless of how much is reported.
+  // disabled limit (max_total_s3_bytes_read == 0) must not throw regardless of how much is reported.
   client.AddBytesRead(1ull << 60);
   client.GetNextDataEntry();
 

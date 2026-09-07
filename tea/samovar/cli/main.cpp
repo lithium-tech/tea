@@ -165,7 +165,7 @@ int main(int argc, char** argv) {
       auto samovar_data_client = MakeSamovarDataClient(
           config.samovar_config, queue_name, query_scans_count_key, absl::GetFlag(FLAGS_segment_id),
           absl::GetFlag(FLAGS_segment_count), tea::samovar::SamovarRole::kCoordinator, cancel_token,
-          query_total_bytes_read_key, config.limits.total_bytes_read_from_s3);
+          query_total_bytes_read_key, config.limits.max_total_s3_bytes_read);
 
       auto maybe_stats = tea::samovar::FillSamovar(config, std::move(iceberg_meta), absl::GetFlag(FLAGS_segment_count),
                                                    samovar_data_client);
