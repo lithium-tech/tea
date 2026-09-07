@@ -17,7 +17,7 @@ class RealParquetTest : public TeaTest {};
 
 TEST_F(RealParquetTest, FileOffsetInRowGroupIsNotSet) {
   char path[PATH_MAX];
-  getcwd(path, sizeof(path));
+  EXPECT_NE(getcwd(path, sizeof(path)), nullptr);
   ASSERT_OK(state_->AddDataFiles(
       {std::string("file://") + path + "/test/iceberg/warehouse/parquet/no_row_group_file_offset.parquet"}));
 
