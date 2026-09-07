@@ -604,8 +604,8 @@ static std::shared_ptr<tea::samovar::SingleQueueClient> CreateSamovarClient(TeaC
                                                                             int segment_id, int segment_count,
                                                                             tea::samovar::SamovarRole role) {
   TEA_LOG("Creating samovar client with queue " + queue_name);
-  const std::string query_total_bytes_read_key = tea::samovar::MakeQueryTotalBytesReadIdentifier(
-      get::SamovarConfig(tea_ctx).cluster_id, get::SessionId(tea_ctx));
+  const std::string query_total_bytes_read_key =
+      tea::samovar::MakeQueryTotalBytesReadIdentifier(get::SamovarConfig(tea_ctx).cluster_id, get::SessionId(tea_ctx));
   return MakeSamovarDataClient(get::SamovarConfig(tea_ctx), queue_name, query_scans_count_key, segment_id,
                                segment_count, role, get::CancelToken(tea_ctx), query_total_bytes_read_key,
                                get::Config(tea_ctx).limits.total_bytes_read_from_s3);
