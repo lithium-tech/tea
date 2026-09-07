@@ -16,7 +16,7 @@ namespace {
 class RealParquetTest : public TeaTest {};
 
 TEST_F(RealParquetTest, FileOffsetInRowGroupIsNotSet) {
-  ASSERT_OK(state_->AddDataFiles({"s3://warehouse/parquet/no_row_group_file_offset.parquet"}));
+  ASSERT_OK(state_->AddDataFiles({"file://test/iceberg/warehouse/parquet/no_row_group_file_offset.parquet"}));
 
   ASSIGN_OR_FAIL(auto defer, state_->CreateTable({GreenplumColumnInfo{.name = "value", .type = "int4"},
                                                   GreenplumColumnInfo{.name = "processed_dttm", .type = "timestamp"}}));
