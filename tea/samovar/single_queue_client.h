@@ -35,8 +35,7 @@ class SingleQueueClient {
                              const std::string& compressor_name, SamovarRole role, uint64_t max_query_segment_scans,
                              std::shared_ptr<IBackoff> sync_backoff, std::shared_ptr<IBackoff> metadata_backoff,
                              bool need_sync_on_init, uint32_t queue_push_batch_size,
-                             const std::string& query_total_bytes_read_key = "",
-                             uint64_t max_total_bytes_read_from_s3 = 0);
+                             const std::string& query_total_bytes_read_key, uint64_t max_total_bytes_read_from_s3);
 
   std::optional<samovar::AnnotatedDataEntry> GetNextDataEntry();
   std::optional<samovar::ManifestList> GetNextManifest();
