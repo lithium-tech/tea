@@ -16,7 +16,10 @@ namespace {
 class RealParquetTest : public TeaTest {};
 
 TEST_F(RealParquetTest, FileOffsetInRowGroupIsNotSet) {
-  ASSERT_OK(state_->AddDataFiles({"file:///__w/tea/tea/test/iceberg/warehouse/parquet/no_row_group_file_offset.parquet"}));
+  char path[PATH_MAX];
+  getcwd(path, sizeof(path));
+  ASSERT_OK(state_->AddDataFiles(
+      {std::string("file://") + path + "/test/iceberg/warehouse/parquet/no_row_group_file_offset.parquet"}));
 
   ASSIGN_OR_FAIL(auto defer, state_->CreateTable({GreenplumColumnInfo{.name = "value", .type = "int4"},
                                                   GreenplumColumnInfo{.name = "processed_dttm", .type = "timestamp"}}));
