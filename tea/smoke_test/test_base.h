@@ -41,64 +41,6 @@ class IMetadataWriterBuilder {
   virtual ~IMetadataWriterBuilder() = default;
 };
 
-class TeapotMetadataWriter : public IMetadataWriter {
- public:
-  explicit TeapotMetadataWriter(TableName table_name) : table_name_(std::move(table_name)) {}
-
-  arrow::Status AddDataFiles(const std::vector<FilePath>& paths) override {
-    for (const auto& path : paths) {
-      fragments_.emplace_back(path);
-    }
-    return arrow::Status::OK();
-  }
-
-  arrow::Status AddPositionalDeleteFiles(const std::vector<FilePath>& paths) override {
-    for (auto& fragment : fragments_) {
-      for (auto& path : paths) {
-        fragment = std::move(fragment).AddPositionalDelete(path);
-      }
-    }
-    return arrow::Status::OK();
-  }
-
-  arrow::Status AddEqualityDeleteFiles(const std::vector<FilePath>& paths,
-                                       const std::vector<int32_t>& field_ids) override {
-    for (auto& fragment : fragments_) {
-      for (auto& path : paths) {
-        fragment = std::move(fragment).AddEqualityDelete(path, field_ids);
-      }
-    }
-    return arrow::Status::OK();
-  }
-
-  arrow::Result<Location> Finalize() override {
-    auto teapot_ptr = Environment::GetTeapotPtr();
-    auto teapot_resp = TeapotExpectedResponse(std::move(fragments_));
-    teapot_ptr->SetResponse("db." + table_name_, teapot_resp);
-    return Location(TeapotLocation("db", table_name_, teapot_ptr->GetHost(), teapot_ptr->GetPort(),
-                                   Options{.profile = Environment::GetProfile()}));
-  }
-
-  void SetSchema(std::shared_ptr<iceberg::Schema>) override {
-    throw std::runtime_error("Internal error in test. SetSchema is not supported for TeapotMetadataWriter");
-  }
-
-  void SetProperties(std::map<std::string, std::string>) override {
-    throw std::runtime_error("Internal error in test. SetSchema is not supported for TeapotMetadataWriter");
-  }
-
- private:
-  const TableName table_name_;
-  std::vector<FragmentInfo> fragments_;
-};
-
-class TeapotMetadataWriterBuilder : public IMetadataWriterBuilder {
- public:
-  std::shared_ptr<IMetadataWriter> Build(const TableName& table_name) override {
-    return std::make_shared<TeapotMetadataWriter>(table_name);
-  }
-};
-
 class IcebergMetadataWriterBuilder : public IMetadataWriterBuilder {
  public:
   std::shared_ptr<IMetadataWriter> Build(const TableName& table_name) override {

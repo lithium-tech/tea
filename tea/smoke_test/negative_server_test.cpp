@@ -194,26 +194,4 @@ TEST_F(OtherEngineGeneratedTable, NoS3) {
   EXPECT_EQ(res.status().message().substr(0, 66), "SELECT failed: ERROR:  Tea error: When reading information for key");
 }
 
-class WrongTeapotMetadataWriter : public TeapotMetadataWriter {
- public:
-  WrongTeapotMetadataWriter() : TeapotMetadataWriter(kDefaultTableName) {}
-
-  arrow::Result<Location> Finalize() override {
-    auto teapot_ptr = Environment::GetTeapotPtr();
-    return Location(TeapotLocation("db", kDefaultTableName, "iamnotteapot", teapot_ptr->GetPort(),
-                                   Options{.profile = Environment::GetProfile()}));
-  }
-};
-
-class WrongTeapotMetadataWriterBuilder : public IMetadataWriterBuilder {
- public:
-  explicit WrongTeapotMetadataWriterBuilder(std::shared_ptr<WrongTeapotMetadataWriter> instance)
-      : instance_(instance) {}
-
-  std::shared_ptr<IMetadataWriter> Build(const TableName& table_name) override { return instance_; }
-
- private:
-  std::shared_ptr<WrongTeapotMetadataWriter> instance_;
-};
-
 }  // namespace tea
