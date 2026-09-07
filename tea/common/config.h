@@ -91,6 +91,9 @@ struct Limits {
   uint64_t samovar_max_total_data_files_in_distributed_mode = 1'000'000;
   uint64_t samovar_max_total_positional_delete_files = 500;
 
+  // only enforced when Samovar is enabled (turn_on_samovar). 0 means the limit is disabled.
+  uint64_t total_bytes_read_from_s3 = 0;
+
   bool operator==(const Limits&) const = default;
 };
 

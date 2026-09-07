@@ -408,6 +408,7 @@ arrow::Status ReadValues(Source* src, Config* config, std::string_view section_p
       &config->limits.samovar_max_total_data_files_in_distributed_mode);
   Get(src, section_prefix, "limits", "samovar_max_total_positional_delete_files",
       &config->limits.samovar_max_total_positional_delete_files);
+  Get(src, section_prefix, "limits", "total_bytes_read_from_s3", &config->limits.total_bytes_read_from_s3);
 
   Get(src, section_prefix, "experimental_features", "prefetch", &config->features.prefetch);
   Get(src, section_prefix, "experimental_features", "read_in_multiple_threads",

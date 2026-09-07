@@ -418,6 +418,11 @@ std::string MakeQueryScansIdentifier(const std::string& cluster_id, const std::s
   return "/tea/" + std::string(protocol_version) + "/query_scans/" + cluster_id + "/" + session_id;
 }
 
+std::string MakeQueryTotalBytesReadIdentifier(const std::string& cluster_id, const std::string& session_id) {
+  static constexpr const std::string_view protocol_version = TEA_VERSION;
+  return "/tea/" + std::string(protocol_version) + "/query_total_bytes_read/" + cluster_id + "/" + session_id;
+}
+
 bool ContainsPositionalDeletes(const samovar::ScanMetadata& scan_metadata) {
   for (const auto& delete_metadata : scan_metadata.partitions()) {
     for (const auto& layer : delete_metadata.layers()) {
