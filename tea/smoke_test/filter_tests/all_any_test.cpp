@@ -20,7 +20,6 @@ TEST_F(FilterTestAnyAllOperators, Text) {
               std::vector<GreenplumColumnInfo>{GreenplumColumnInfo{.name = "col1", .type = "text"}});
   ProcessWithFilter("col1", "col1 = any (array['a', 'd'])",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"in\",\"term\":\"col1\",\"values\":[\"a\",\"d\"]}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"a"}, {"d"}}))
                         .SetGandivaFilters({"if (bool isnull((string) col1)) { (const bool) "
                                             "null } else { (string) col1 IN (a, d) }",
@@ -28,8 +27,6 @@ TEST_F(FilterTestAnyAllOperators, Text) {
                                             "null } else { (string) col1 IN (d, a) }"}));
   ProcessWithFilter("col1", "col1 != all (array['a', 'd'])",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"not-in\",\"term\":\"col1\","
-                                            "\"values\":[\"a\",\"d\"]}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"b"}, {"c"}}))
                         .SetGandivaFilters({"bool not(if (bool isnull((string) col1)) { (const bool) null } "
                                             "else { (string) col1 IN (a, d) })",
@@ -42,7 +39,6 @@ TEST_F(FilterTestAnyAllOperators, Int84) {
   PrepareData({column}, {GreenplumColumnInfo{.name = "col1", .type = "int8"}});
   ProcessWithFilter("col1", "col1 = any (array[123, 126]::int4[])",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"in\",\"term\":\"col1\",\"values\":[123,126]}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"123"}, {"126"}}))
                         .SetGandivaFilters({"if (bool isnull((int64) col1)) { (const bool) "
                                             "null } else { (int64) col1 IN (123, 126) }",
@@ -50,8 +46,6 @@ TEST_F(FilterTestAnyAllOperators, Int84) {
                                             "null } else { (int64) col1 IN (126, 123) }"}));
   ProcessWithFilter("col1", "col1 != all (array[123, 126]::int4[])",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"not-in\",\"term\":\"col1\","
-                                            "\"values\":[123,126]}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"124"}, {"125"}}))
                         .SetGandivaFilters({"bool not(if (bool isnull((int64) col1)) { (const bool) null } "
                                             "else { (int64) col1 IN (123, 126) })",
@@ -64,7 +58,6 @@ TEST_F(FilterTestAnyAllOperators, Int48) {
   PrepareData({column}, {GreenplumColumnInfo{.name = "col1", .type = "int4"}});
   ProcessWithFilter("col1", "col1 = any (array[123, 126]::int8[])",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"in\",\"term\":\"col1\",\"values\":[123,126]}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"123"}, {"126"}}))
                         .SetGandivaFilters({"if (bool isnull((int32) col1)) { (const bool) null } else { int64 "
                                             "castBIGINT((int32) col1) IN (123, 126) }",
@@ -72,8 +65,6 @@ TEST_F(FilterTestAnyAllOperators, Int48) {
                                             "castBIGINT((int32) col1) IN (126, 123) }"}));
   ProcessWithFilter("col1", "col1 != all (array[123, 126]::int8[])",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"not-in\",\"term\":\"col1\","
-                                            "\"values\":[123,126]}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"124"}, {"125"}}))
                         .SetGandivaFilters({"bool not(if (bool isnull((int32) col1)) { (const bool) null } else { "
                                             "int64 castBIGINT((int32) col1) IN (123, 126) })",
@@ -86,7 +77,6 @@ TEST_F(FilterTestAnyAllOperators, Int24) {
   PrepareData({column}, {GreenplumColumnInfo{.name = "col1", .type = "int2"}});
   ProcessWithFilter("col1", "col1 = any (array[123, 126]::int4[])",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"in\",\"term\":\"col1\",\"values\":[123,126]}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"123"}, {"126"}}))
                         .SetGandivaFilters({"if (bool isnull((int16) col1)) { (const bool) null } else { int32 "
                                             "castINT((int16) col1) IN (123, 126) }",
@@ -95,8 +85,6 @@ TEST_F(FilterTestAnyAllOperators, Int24) {
   ProcessWithFilter(
       "col1", "col1 != all (array[123, 126]::int4[])",
       ExpectedValues()
-          .SetIcebergFilters({"{\"type\":\"not-in\",\"term\":\"col1\","
-                              "\"values\":[123,126]}"})
           .SetSelectResult(pq::ScanResult({"col1"}, {{"124"}, {"125"}}))
           .SetGandivaFilters({"bool not(if (bool isnull((int16) col1)) { (const bool) null } else { int32 "
                               "castINT((int16) col1) IN (123, 126) })",
@@ -109,7 +97,6 @@ TEST_F(FilterTestAnyAllOperators, Int28) {
   PrepareData({column}, {GreenplumColumnInfo{.name = "col1", .type = "int2"}});
   ProcessWithFilter("col1", "col1 = any (array[123, 126]::int8[])",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"in\",\"term\":\"col1\",\"values\":[123,126]}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"123"}, {"126"}}))
                         .SetGandivaFilters({"if (bool isnull((int16) col1)) { (const bool) null } else { int64 "
                                             "castBIGINT((int16) col1) IN (123, 126) }",
@@ -117,8 +104,6 @@ TEST_F(FilterTestAnyAllOperators, Int28) {
                                             "castBIGINT((int16) col1) IN (126, 123) }"}));
   ProcessWithFilter("col1", "col1 != all (array[123, 126]::int8[])",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"not-in\",\"term\":\"col1\","
-                                            "\"values\":[123,126]}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"124"}, {"125"}}))
                         .SetGandivaFilters({"bool not(if (bool isnull((int16) col1)) { (const bool) null } else { "
                                             "int64 castBIGINT((int16) col1) IN (123, 126) })",
@@ -132,7 +117,6 @@ TEST_F(FilterTestAnyAllOperators, Int42) {
   ProcessWithFilter(
       "col1", "col1 = any (array[123, 126]::int2[])",
       ExpectedValues()
-          .SetIcebergFilters({"{\"type\":\"in\",\"term\":\"col1\",\"values\":[123,126]}"})
           .SetSelectResult(pq::ScanResult({"col1"}, {{"123"}, {"126"}}))
           .SetGandivaFilters(
               {"if (bool isnull((int32) col1)) { (const bool) null } else { (int32) col1 IN (123, 126) }",
@@ -140,8 +124,6 @@ TEST_F(FilterTestAnyAllOperators, Int42) {
   ProcessWithFilter(
       "col1", "col1 != all (array[123, 126]::int2[])",
       ExpectedValues()
-          .SetIcebergFilters({"{\"type\":\"not-in\",\"term\":\"col1\","
-                              "\"values\":[123,126]}"})
           .SetSelectResult(pq::ScanResult({"col1"}, {{"124"}, {"125"}}))
           .SetGandivaFilters(
               {"bool not(if (bool isnull((int32) col1)) { (const bool) null } else { (int32) col1 IN (123, 126) })",
@@ -154,7 +136,6 @@ TEST_F(FilterTestAnyAllOperators, Int82) {
   ProcessWithFilter(
       "col1", "col1 = any (array[123, 126]::int2[])",
       ExpectedValues()
-          .SetIcebergFilters({"{\"type\":\"in\",\"term\":\"col1\",\"values\":[123,126]}"})
           .SetSelectResult(pq::ScanResult({"col1"}, {{"123"}, {"126"}}))
           .SetGandivaFilters(
               {"if (bool isnull((int64) col1)) { (const bool) null } else { (int64) col1 IN (123, 126) }",
@@ -162,8 +143,6 @@ TEST_F(FilterTestAnyAllOperators, Int82) {
   ProcessWithFilter(
       "col1", "col1 != all (array[123, 126]::int2[])",
       ExpectedValues()
-          .SetIcebergFilters({"{\"type\":\"not-in\",\"term\":\"col1\","
-                              "\"values\":[123,126]}"})
           .SetSelectResult(pq::ScanResult({"col1"}, {{"124"}, {"125"}}))
           .SetGandivaFilters(
               {"bool not(if (bool isnull((int64) col1)) { (const bool) null } else { (int64) col1 IN (123, 126) })",

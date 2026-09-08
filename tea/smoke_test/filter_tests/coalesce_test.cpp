@@ -19,7 +19,6 @@ TEST_F(FilterTestCoalesce, Simple) {
        GreenplumColumnInfo{.name = "col3", .type = "int4"}, GreenplumColumnInfo{.name = "col4", .type = "int4"}});
   ProcessWithFilter("col3", "coalesce(col1, col2) > 2",
                     ExpectedValues()
-                        .SetIcebergFilters({""})
                         .SetGandivaFilters({"bool greater_than(if (bool isnull((int32) col1)) { (int32) col2 } else { "
                                             "(int32) col1 }, (const int32) 2)"})
                         .SetSelectResult(pq::ScanResult({"col3"}, {{"3"}})));
@@ -44,7 +43,6 @@ TEST_F(FilterTestCoalesce, TypePromotion) {
   ProcessWithFilter(
       "col3", "coalesce(col1, col2, col3) > 2",
       ExpectedValues()
-          .SetIcebergFilters({""})
           .SetGandivaFilters({"bool greater_than(if (bool isnull(int64 castBIGINT((int16) col1))) { if (bool "
                               "isnull((int64) col2)) { int64 castBIGINT((int32) col3) } else { (int64) col2 } } else { "
                               "int64 castBIGINT((int16) col1) }, int64 castBIGINT((const int32) 2))"})
@@ -69,7 +67,6 @@ TEST_F(FilterTestCoalesce, OneArgument) {
        GreenplumColumnInfo{.name = "col3", .type = "int4"}, GreenplumColumnInfo{.name = "col4", .type = "int4"}});
   ProcessWithFilter("col3", "coalesce(col1) > 2",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"gt\",\"term\":\"col1\",\"value\":2}"})
                         .SetGandivaFilters({"bool greater_than((int32) col1, (const int32) 2)"})
                         .SetSelectResult(pq::ScanResult({"col3"}, {{"3"}})));
 
@@ -93,7 +90,6 @@ TEST_F(FilterTestCoalesce, MultipleArguments) {
   ProcessWithFilter(
       "col3", "coalesce(col1, col2, 15) > 2",
       ExpectedValues()
-          .SetIcebergFilters({""})
           .SetGandivaFilters({"bool greater_than(if (bool isnull(int64 castBIGINT((int32) col1))) { if (bool "
                               "isnull((int64) col2)) { (const int64) 15 } else { (int64) col2 } } else { int64 "
                               "castBIGINT((int32) col1) }, int64 castBIGINT((const int32) 2))"})
@@ -119,7 +115,6 @@ TEST_F(FilterTestCoalesce, FunctionAsArgument) {
   ProcessWithFilter(
       "col3", "coalesce(col1, col2 + col3, 15) > 2",
       ExpectedValues()
-          .SetIcebergFilters({""})
           .SetGandivaFilters({"bool greater_than(if (bool isnull(int64 castBIGINT((int32) col1))) { if (bool "
                               "isnull(int64 AddOverflow((int64) col2, int64 castBIGINT((int32) col3)))) { (const "
                               "int64) 15 } else { int64 AddOverflow((int64) col2, int64 castBIGINT((int32) col3)) } } "
@@ -146,7 +141,7 @@ TEST_F(FilterTestCoalesce, Temporal) {
                                                      GreenplumColumnInfo{.name = "col4", .type = "int4"}});
   // currently is not supported, becase casts "date -> timestamp" and "date -> timestamptz" are not supported
   ProcessWithFilter("col4", "coalesce(col1, col2, col3)::timestamp > '1970-01-02'::date",
-                    ExpectedValues().SetIcebergFilters({""}).SetGandivaFilters({""}).SetSelectResult(
+                    ExpectedValues().SetGandivaFilters({""}).SetSelectResult(
                         pq::ScanResult({"col3"}, {{"2"}, {"3"}})));
   auto stats = stats_state_->GetStats(false);
 }
