@@ -141,8 +141,7 @@ TEST_F(FilterTestCoalesce, Temporal) {
                                                      GreenplumColumnInfo{.name = "col4", .type = "int4"}});
   // currently is not supported, becase casts "date -> timestamp" and "date -> timestamptz" are not supported
   ProcessWithFilter("col4", "coalesce(col1, col2, col3)::timestamp > '1970-01-02'::date",
-                    ExpectedValues().SetGandivaFilters({""}).SetSelectResult(
-                        pq::ScanResult({"col3"}, {{"2"}, {"3"}})));
+                    ExpectedValues().SetGandivaFilters({""}).SetSelectResult(pq::ScanResult({"col3"}, {{"2"}, {"3"}})));
   auto stats = stats_state_->GetStats(false);
 }
 

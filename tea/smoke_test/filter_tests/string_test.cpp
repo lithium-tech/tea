@@ -94,30 +94,22 @@ TEST_F(FilterTestLikeOperator, EscapeCharacters) {
                                   std::vector<std::string*>{nullptr, &str1, &str2, &str3, &str4, &str5, &str6, &str7,
                                                             &str8, &str9, &str10, &str11, &str12});
   PrepareData({column1}, {GreenplumColumnInfo{.name = "col1", .type = "text"}});
-  ProcessWithFilter("col1", "col1 like 'a\\\\bc%'",
-                    ExpectedValues()
-                        .SetSelectResult(pq::ScanResult({"col1"}, {{"a\\bcqwe"}, {"a\\bc"}}))
-                        .SetGandivaFilters({""}));
+  ProcessWithFilter(
+      "col1", "col1 like 'a\\\\bc%'",
+      ExpectedValues().SetSelectResult(pq::ScanResult({"col1"}, {{"a\\bcqwe"}, {"a\\bc"}})).SetGandivaFilters({""}));
   ProcessWithFilter("col1", "col1 like 'a\\_bc%'",
-                    ExpectedValues()
-                        .SetSelectResult(pq::ScanResult({"col1"}, {{"a_bcw"}}))
-                        .SetGandivaFilters({""}));
+                    ExpectedValues().SetSelectResult(pq::ScanResult({"col1"}, {{"a_bcw"}})).SetGandivaFilters({""}));
   ProcessWithFilter("col1", "col1 like 'a\\%bc%'",
-                    ExpectedValues()
-                        .SetSelectResult(pq::ScanResult({"col1"}, {{"a%bcq"}}))
-                        .SetGandivaFilters({""}));
-  ProcessWithFilter("col1", "col1 like '\\%\\_\\%\\\\%'",
-                    ExpectedValues()
-                        .SetSelectResult(pq::ScanResult({"col1"}, {{"%_%\\zz"}, {"%_%\\z"}}))
-                        .SetGandivaFilters({""}));
+                    ExpectedValues().SetSelectResult(pq::ScanResult({"col1"}, {{"a%bcq"}})).SetGandivaFilters({""}));
+  ProcessWithFilter(
+      "col1", "col1 like '\\%\\_\\%\\\\%'",
+      ExpectedValues().SetSelectResult(pq::ScanResult({"col1"}, {{"%_%\\zz"}, {"%_%\\z"}})).SetGandivaFilters({""}));
   ProcessWithFilter("col1", "col1 like '\\\\%'",
                     ExpectedValues()
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"\\_q"}, {"\\%%"}, {"\\%"}, {"\\%q"}}))
                         .SetGandivaFilters({""}));
   ProcessWithFilter("col1", "col1 like '\\\\\\%'",
-                    ExpectedValues()
-                        .SetSelectResult(pq::ScanResult({"col1"}, {{"\\%"}}))
-                        .SetGandivaFilters({""}));
+                    ExpectedValues().SetSelectResult(pq::ScanResult({"col1"}, {{"\\%"}})).SetGandivaFilters({""}));
 }
 
 class FilterTestILikeOperator : public FilterTestBase {};

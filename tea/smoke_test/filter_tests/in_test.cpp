@@ -75,8 +75,7 @@ TEST_F(FilterTestInOperator, Text) {
   std::string str_d = "d";
   auto column1 = MakeStringColumn("col1", 1, std::vector<std::string*>{nullptr, &str_a, &str_b, &str_c, &str_d});
   PrepareData({column1}, {GreenplumColumnInfo{.name = "col1", .type = "text"}});
-  ProcessWithFilter("col1", "col1 in (null, 'd')",
-                    ExpectedValues().SetSelectResult(pq::ScanResult({"col1"}, {{"d"}})));
+  ProcessWithFilter("col1", "col1 in (null, 'd')", ExpectedValues().SetSelectResult(pq::ScanResult({"col1"}, {{"d"}})));
   ProcessWithFilter("col1", "col1 in ('a', 'd')",
                     ExpectedValues()
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"a"}, {"d"}}))
@@ -143,25 +142,22 @@ TEST_F(FilterTestInOperator, Numeric) {
   ProcessWithFilter("col1", "col1 in (null, 1.25)",
                     ExpectedValues().SetSelectResult(pq::ScanResult({"col1"}, {{"1.25"}})));
   ProcessWithFilter("col1", "col1 in (1.22, 1.25)",
-                    ExpectedValues()
-                        .SetSelectResult(pq::ScanResult({"col1"}, {{"1.22"}, {"1.25"}})));
+                    ExpectedValues().SetSelectResult(pq::ScanResult({"col1"}, {{"1.22"}, {"1.25"}})));
   ProcessWithFilter("col1", "col1 not in (1.22, 1.25)",
-                    ExpectedValues()
-                        .SetSelectResult(pq::ScanResult({"col1"}, {{"1.23"}, {"1.24"}})));
+                    ExpectedValues().SetSelectResult(pq::ScanResult({"col1"}, {{"1.23"}, {"1.24"}})));
 }
 
 TEST_F(FilterTestInOperator, Time) {
   auto column1 = MakeTimeColumn("col1", 1, OptionalVector<int64_t>{std::nullopt, 122, 123, 124, 125});
   PrepareData({column1}, {GreenplumColumnInfo{.name = "col1", .type = "time"}});
+  ProcessWithFilter("col1", "col1 in (null, '00:00:00.000125')",
+                    ExpectedValues().SetSelectResult(pq::ScanResult({"col1"}, {{"00:00:00.000125"}})));
   ProcessWithFilter(
-      "col1", "col1 in (null, '00:00:00.000125')",
-      ExpectedValues().SetSelectResult(pq::ScanResult({"col1"}, {{"00:00:00.000125"}})));
-  ProcessWithFilter("col1", "col1 in ('00:00:00.000122', '00:00:00.000125')",
-                    ExpectedValues()
-                        .SetSelectResult(pq::ScanResult({"col1"}, {{"00:00:00.000122"}, {"00:00:00.000125"}})));
-  ProcessWithFilter("col1", "col1 not in ('00:00:00.000122', '00:00:00.000125')",
-                    ExpectedValues()
-                        .SetSelectResult(pq::ScanResult({"col1"}, {{"00:00:00.000123"}, {"00:00:00.000124"}})));
+      "col1", "col1 in ('00:00:00.000122', '00:00:00.000125')",
+      ExpectedValues().SetSelectResult(pq::ScanResult({"col1"}, {{"00:00:00.000122"}, {"00:00:00.000125"}})));
+  ProcessWithFilter(
+      "col1", "col1 not in ('00:00:00.000122', '00:00:00.000125')",
+      ExpectedValues().SetSelectResult(pq::ScanResult({"col1"}, {{"00:00:00.000123"}, {"00:00:00.000124"}})));
 }
 
 TEST_F(FilterTestInOperator, Date) {
@@ -184,8 +180,7 @@ TEST_F(FilterTestInOperator, Date) {
 
   const std::string condition_with_null = "col1 in (null, '1970-01-03', '1970-01-05')";
   pq::ScanResult result_with_null({"col1"}, {{"1970-01-03"}, {"1970-01-05"}});
-  ProcessWithFilter("col1", condition_with_null,
-                    ExpectedValues().SetSelectResult(result_with_null));
+  ProcessWithFilter("col1", condition_with_null, ExpectedValues().SetSelectResult(result_with_null));
 
   std::vector<std::string> conditions35 = {"col1 not in ('1970-01-02', '1970-01-03', '1970-01-05')",
                                            "col1 not in ('1970-01-02'::timestamp, '1970-01-03'::timestamp, "
@@ -227,8 +222,7 @@ TEST_F(FilterTestInOperator, Timestamp) {
 
   const std::string condition_with_null = "col1 in (null, '1970-01-03', '1970-01-05')";
   pq::ScanResult result_with_null({"col1"}, {{"1970-01-03 00:00:00"}, {"1970-01-05 00:00:00"}});
-  ProcessWithFilter("col1", condition_with_null,
-                    ExpectedValues().SetSelectResult(result_with_null));
+  ProcessWithFilter("col1", condition_with_null, ExpectedValues().SetSelectResult(result_with_null));
 
   std::vector<std::string> conditions35 = {"col1 not in ('1970-01-02', '1970-01-03', '1970-01-05')",
                                            "col1 not in ('1970-01-02'::timestamp, '1970-01-03'::timestamp, "
@@ -275,8 +269,7 @@ TEST_F(FilterTestInOperator, TimestampWithTimeZone) {
 
   const std::string condition_with_null = "col1 in (null, '1970-01-03', '1970-01-05')";
   pq::ScanResult result_with_null({"col1"}, {{"1970-01-03 00:00:00+07"}, {"1970-01-05 00:00:00+07"}});
-  ProcessWithFilter("col1", condition_with_null,
-                    ExpectedValues().SetSelectResult(result_with_null));
+  ProcessWithFilter("col1", condition_with_null, ExpectedValues().SetSelectResult(result_with_null));
 
   std::vector<std::string> conditions35 = {"col1 not in ('1970-01-02', '1970-01-03', '1970-01-05')",
                                            "col1 not in ('1970-01-02'::timestamp, '1970-01-03'::timestamp, "

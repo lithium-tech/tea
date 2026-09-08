@@ -24,10 +24,9 @@ TEST_F(FilterComparisonOperatorTest, Boolean) {
                                                          "bool not_equal((bool) col1, (const bool) 0)"};
 #endif
   for (const auto& true_condition : conditions_true) {
-    ProcessWithFilter(select_columns, true_condition,
-                      ExpectedValues()
-                          .SetSelectResult(expected_select_result_true)
-                          .SetGandivaFilters(expected_gandiva_filters_true));
+    ProcessWithFilter(
+        select_columns, true_condition,
+        ExpectedValues().SetSelectResult(expected_select_result_true).SetGandivaFilters(expected_gandiva_filters_true));
   }
 
   std::vector<std::string> conditions_false = {"not col1", "col1 = false", "col1 != true"};
@@ -658,23 +657,17 @@ TEST_F(FilterComparisonOperatorTest, Time) {
   auto column1 = MakeTimeColumn("col1", 1, OptionalVector<int64_t>{std::nullopt, 122, 123, 124});
   PrepareData({column1}, {GreenplumColumnInfo{.name = "col1", .type = "time"}});
   ProcessWithFilter("col1", "col1 < '00:00:00.000123'",
-                    ExpectedValues()
-                        .SetSelectResult(pq::ScanResult({"col1"}, {{time122}})));
+                    ExpectedValues().SetSelectResult(pq::ScanResult({"col1"}, {{time122}})));
   ProcessWithFilter("col1", "col1 <= '00:00:00.000123'",
-                    ExpectedValues()
-                        .SetSelectResult(pq::ScanResult({"col1"}, {{time122}, {time123}})));
+                    ExpectedValues().SetSelectResult(pq::ScanResult({"col1"}, {{time122}, {time123}})));
   ProcessWithFilter("col1", "col1 > '00:00:00.000123'",
-                    ExpectedValues()
-                        .SetSelectResult(pq::ScanResult({"col1"}, {{time124}})));
+                    ExpectedValues().SetSelectResult(pq::ScanResult({"col1"}, {{time124}})));
   ProcessWithFilter("col1", "col1 >= '00:00:00.000123'",
-                    ExpectedValues()
-                        .SetSelectResult(pq::ScanResult({"col1"}, {{time123}, {time124}})));
+                    ExpectedValues().SetSelectResult(pq::ScanResult({"col1"}, {{time123}, {time124}})));
   ProcessWithFilter("col1", "col1 = '00:00:00.000123'",
-                    ExpectedValues()
-                        .SetSelectResult(pq::ScanResult({"col1"}, {{time123}})));
+                    ExpectedValues().SetSelectResult(pq::ScanResult({"col1"}, {{time123}})));
   ProcessWithFilter("col1", "col1 != '00:00:00.000123'",
-                    ExpectedValues()
-                        .SetSelectResult(pq::ScanResult({"col1"}, {{time122}, {time124}})));
+                    ExpectedValues().SetSelectResult(pq::ScanResult({"col1"}, {{time122}, {time124}})));
 }
 
 TEST_F(FilterComparisonOperatorTest, DateToTimestamp) {

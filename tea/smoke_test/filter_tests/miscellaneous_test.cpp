@@ -21,9 +21,7 @@ TEST_F(FilterTestBase, Miscellaneous) {
     "\"right\":{\"type\":\"starts-with\",\"term\":\"col1\",\"value\":\"zxc\"}},"
   "\"right\":{\"type\":\"in\",\"term\":\"col1\",\"values\":[\"a1\",\"b2\"]}}";
   /* clang-format on */
-  ProcessWithFilter(
-      "col1", condition,
-      ExpectedValues().SetSelectResult(pq::ScanResult({"col1"}, {{"b2"}})));
+  ProcessWithFilter("col1", condition, ExpectedValues().SetSelectResult(pq::ScanResult({"col1"}, {{"b2"}})));
 }
 
 TEST_F(FilterTestBase, NonConstComparison) {
