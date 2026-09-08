@@ -231,7 +231,7 @@ TEST_F(StatsTest, Redis) {
     EXPECT_EQ(errors_count, 0);
     return;
   }
-  // TeapotMetadataWriter DOES NOT split result by row groups
+
   // IcebergMetadataWriter DOES split result by row groups
   const int32_t tasks_after_splitting = 3;
 
