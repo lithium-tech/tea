@@ -38,8 +38,7 @@ TEST_F(LargeMetadataTest, Trivial) {
 }
 
 TEST_F(LargeMetadataTest, CancelTest) {
-  if (Environment::GetTableType() != TestTableType::kExternal ||
-      Environment::GetMetadataType() != MetadataType::kIceberg || Environment::GetProfile() != "samovar") {
+  if (Environment::GetTableType() != TestTableType::kExternal || Environment::GetProfile() != "samovar") {
     GTEST_SKIP();
     return;
   }

@@ -10,7 +10,6 @@ TEST_F(NameMappingTest, Simple) {
   PrepareData({column1}, {GreenplumColumnInfo{.name = "col1", .type = "int4"}});
   ProcessWithFilter("Col1", "Col1 < 123",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"lt\",\"term\":\"col1\",\"value\":123}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"122"}}))
                         .SetGandivaFilters({"bool less_than((int32) Col1, (const int32) 123)"}));
 }

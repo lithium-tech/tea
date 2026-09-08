@@ -12,14 +12,12 @@ TEST_F(FilterTestCase, Simple) {
                                    GreenplumColumnInfo{.name = "col2", .type = "int4"}});
   ProcessWithFilter("col1, col2", "CASE WHEN col2 > 0 THEN col1 / col2 <= 1 ELSE false END",
                     ExpectedValues()
-                        .SetIcebergFilters({""})
                         .SetGandivaFilters({"if (bool greater_than((int32) col2, (const int32) 0)) { bool "
                                             "less_than_or_equal_to(int32 DivSafe((int32) col1, "
                                             "(int32) col2), (const int32) 1) } else { (const bool) 0 }"})
                         .SetSelectResult(pq::ScanResult({"col1", "col2"}, {{"13", "15"}})));
   ProcessWithFilter("col1, col2", "CASE WHEN col2 > 0 THEN col1 / col2 <= 1 ELSE col1 <= 7 END",
                     ExpectedValues()
-                        .SetIcebergFilters({""})
                         .SetGandivaFilters({"if (bool greater_than((int32) col2, (const int32) 0)) { bool "
                                             "less_than_or_equal_to(int32 DivSafe((int32) col1, "
                                             "(int32) col2), (const int32) 1) } else { bool "

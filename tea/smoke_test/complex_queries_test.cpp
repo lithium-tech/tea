@@ -55,10 +55,6 @@ class ComplexQueryTest : public TeaTest {
 };
 
 TEST_F(ComplexQueryTest, Trivial) {
-  if (Environment::GetMetadataType() == MetadataType::kIceberg) {
-    GTEST_SKIP() << "Skip test (metadata is iceberg)";
-  }
-
   constexpr std::string_view query = R"(
 select
 	s_name,

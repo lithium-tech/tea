@@ -705,16 +705,7 @@ TableConfig ConfigSource::GetTableConfig(const std::unordered_map<std::string, s
   const auto schema =
       (components.schema.empty()) ? table_config.config.meta_access.default_schema : std::string(components.schema);
 
-  if (schema.empty() || schema == "teapot") {
-    std::string_view table_id;
-    if (components.path.empty()) {
-      table_id = components.location;
-    } else {
-      table_config.config.teapot.location = components.location;
-      table_id = components.path.substr(1);
-    }
-    table_config.source = TeapotTable{.table_id = TableId::FromString(table_id)};
-  } else if (schema == "iceberg") {
+  if (schema == "iceberg") {
     table_config.source = IcebergTable{TableId::FromString(components.location)};
   } else if (schema == "special" && components.location == "empty") {
     table_config.source = EmptyTable{};

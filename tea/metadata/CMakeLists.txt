@@ -6,8 +6,6 @@ add_library(
   access_file.h
   access_iceberg.cpp
   access_iceberg.h
-  access_teapot.cpp
-  access_teapot.h
   metadata.h
   entries_stream_config.cpp
   entries_stream_config.h

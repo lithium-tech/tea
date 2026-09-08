@@ -24,16 +24,6 @@ std::optional<TestTableType> TableTypeFromString(const std::string& str) {
   }
 }
 
-std::optional<MetadataType> MetadataTypeFromString(const std::string& str) {
-  if (str == "teapot") {
-    return MetadataType::kTeapot;
-  } else if (str == "iceberg") {
-    return MetadataType::kIceberg;
-  } else {
-    return std::nullopt;
-  }
-}
-
 void Environment::SetUp() {
   GetTeapotPtr();
   GetConnWrapper();
@@ -128,11 +118,6 @@ static TestTableType& TableTypeRef() {
   return table;
 }
 
-static MetadataType& MetadataTypeRef() {
-  static MetadataType meta_type = MetadataType::kTeapot;
-  return meta_type;
-}
-
 static std::string& ProfileRef() {
   static std::string profile = "";
   return profile;
@@ -140,15 +125,11 @@ static std::string& ProfileRef() {
 
 TestTableType Environment::GetTableType() { return TableTypeRef(); }
 
-MetadataType Environment::GetMetadataType() { return MetadataTypeRef(); }
-
 const std::string& Environment::GetProfile() { return ProfileRef(); }
 
 void Environment::SetTableType(TestTableType table_type) { TableTypeRef() = table_type; }
 
 void Environment::SetProfile(const std::string& profile) { ProfileRef() = profile; }
-
-void Environment::SetMetadataType(MetadataType meta_type) { MetadataTypeRef() = meta_type; }
 
 StatsState* Environment::GetStatsStatePtr() {
   static StatsState stats_state;

@@ -19,13 +19,10 @@ TEST_F(IsNullTest, Boolean) {
 
   ProcessWithFilter("col2", "col1 is null",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"is-null\",\"term\":\"col1\"}"})
                         .SetGandivaFilters({"bool isnull((bool) col1)"})
                         .SetSelectResult(pq::ScanResult({"col2"}, {{"1"}, {"3"}})));
   ProcessWithFilter("col2", "col1 is not null",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"not-null\",\"term\":\"col1\"}",
-                                            "{\"type\":\"not\",\"child\":{\"type\":\"is-null\",\"term\":\"col1\"}}"})
                         .SetGandivaFilters({"bool isnotnull((bool) col1)", "bool not(bool isnull((bool) col1))"})
                         .SetSelectResult(pq::ScanResult({"col2"}, {{"2"}, {"4"}})));
 }
@@ -38,13 +35,10 @@ TEST_F(IsNullTest, Int2) {
 
   ProcessWithFilter("col2", "col1 is null",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"is-null\",\"term\":\"col1\"}"})
                         .SetGandivaFilters({"bool isnull((int16) col1)"})
                         .SetSelectResult(pq::ScanResult({"col2"}, {{"1"}, {"3"}})));
   ProcessWithFilter("col2", "col1 is not null",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"not-null\",\"term\":\"col1\"}",
-                                            "{\"type\":\"not\",\"child\":{\"type\":\"is-null\",\"term\":\"col1\"}}"})
                         .SetGandivaFilters({"bool isnotnull((int16) col1)", "bool not(bool isnull((int16) col1))"})
                         .SetSelectResult(pq::ScanResult({"col2"}, {{"2"}, {"4"}})));
 }
@@ -57,13 +51,10 @@ TEST_F(IsNullTest, Int4) {
 
   ProcessWithFilter("col2", "col1 is null",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"is-null\",\"term\":\"col1\"}"})
                         .SetGandivaFilters({"bool isnull((int32) col1)"})
                         .SetSelectResult(pq::ScanResult({"col2"}, {{"1"}, {"3"}})));
   ProcessWithFilter("col2", "col1 is not null",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"not-null\",\"term\":\"col1\"}",
-                                            "{\"type\":\"not\",\"child\":{\"type\":\"is-null\",\"term\":\"col1\"}}"})
                         .SetGandivaFilters({"bool isnotnull((int32) col1)", "bool not(bool isnull((int32) col1))"})
                         .SetSelectResult(pq::ScanResult({"col2"}, {{"2"}, {"4"}})));
 }
@@ -76,13 +67,10 @@ TEST_F(IsNullTest, Int8) {
 
   ProcessWithFilter("col2", "col1 is null",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"is-null\",\"term\":\"col1\"}"})
                         .SetGandivaFilters({"bool isnull((int64) col1)"})
                         .SetSelectResult(pq::ScanResult({"col2"}, {{"1"}, {"3"}})));
   ProcessWithFilter("col2", "col1 is not null",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"not-null\",\"term\":\"col1\"}",
-                                            "{\"type\":\"not\",\"child\":{\"type\":\"is-null\",\"term\":\"col1\"}}"})
                         .SetGandivaFilters({"bool isnotnull((int64) col1)", "bool not(bool isnull((int64) col1))"})
                         .SetSelectResult(pq::ScanResult({"col2"}, {{"2"}, {"4"}})));
 }
@@ -96,13 +84,10 @@ TEST_F(IsNullTest, Float4) {
 
   ProcessWithFilter("col2", "col1 is null",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"is-null\",\"term\":\"col1\"}"})
                         .SetGandivaFilters({"bool isnull((float) col1)"})
                         .SetSelectResult(pq::ScanResult({"col2"}, {{"1"}, {"3"}})));
   ProcessWithFilter("col2", "col1 is not null",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"not-null\",\"term\":\"col1\"}",
-                                            "{\"type\":\"not\",\"child\":{\"type\":\"is-null\",\"term\":\"col1\"}}"})
                         .SetGandivaFilters({"bool isnotnull((float) col1)", "bool not(bool isnull((float) col1))"})
                         .SetSelectResult(pq::ScanResult({"col2"}, {{"2"}, {"4"}})));
 }
@@ -115,13 +100,10 @@ TEST_F(IsNullTest, Float8) {
 
   ProcessWithFilter("col2", "col1 is null",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"is-null\",\"term\":\"col1\"}"})
                         .SetGandivaFilters({"bool isnull((double) col1)"})
                         .SetSelectResult(pq::ScanResult({"col2"}, {{"1"}, {"3"}})));
   ProcessWithFilter("col2", "col1 is not null",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"not-null\",\"term\":\"col1\"}",
-                                            "{\"type\":\"not\",\"child\":{\"type\":\"is-null\",\"term\":\"col1\"}}"})
                         .SetGandivaFilters({"bool isnotnull((double) col1)", "bool not(bool isnull((double) col1))"})
                         .SetSelectResult(pq::ScanResult({"col2"}, {{"2"}, {"4"}})));
 }
@@ -136,13 +118,10 @@ TEST_F(IsNullTest, String) {
                                    GreenplumColumnInfo{.name = "col2", .type = "int4"}});
   ProcessWithFilter("col2", "col1 is null",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"is-null\",\"term\":\"col1\"}"})
                         .SetSelectResult(pq::ScanResult({"col2"}, {{"1"}, {"3"}}))
                         .SetGandivaFilters({"bool isnull((string) col1)"}));
   ProcessWithFilter("col2", "col1 is not null",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"not-null\",\"term\":\"col1\"}",
-                                            "{\"type\":\"not\",\"child\":{\"type\":\"is-null\",\"term\":\"col1\"}}"})
                         .SetGandivaFilters({"bool isnotnull((string) col1)", "bool not(bool isnull((string) col1))"})
                         .SetSelectResult(pq::ScanResult({"col2"}, {{"2"}, {"4"}})));
 }
@@ -155,14 +134,11 @@ TEST_F(IsNullTest, Date) {
 
   ProcessWithFilter("col2", "col1 is null",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"is-null\",\"term\":\"col1\"}"})
                         .SetGandivaFilters({"bool isnull((date32[day]) col1)"})
                         .SetSelectResult(pq::ScanResult({"col2"}, {{"1"}, {"3"}})));
   ProcessWithFilter(
       "col2", "col1 is not null",
       ExpectedValues()
-          .SetIcebergFilters({"{\"type\":\"not-null\",\"term\":\"col1\"}",
-                              "{\"type\":\"not\",\"child\":{\"type\":\"is-null\",\"term\":\"col1\"}}"})
           .SetGandivaFilters({"bool isnotnull((date32[day]) col1)", "bool not(bool isnull((date32[day]) col1))"})
           .SetSelectResult(pq::ScanResult({"col2"}, {{"2"}, {"4"}})));
 }
@@ -175,13 +151,10 @@ TEST_F(IsNullTest, Numeric) {
 
   ProcessWithFilter("col2", "col1 is null",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"is-null\",\"term\":\"col1\"}"})
                         .SetGandivaFilters({"bool isnull((decimal128(7, 2)) col1)"})
                         .SetSelectResult(pq::ScanResult({"col2"}, {{"1"}, {"3"}})));
   ProcessWithFilter("col2", "col1 is not null",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"not-null\",\"term\":\"col1\"}",
-                                            "{\"type\":\"not\",\"child\":{\"type\":\"is-null\",\"term\":\"col1\"}}"})
                         .SetGandivaFilters({"bool isnotnull((decimal128(7, 2)) col1)",
                                             "bool not(bool isnull((decimal128(7, 2)) col1))"})
                         .SetSelectResult(pq::ScanResult({"col2"}, {{"2"}, {"4"}})));
@@ -195,14 +168,11 @@ TEST_F(IsNullTest, Timestamp) {
 
   ProcessWithFilter("col2", "col1 is null",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"is-null\",\"term\":\"col1\"}"})
                         .SetGandivaFilters({"bool isnull((timestamp[us]) col1)"})
                         .SetSelectResult(pq::ScanResult({"col2"}, {{"1"}, {"3"}})));
   ProcessWithFilter(
       "col2", "col1 is not null",
       ExpectedValues()
-          .SetIcebergFilters({"{\"type\":\"not-null\",\"term\":\"col1\"}",
-                              "{\"type\":\"not\",\"child\":{\"type\":\"is-null\",\"term\":\"col1\"}}"})
           .SetGandivaFilters({"bool isnotnull((timestamp[us]) col1)", "bool not(bool isnull((timestamp[us]) col1))"})
           .SetSelectResult(pq::ScanResult({"col2"}, {{"2"}, {"4"}})));
 }
@@ -216,15 +186,12 @@ TEST_F(IsNullTest, Timestamptz) {
   ProcessWithFilter(
       "col2", "col1 is null",
       ExpectedValues()
-          .SetIcebergFilters({"{\"type\":\"is-null\",\"term\":\"col1\"}"})
           .SetGandivaFilters(
               {"bool isnull(timestamp[us] castTIMESTAMP((timestamp[us, tz=UTC]) col1, (const int64) 25200000000))"})
           .SetSelectResult(pq::ScanResult({"col2"}, {{"1"}, {"3"}})));
   ProcessWithFilter(
       "col2", "col1 is not null",
       ExpectedValues()
-          .SetIcebergFilters({"{\"type\":\"not-null\",\"term\":\"col1\"}",
-                              "{\"type\":\"not\",\"child\":{\"type\":\"is-null\",\"term\":\"col1\"}}"})
           .SetGandivaFilters(
               {"bool isnotnull(timestamp[us] castTIMESTAMP((timestamp[us, tz=UTC]) col1, (const int64) 25200000000))",
                "bool not(bool isnull(timestamp[us] castTIMESTAMP((timestamp[us, tz=UTC]) col1, (const int64) "

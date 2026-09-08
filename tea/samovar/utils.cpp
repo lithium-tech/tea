@@ -396,9 +396,7 @@ std::string MakeSessionIdentifier(const TableSource& source, const std::string& 
                                   int scan_identifier, bool fdw_mode) {
   std::string table_id;
   {
-    if (auto teapot_table = std::get_if<TeapotTable>(&source)) {
-      table_id = teapot_table->table_id.ToString();
-    } else if (auto file_table = std::get_if<FileTable>(&source)) {
+    if (auto file_table = std::get_if<FileTable>(&source)) {
       table_id = file_table->url;
     } else if (auto iceberg_table = std::get_if<IcebergTable>(&source)) {
       table_id = iceberg_table->table_id.ToString();
