@@ -20,14 +20,6 @@ namespace {
 constexpr int kNoFieldId = -1;
 
 class NameMappingDefaultTest : public TeaTest {
- public:
-  void SetUp() override {
-    if (Environment::GetMetadataType() != MetadataType::kIceberg) {
-      GTEST_SKIP() << "schema.name-mapping.default only applies to the Iceberg metadata path";
-    }
-    TeaTest::SetUp();
-  }
-
  protected:
   static std::shared_ptr<iceberg::Schema> MakeIcebergSchema() {
     using iceberg::types::NestedField;

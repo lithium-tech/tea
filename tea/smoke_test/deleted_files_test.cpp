@@ -18,10 +18,6 @@ namespace {
 class DeletedFilesTest : public TeaTest {};
 
 TEST_F(DeletedFilesTest, Simple) {
-  if (Environment::GetMetadataType() != MetadataType::kIceberg) {
-    GTEST_SKIP();
-  }
-
   auto file_writer = std::make_shared<LocalFileWriter>();
   const std::string table_name = "test_table";
 

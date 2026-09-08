@@ -18,7 +18,6 @@ TEST_F(FilterTestBase, Or) {
   /* clang-format on */
   ProcessWithFilter("col1, col2", "col1 > 'abc' or col2 > 15",
                     ExpectedValues()
-                        .SetIcebergFilters({expected_filter})
                         .SetSelectResult(pq::ScanResult({"col1", "col2"}, {{"aa", "42"}, {"bb", "10"}, {"bb", "42"}}))
                         .SetGandivaFilters({"bool greater_than((string) col1, (const string) 'abc') || bool "
                                             "greater_than((int32) col2, (const int32) 15)"}));
@@ -39,7 +38,6 @@ TEST_F(FilterTestBase, And) {
   /* clang-format on */
   ProcessWithFilter("col1, col2", "col1 > 'abc' and col2 > 15",
                     ExpectedValues()
-                        .SetIcebergFilters({expected_filter})
                         .SetSelectResult(pq::ScanResult({"col1", "col2"}, {{"bb", "42"}}))
                         .SetGandivaFilters({"bool greater_than((string) col1, (const string) 'abc') && bool "
                                             "greater_than((int32) col2, (const int32) 15)"}));
@@ -81,7 +79,6 @@ TEST_F(FilterTestBase, Not) {
   ProcessWithFilter(
       "col1, col2", "not (col1 > 'abc' and col2 > 15)",
       ExpectedValues()
-          .SetIcebergFilters({expected_filter1, expected_filter2, expected_filter3})
           .SetSelectResult(pq::ScanResult({"col1", "col2"}, {{"aa", "10"}, {"aa", "42"}, {"bb", "10"}}))
           .SetGandivaFilters({expected_gandiva_filter1, expected_gandiva_filter2, expected_gandiva_filter3}));
 }

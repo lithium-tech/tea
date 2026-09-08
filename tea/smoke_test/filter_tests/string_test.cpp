@@ -16,21 +16,16 @@ TEST_F(FilterTestLikeOperator, StartsWith) {
   PrepareData({column1}, {GreenplumColumnInfo{.name = "col1", .type = "text"}});
   ProcessWithFilter("col1", "col1 like 'abc%'",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"starts-with\",\"term\":\"col1\","
-                                            "\"value\":\"abc\"}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"abc"}, {"abcd"}}))
                         .SetGandivaFilters({"bool like((string) col1, (const string) 'abc%', "
                                             "(const string) '\\')"}));
   ProcessWithFilter("col1", "col1 like '%'",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"starts-with\",\"term\":\"col1\",\"value\":\"\"}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"aac"}, {"abc"}, {"abcd"}, {"abd"}, {"ac"}}))
                         .SetGandivaFilters({"bool like((string) col1, (const string) '%', "
                                             "(const string) '\\')"}));
   ProcessWithFilter("col1", "col1 not like 'abc%'",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"not-starts-with\",\"term\":\"col1\","
-                                            "\"value\":\"abc\"}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"aac"}, {"abd"}, {"ac"}}))
                         .SetGandivaFilters({"bool not(bool like((string) col1, (const "
                                             "string) 'abc%', (const string) '\\'))"}));
@@ -62,25 +57,21 @@ TEST_F(FilterTestLikeOperator, NoFilter) {
   PrepareData({column1}, {GreenplumColumnInfo{.name = "col1", .type = "text"}});
   ProcessWithFilter("col1", "col1 like ''",
                     ExpectedValues()
-                        .SetIcebergFilters({""})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{""}}))
                         .SetGandivaFilters({"bool like((string) col1, (const string) '', "
                                             "(const string) '\\')"}));
   ProcessWithFilter("col1", "col1 like 'abc'",
                     ExpectedValues()
-                        .SetIcebergFilters({""})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"abc"}}))
                         .SetGandivaFilters({"bool like((string) col1, (const string) 'abc', "
                                             "(const string) '\\')"}));
   ProcessWithFilter("col1", "col1 like 'a%bc'",
                     ExpectedValues()
-                        .SetIcebergFilters({""})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"abc"}, {"a%bc"}, {"azzbc"}, {"azbc"}}))
                         .SetGandivaFilters({"bool like((string) col1, (const string) 'a%bc', "
                                             "(const string) '\\')"}));
   ProcessWithFilter("col1", "col1 like 'a_bc%'",
                     ExpectedValues()
-                        .SetIcebergFilters({""})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"a%bc"}, {"azbc"}, {"azbcqqq"}}))
                         .SetGandivaFilters({"bool like((string) col1, (const string) "
                                             "'a_bc%', (const string) '\\')"}));
@@ -103,41 +94,22 @@ TEST_F(FilterTestLikeOperator, EscapeCharacters) {
                                   std::vector<std::string*>{nullptr, &str1, &str2, &str3, &str4, &str5, &str6, &str7,
                                                             &str8, &str9, &str10, &str11, &str12});
   PrepareData({column1}, {GreenplumColumnInfo{.name = "col1", .type = "text"}});
-  ProcessWithFilter("col1", "col1 like 'a\\\\bc%'",
-                    ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"starts-with\",\"term\":\"col1\","
-                                            "\"value\":\"a\\\\bc\"}"})
-                        .SetSelectResult(pq::ScanResult({"col1"}, {{"a\\bcqwe"}, {"a\\bc"}}))
-                        .SetGandivaFilters({""}));
+  ProcessWithFilter(
+      "col1", "col1 like 'a\\\\bc%'",
+      ExpectedValues().SetSelectResult(pq::ScanResult({"col1"}, {{"a\\bcqwe"}, {"a\\bc"}})).SetGandivaFilters({""}));
   ProcessWithFilter("col1", "col1 like 'a\\_bc%'",
-                    ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"starts-with\",\"term\":\"col1\","
-                                            "\"value\":\"a_bc\"}"})
-                        .SetSelectResult(pq::ScanResult({"col1"}, {{"a_bcw"}}))
-                        .SetGandivaFilters({""}));
+                    ExpectedValues().SetSelectResult(pq::ScanResult({"col1"}, {{"a_bcw"}})).SetGandivaFilters({""}));
   ProcessWithFilter("col1", "col1 like 'a\\%bc%'",
-                    ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"starts-with\",\"term\":\"col1\","
-                                            "\"value\":\"a%bc\"}"})
-                        .SetSelectResult(pq::ScanResult({"col1"}, {{"a%bcq"}}))
-                        .SetGandivaFilters({""}));
-  ProcessWithFilter("col1", "col1 like '\\%\\_\\%\\\\%'",
-                    ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"starts-with\",\"term\":\"col1\","
-                                            "\"value\":\"%_%\\\\\"}"})
-                        .SetSelectResult(pq::ScanResult({"col1"}, {{"%_%\\zz"}, {"%_%\\z"}}))
-                        .SetGandivaFilters({""}));
+                    ExpectedValues().SetSelectResult(pq::ScanResult({"col1"}, {{"a%bcq"}})).SetGandivaFilters({""}));
+  ProcessWithFilter(
+      "col1", "col1 like '\\%\\_\\%\\\\%'",
+      ExpectedValues().SetSelectResult(pq::ScanResult({"col1"}, {{"%_%\\zz"}, {"%_%\\z"}})).SetGandivaFilters({""}));
   ProcessWithFilter("col1", "col1 like '\\\\%'",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"starts-with\",\"term\":\"col1\","
-                                            "\"value\":\"\\\\\"}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"\\_q"}, {"\\%%"}, {"\\%"}, {"\\%q"}}))
                         .SetGandivaFilters({""}));
   ProcessWithFilter("col1", "col1 like '\\\\\\%'",
-                    ExpectedValues()
-                        .SetIcebergFilters({""})
-                        .SetSelectResult(pq::ScanResult({"col1"}, {{"\\%"}}))
-                        .SetGandivaFilters({""}));
+                    ExpectedValues().SetSelectResult(pq::ScanResult({"col1"}, {{"\\%"}})).SetGandivaFilters({""}));
 }
 
 class FilterTestILikeOperator : public FilterTestBase {};

@@ -21,9 +21,7 @@ TEST_F(FilterTestBase, Miscellaneous) {
     "\"right\":{\"type\":\"starts-with\",\"term\":\"col1\",\"value\":\"zxc\"}},"
   "\"right\":{\"type\":\"in\",\"term\":\"col1\",\"values\":[\"a1\",\"b2\"]}}";
   /* clang-format on */
-  ProcessWithFilter(
-      "col1", condition,
-      ExpectedValues().SetIcebergFilters({expected_filter}).SetSelectResult(pq::ScanResult({"col1"}, {{"b2"}})));
+  ProcessWithFilter("col1", condition, ExpectedValues().SetSelectResult(pq::ScanResult({"col1"}, {{"b2"}})));
 }
 
 TEST_F(FilterTestBase, NonConstComparison) {
@@ -40,7 +38,6 @@ TEST_F(FilterTestBase, NonConstComparison) {
                GreenplumColumnInfo{.name = "col3", .type = "text"}});
   ProcessWithFilter("col3, col1", "col2 > col1",
                     ExpectedValues()
-                        .SetIcebergFilters({""})
                         .SetGandivaFilters({"bool greater_than((int64) col2, int64 "
                                             "castBIGINT((int32) col1))"})
                         .SetSelectResult(pq::ScanResult({"col3", "col1"}, {{"c", "24"}, {"", "-1231"}})));
@@ -60,7 +57,6 @@ TEST_F(FilterTestBase, PartialFilterSimple) {
                GreenplumColumnInfo{.name = "col3", .type = "text"}});
   ProcessWithFilter("col3, col1", "col2 > col1 AND col1 IS DISTINCT FROM (col2 + col2)",
                     ExpectedValues()
-                        .SetIcebergFilters({""})
                         .SetGandivaFilters({"bool greater_than((int64) col2, int64 "
                                             "castBIGINT((int32) col1))"})
                         .SetSelectResult(pq::ScanResult({"col3", "col1"}, {{"c", "24"}, {"", "-1231"}})));
@@ -83,7 +79,6 @@ TEST_F(FilterTestBase, PartialFilterComplex) {
       "col2 > col1 AND col1 IS DISTINCT FROM (col2 + col2) AND (col2 + 32) > 2 * col1 AND col2 IS "
       "DISTINCT FROM (col1 + col1) AND col1 != 13",
       ExpectedValues()
-          .SetIcebergFilters({"{\"type\":\"not-eq\",\"term\":\"col1\",\"value\":13}"})
           .SetGandivaFilters(
               {"bool greater_than((int64) col2, int64 castBIGINT((int32) col1)) && bool greater_than(int64 "
                "AddOverflow((int64) col2, int64 castBIGINT((const int32) 32)), int64 castBIGINT(int32 "

@@ -11,7 +11,6 @@
 #include "tea/smoke_test/fragment_info.h"
 #include "tea/smoke_test/pq.h"
 #include "tea/smoke_test/spark_generated_test_base.h"
-#include "tea/smoke_test/teapot_test_base.h"
 #include "tea/smoke_test/test_base.h"
 #include "tea/test_utils/common.h"
 #include "tea/test_utils/metadata.h"
@@ -527,33 +526,6 @@ TEST_F(RowGroupSkippedInDelete, RowGroupsWithMultipleRows) {
   EXPECT_LE(deleted_rows, total_read_positional_rows);
   EXPECT_LT(total_read_positional_rows, deleted_rows * 1.5);
   EXPECT_EQ(deleted_rows, total_skipped_data_rows);
-}
-
-class PositionalDeleteTeapotTest : public TeapotTest {};
-
-TEST_F(PositionalDeleteTeapotTest, HoleInFile) {
-  auto column1 = MakeInt64Column("col1", 1, OptionalVector<int64_t>{1, 2, 3, 4, 5, 6, 7, 8, 9});
-  auto column2 = MakeInt64Column("col2", 2, OptionalVector<int64_t>{3, 3, 3, 2, 2, 2, 3, 3, 3});
-  ASSIGN_OR_FAIL(auto data_path, state_->WriteFile({column1, column2}, FromRgSizes({3, 3, 3})));
-
-  auto column3 = MakeStringColumn("col3", 1, std::vector<std::string*>{&data_path, &data_path, &data_path});
-  auto column4 = MakeInt64Column("col4", 2, OptionalVector<int64_t>{0, 4, 6});
-  ASSIGN_OR_FAIL(auto del_path, state_->WriteFile({column3, column4}));
-
-  auto offsets = GetParquetRowGroupOffsets(data_path);
-
-  ASSIGN_OR_FAIL(auto defer, state_->CreateTable({GreenplumColumnInfo{.name = "col1", .type = "int8"},
-                                                  GreenplumColumnInfo{.name = "col2", .type = "int8"}}));
-
-  SetTeapotResponse(
-      std::vector<FragmentInfo>{FragmentInfo(data_path).AddPositionalDelete(del_path).SetFromTo(offsets[0], offsets[1]),
-                                FragmentInfo(data_path).AddPositionalDelete(del_path).SetPosition(offsets[2])});
-
-  ASSIGN_OR_FAIL(pq::ScanResult result,
-                 pq::TableScanQuery(kDefaultTableName, "col1").SetWhere("col2 >= 3").Run(*conn_));
-  pq::ScanResult expected_result({"col1"}, {{"2"}, {"3"}, {"8"}, {"9"}});
-
-  EXPECT_EQ(result, expected_result);
 }
 
 TEST_F(TeaTest, DanglingDeletes) {

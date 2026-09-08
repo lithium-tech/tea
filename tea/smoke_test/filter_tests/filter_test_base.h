@@ -12,17 +12,11 @@ namespace tea {
 
 struct ExpectedValues {
   bool is_error = false;
-  std::optional<std::set<std::string>> iceberg_filters;
   std::optional<std::set<std::string>> gandiva_filters;
   std::optional<pq::ScanResult> select_result;
 
   ExpectedValues& SetIsError(bool flag) {
     is_error = flag;
-    return *this;
-  }
-
-  ExpectedValues& SetIcebergFilters(std::set<std::string> filters) {
-    iceberg_filters = std::move(filters);
     return *this;
   }
 

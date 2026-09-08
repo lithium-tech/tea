@@ -24,11 +24,9 @@ TEST_F(FilterComparisonOperatorTest, Boolean) {
                                                          "bool not_equal((bool) col1, (const bool) 0)"};
 #endif
   for (const auto& true_condition : conditions_true) {
-    ProcessWithFilter(select_columns, true_condition,
-                      ExpectedValues()
-                          .SetIcebergFilters(expected_filters_true)
-                          .SetSelectResult(expected_select_result_true)
-                          .SetGandivaFilters(expected_gandiva_filters_true));
+    ProcessWithFilter(
+        select_columns, true_condition,
+        ExpectedValues().SetSelectResult(expected_select_result_true).SetGandivaFilters(expected_gandiva_filters_true));
   }
 
   std::vector<std::string> conditions_false = {"not col1", "col1 = false", "col1 != true"};
@@ -48,7 +46,6 @@ TEST_F(FilterComparisonOperatorTest, Boolean) {
   for (const auto& false_condition : conditions_false) {
     ProcessWithFilter(select_columns, false_condition,
                       ExpectedValues()
-                          .SetIcebergFilters(expected_filters_false)
                           .SetSelectResult(expected_select_result_false)
                           .SetGandivaFilters(expected_gandiva_filters_false));
   }
@@ -59,33 +56,27 @@ TEST_F(FilterComparisonOperatorTest, Int2) {
   PrepareData({column}, {GreenplumColumnInfo{.name = "col1", .type = "int2"}});
   ProcessWithFilter("col1", "col1 < 123::int2",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"lt\",\"term\":\"col1\",\"value\":123}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"122"}}))
                         .SetGandivaFilters({"bool less_than((int16) col1, (const int16) 123)"}));
   ProcessWithFilter("col1", "col1 <= 123::int2",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"lt-eq\",\"term\":\"col1\",\"value\":123}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"122"}, {"123"}}))
                         .SetGandivaFilters({"bool less_than_or_equal_to((int16) col1, (const int16) 123)"}));
   ProcessWithFilter("col1", "col1 > 123::int2",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"gt\",\"term\":\"col1\",\"value\":123}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"124"}}))
                         .SetGandivaFilters({"bool greater_than((int16) col1, (const int16) 123)"}));
   ProcessWithFilter("col1", "col1 >= 123::int2",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"gt-eq\",\"term\":\"col1\",\"value\":123}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"123"}, {"124"}}))
                         .SetGandivaFilters({"bool greater_than_or_equal_to((int16) col1, "
                                             "(const int16) 123)"}));
   ProcessWithFilter("col1", "col1 = 123::int2",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"eq\",\"term\":\"col1\",\"value\":123}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"123"}}))
                         .SetGandivaFilters({"bool equal((int16) col1, (const int16) 123)"}));
   ProcessWithFilter("col1", "col1 != 123::int2",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"not-eq\",\"term\":\"col1\",\"value\":123}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"122"}, {"124"}}))
                         .SetGandivaFilters({"bool not_equal((int16) col1, (const int16) 123)"}));
 }
@@ -95,33 +86,27 @@ TEST_F(FilterComparisonOperatorTest, Int4) {
   PrepareData({column}, {GreenplumColumnInfo{.name = "col1", .type = "int4"}});
   ProcessWithFilter("col1", "col1 < 123",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"lt\",\"term\":\"col1\",\"value\":123}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"122"}}))
                         .SetGandivaFilters({"bool less_than((int32) col1, (const int32) 123)"}));
   ProcessWithFilter("col1", "col1 <= 123",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"lt-eq\",\"term\":\"col1\",\"value\":123}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"122"}, {"123"}}))
                         .SetGandivaFilters({"bool less_than_or_equal_to((int32) col1, (const int32) 123)"}));
   ProcessWithFilter("col1", "col1 > 123",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"gt\",\"term\":\"col1\",\"value\":123}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"124"}}))
                         .SetGandivaFilters({"bool greater_than((int32) col1, (const int32) 123)"}));
   ProcessWithFilter("col1", "col1 >= 123",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"gt-eq\",\"term\":\"col1\",\"value\":123}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"123"}, {"124"}}))
                         .SetGandivaFilters({"bool greater_than_or_equal_to((int32) col1, "
                                             "(const int32) 123)"}));
   ProcessWithFilter("col1", "col1 = 123",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"eq\",\"term\":\"col1\",\"value\":123}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"123"}}))
                         .SetGandivaFilters({"bool equal((int32) col1, (const int32) 123)"}));
   ProcessWithFilter("col1", "col1 != 123",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"not-eq\",\"term\":\"col1\",\"value\":123}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"122"}, {"124"}}))
                         .SetGandivaFilters({"bool not_equal((int32) col1, (const int32) 123)"}));
 }
@@ -131,33 +116,27 @@ TEST_F(FilterComparisonOperatorTest, Int8) {
   PrepareData({column}, {GreenplumColumnInfo{.name = "col1", .type = "int8"}});
   ProcessWithFilter("col1", "col1 < 123::int8",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"lt\",\"term\":\"col1\",\"value\":123}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"122"}}))
                         .SetGandivaFilters({"bool less_than((int64) col1, (const int64) 123)"}));
   ProcessWithFilter("col1", "col1 <= 123::int8",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"lt-eq\",\"term\":\"col1\",\"value\":123}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"122"}, {"123"}}))
                         .SetGandivaFilters({"bool less_than_or_equal_to((int64) col1, (const int64) 123)"}));
   ProcessWithFilter("col1", "col1 > 123::int8",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"gt\",\"term\":\"col1\",\"value\":123}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"124"}}))
                         .SetGandivaFilters({"bool greater_than((int64) col1, (const int64) 123)"}));
   ProcessWithFilter("col1", "col1 >= 123::int8",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"gt-eq\",\"term\":\"col1\",\"value\":123}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"123"}, {"124"}}))
                         .SetGandivaFilters({"bool greater_than_or_equal_to((int64) col1, "
                                             "(const int64) 123)"}));
   ProcessWithFilter("col1", "col1 = 123::int8",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"eq\",\"term\":\"col1\",\"value\":123}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"123"}}))
                         .SetGandivaFilters({"bool equal((int64) col1, (const int64) 123)"}));
   ProcessWithFilter("col1", "col1 != 123::int8",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"not-eq\",\"term\":\"col1\",\"value\":123}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"122"}, {"124"}}))
                         .SetGandivaFilters({"bool not_equal((int64) col1, (const int64) 123)"}));
 }
@@ -167,36 +146,30 @@ TEST_F(FilterComparisonOperatorTest, Int42) {
   PrepareData({column}, {GreenplumColumnInfo{.name = "col1", .type = "int4"}});
   ProcessWithFilter("col1", "col1 < 123::int2",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"lt\",\"term\":\"col1\",\"value\":123}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"122"}}))
                         .SetGandivaFilters({"bool less_than((int32) col1, int32 "
                                             "castINT((const int16) 123))"}));
   ProcessWithFilter("col1", "col1 <= 123::int2",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"lt-eq\",\"term\":\"col1\",\"value\":123}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"122"}, {"123"}}))
                         .SetGandivaFilters({"bool less_than_or_equal_to((int32) col1, int32 "
                                             "castINT((const int16) 123))"}));
   ProcessWithFilter("col1", "col1 > 123::int2",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"gt\",\"term\":\"col1\",\"value\":123}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"124"}}))
                         .SetGandivaFilters({"bool greater_than((int32) col1, int32 "
                                             "castINT((const int16) 123))"}));
   ProcessWithFilter("col1", "col1 >= 123::int2",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"gt-eq\",\"term\":\"col1\",\"value\":123}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"123"}, {"124"}}))
                         .SetGandivaFilters({"bool greater_than_or_equal_to((int32) col1, "
                                             "int32 castINT((const int16) 123))"}));
   ProcessWithFilter("col1", "col1 = 123::int2",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"eq\",\"term\":\"col1\",\"value\":123}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"123"}}))
                         .SetGandivaFilters({"bool equal((int32) col1, int32 castINT((const int16) 123))"}));
   ProcessWithFilter("col1", "col1 != 123::int2",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"not-eq\",\"term\":\"col1\",\"value\":123}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"122"}, {"124"}}))
                         .SetGandivaFilters({"bool not_equal((int32) col1, int32 "
                                             "castINT((const int16) 123))"}));
@@ -207,36 +180,30 @@ TEST_F(FilterComparisonOperatorTest, Int24) {
   PrepareData({column}, {GreenplumColumnInfo{.name = "col1", .type = "int2"}});
   ProcessWithFilter("col1", "col1 < 123::int4",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"lt\",\"term\":\"col1\",\"value\":123}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"122"}}))
                         .SetGandivaFilters({"bool less_than(int32 castINT((int16) col1), "
                                             "(const int32) 123)"}));
   ProcessWithFilter("col1", "col1 <= 123::int4",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"lt-eq\",\"term\":\"col1\",\"value\":123}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"122"}, {"123"}}))
                         .SetGandivaFilters({"bool less_than_or_equal_to(int32 "
                                             "castINT((int16) col1), (const int32) 123)"}));
   ProcessWithFilter("col1", "col1 > 123::int4",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"gt\",\"term\":\"col1\",\"value\":123}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"124"}}))
                         .SetGandivaFilters({"bool greater_than(int32 castINT((int16) col1), "
                                             "(const int32) 123)"}));
   ProcessWithFilter("col1", "col1 >= 123::int4",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"gt-eq\",\"term\":\"col1\",\"value\":123}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"123"}, {"124"}}))
                         .SetGandivaFilters({"bool greater_than_or_equal_to(int32 "
                                             "castINT((int16) col1), (const int32) 123)"}));
   ProcessWithFilter("col1", "col1 = 123::int4",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"eq\",\"term\":\"col1\",\"value\":123}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"123"}}))
                         .SetGandivaFilters({"bool equal(int32 castINT((int16) col1), (const int32) 123)"}));
   ProcessWithFilter("col1", "col1 != 123::int4",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"not-eq\",\"term\":\"col1\",\"value\":123}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"122"}, {"124"}}))
                         .SetGandivaFilters({"bool not_equal(int32 castINT((int16) col1), "
                                             "(const int32) 123)"}));
@@ -247,37 +214,31 @@ TEST_F(FilterComparisonOperatorTest, Int28) {
   PrepareData({column}, {GreenplumColumnInfo{.name = "col1", .type = "int2"}});
   ProcessWithFilter("col1", "col1 < 123::int8",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"lt\",\"term\":\"col1\",\"value\":123}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"122"}}))
                         .SetGandivaFilters({"bool less_than(int64 castBIGINT((int16) col1), "
                                             "(const int64) 123)"}));
   ProcessWithFilter("col1", "col1 <= 123::int8",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"lt-eq\",\"term\":\"col1\",\"value\":123}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"122"}, {"123"}}))
                         .SetGandivaFilters({"bool less_than_or_equal_to(int64 "
                                             "castBIGINT((int16) col1), (const int64) 123)"}));
   ProcessWithFilter("col1", "col1 > 123::int8",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"gt\",\"term\":\"col1\",\"value\":123}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"124"}}))
                         .SetGandivaFilters({"bool greater_than(int64 castBIGINT((int16) "
                                             "col1), (const int64) 123)"}));
   ProcessWithFilter("col1", "col1 >= 123::int8",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"gt-eq\",\"term\":\"col1\",\"value\":123}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"123"}, {"124"}}))
                         .SetGandivaFilters({"bool greater_than_or_equal_to(int64 "
                                             "castBIGINT((int16) col1), (const int64) 123)"}));
   ProcessWithFilter("col1", "col1 = 123::int8",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"eq\",\"term\":\"col1\",\"value\":123}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"123"}}))
                         .SetGandivaFilters({"bool equal(int64 castBIGINT((int16) col1), "
                                             "(const int64) 123)"}));
   ProcessWithFilter("col1", "col1 != 123::int8",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"not-eq\",\"term\":\"col1\",\"value\":123}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"122"}, {"124"}}))
                         .SetGandivaFilters({"bool not_equal(int64 castBIGINT((int16) col1), "
                                             "(const int64) 123)"}));
@@ -288,37 +249,31 @@ TEST_F(FilterComparisonOperatorTest, Int84) {
   PrepareData({column}, {GreenplumColumnInfo{.name = "col1", .type = "int8"}});
   ProcessWithFilter("col1", "col1 < 123::int4",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"lt\",\"term\":\"col1\",\"value\":123}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"122"}}))
                         .SetGandivaFilters({"bool less_than((int64) col1, int64 "
                                             "castBIGINT((const int32) 123))"}));
   ProcessWithFilter("col1", "col1 <= 123::int4",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"lt-eq\",\"term\":\"col1\",\"value\":123}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"122"}, {"123"}}))
                         .SetGandivaFilters({"bool less_than_or_equal_to((int64) col1, int64 "
                                             "castBIGINT((const int32) 123))"}));
   ProcessWithFilter("col1", "col1 > 123::int4",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"gt\",\"term\":\"col1\",\"value\":123}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"124"}}))
                         .SetGandivaFilters({"bool greater_than((int64) col1, int64 "
                                             "castBIGINT((const int32) 123))"}));
   ProcessWithFilter("col1", "col1 >= 123::int4",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"gt-eq\",\"term\":\"col1\",\"value\":123}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"123"}, {"124"}}))
                         .SetGandivaFilters({"bool greater_than_or_equal_to((int64) col1, int64 "
                                             "castBIGINT((const int32) 123))"}));
   ProcessWithFilter("col1", "col1 = 123::int4",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"eq\",\"term\":\"col1\",\"value\":123}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"123"}}))
                         .SetGandivaFilters({"bool equal((int64) col1, int64 "
                                             "castBIGINT((const int32) 123))"}));
   ProcessWithFilter("col1", "col1 != 123::int4",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"not-eq\",\"term\":\"col1\",\"value\":123}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"122"}, {"124"}}))
                         .SetGandivaFilters({"bool not_equal((int64) col1, int64 "
                                             "castBIGINT((const int32) 123))"}));
@@ -329,37 +284,31 @@ TEST_F(FilterComparisonOperatorTest, Int82) {
   PrepareData({column}, {GreenplumColumnInfo{.name = "col1", .type = "int8"}});
   ProcessWithFilter("col1", "col1 < 123::int2",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"lt\",\"term\":\"col1\",\"value\":123}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"122"}}))
                         .SetGandivaFilters({"bool less_than((int64) col1, int64 "
                                             "castBIGINT((const int16) 123))"}));
   ProcessWithFilter("col1", "col1 <= 123::int2",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"lt-eq\",\"term\":\"col1\",\"value\":123}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"122"}, {"123"}}))
                         .SetGandivaFilters({"bool less_than_or_equal_to((int64) col1, int64 "
                                             "castBIGINT((const int16) 123))"}));
   ProcessWithFilter("col1", "col1 > 123::int2",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"gt\",\"term\":\"col1\",\"value\":123}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"124"}}))
                         .SetGandivaFilters({"bool greater_than((int64) col1, int64 "
                                             "castBIGINT((const int16) 123))"}));
   ProcessWithFilter("col1", "col1 >= 123::int2",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"gt-eq\",\"term\":\"col1\",\"value\":123}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"123"}, {"124"}}))
                         .SetGandivaFilters({"bool greater_than_or_equal_to((int64) col1, int64 "
                                             "castBIGINT((const int16) 123))"}));
   ProcessWithFilter("col1", "col1 = 123::int2",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"eq\",\"term\":\"col1\",\"value\":123}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"123"}}))
                         .SetGandivaFilters({"bool equal((int64) col1, int64 "
                                             "castBIGINT((const int16) 123))"}));
   ProcessWithFilter("col1", "col1 != 123::int2",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"not-eq\",\"term\":\"col1\",\"value\":123}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"122"}, {"124"}}))
                         .SetGandivaFilters({"bool not_equal((int64) col1, int64 "
                                             "castBIGINT((const int16) 123))"}));
@@ -372,38 +321,32 @@ TEST_F(FilterComparisonOperatorTest, Int48) {
                                    GreenplumColumnInfo{.name = "col2", .type = "int4"}});
   ProcessWithFilter("col1", "col2 > col1",
                     ExpectedValues()
-                        .SetIcebergFilters({""})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"122"}}))
                         .SetGandivaFilters({"bool greater_than(int64 castBIGINT((int32) "
                                             "col2), (int64) col1)"}));
   ProcessWithFilter("col1", "col2 >= col1",
                     ExpectedValues()
-                        .SetIcebergFilters({""})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"122"}, {"123"}}))
                         .SetGandivaFilters({"bool greater_than_or_equal_to(int64 "
                                             "castBIGINT((int32) col2), (int64) col1)"}));
   ProcessWithFilter("col1", "col2 < col1",
                     ExpectedValues()
-                        .SetIcebergFilters({""})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"124"}}))
                         .SetGandivaFilters({"bool less_than(int64 castBIGINT((int32) col2), "
                                             "(int64) col1)"}));
   ProcessWithFilter("col1", "col2 <= col1",
                     ExpectedValues()
-                        .SetIcebergFilters({""})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"123"}, {"124"}}))
                         .SetGandivaFilters({"bool less_than_or_equal_to(int64 "
                                             "castBIGINT((int32) col2), (int64) col1)"}));
   ProcessWithFilter("col1", "col2 = col1",
                     ExpectedValues()
-                        .SetIcebergFilters({""})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"123"}}))
                         .SetGandivaFilters({"bool equal(int64 castBIGINT((int32) col2), (int64) col1)",
                                             "bool equal(int64 castBIGINT((int32) col2), (int64) col1) && "
                                             "bool equal((int64) col1, int64 castBIGINT((int32) col2))"}));
   ProcessWithFilter("col1", "col2 != col1",
                     ExpectedValues()
-                        .SetIcebergFilters({""})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"122"}, {"124"}}))
                         .SetGandivaFilters({"bool not_equal(int64 castBIGINT((int32) col2), "
                                             "(int64) col1)"}));
@@ -417,34 +360,28 @@ TEST_F(FilterComparisonOperatorTest, Text) {
   PrepareData({column1}, {GreenplumColumnInfo{.name = "col1", .type = "text"}});
   ProcessWithFilter("col1", "col1 < 'abd'",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"lt\",\"term\":\"col1\",\"value\":\"abd\"}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"abc"}}))
                         .SetGandivaFilters({"bool less_than((string) col1, (const string) 'abd')"}));
   ProcessWithFilter("col1", "col1 <= 'abd'",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"lt-eq\",\"term\":\"col1\",\"value\":\"abd\"}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"abc"}, {"abd"}}))
                         .SetGandivaFilters({"bool less_than_or_equal_to((string) col1, "
                                             "(const string) 'abd')"}));
   ProcessWithFilter("col1", "col1 > 'abd'",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"gt\",\"term\":\"col1\",\"value\":\"abd\"}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"abe"}}))
                         .SetGandivaFilters({"bool greater_than((string) col1, (const string) 'abd')"}));
   ProcessWithFilter("col1", "col1 >= 'abd'",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"gt-eq\",\"term\":\"col1\",\"value\":\"abd\"}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"abd"}, {"abe"}}))
                         .SetGandivaFilters({"bool greater_than_or_equal_to((string) col1, "
                                             "(const string) 'abd')"}));
   ProcessWithFilter("col1", "col1 = 'abd'",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"eq\",\"term\":\"col1\",\"value\":\"abd\"}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"abd"}}))
                         .SetGandivaFilters({"bool equal((string) col1, (const string) 'abd')"}));
   ProcessWithFilter("col1", "col1 != 'abd'",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"not-eq\",\"term\":\"col1\",\"value\":\"abd\"}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"abc"}, {"abe"}}))
                         .SetGandivaFilters({"bool not_equal((string) col1, (const string) 'abd')"}));
 }
@@ -455,35 +392,29 @@ TEST_F(FilterComparisonOperatorTest, Float4) {
   PrepareData({column1}, {GreenplumColumnInfo{.name = "col1", .type = "float4"}});
   ProcessWithFilter("col1", "col1 < 3::float4",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"lt\",\"term\":\"col1\",\"value\":3.0}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"2.99"}}))
                         .SetGandivaFilters({"bool less_than((float) col1, (const float) 3 raw(40400000))"}));
   ProcessWithFilter("col1", "col1 <= 3::float4",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"lt-eq\",\"term\":\"col1\",\"value\":3.0}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"2.99"}, {"3"}}))
                         .SetGandivaFilters({"bool less_than_or_equal_to((float) col1, (const "
                                             "float) 3 raw(40400000))"}));
   ProcessWithFilter("col1", "col1 > 3::float4",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"gt\",\"term\":\"col1\",\"value\":3.0}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"3.01"}}))
                         .SetGandivaFilters({"bool greater_than((float) col1, (const float) 3 "
                                             "raw(40400000))"}));
   ProcessWithFilter("col1", "col1 >= 3::float4",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"gt-eq\",\"term\":\"col1\",\"value\":3.0}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"3"}, {"3.01"}}))
                         .SetGandivaFilters({"bool greater_than_or_equal_to((float) col1, "
                                             "(const float) 3 raw(40400000))"}));
   ProcessWithFilter("col1", "col1 = 3::float4",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"eq\",\"term\":\"col1\",\"value\":3.0}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"3"}}))
                         .SetGandivaFilters({"bool equal((float) col1, (const float) 3 raw(40400000))"}));
   ProcessWithFilter("col1", "col1 != 3::float4",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"not-eq\",\"term\":\"col1\",\"value\":3.0}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"2.99"}, {"3.01"}}))
                         .SetGandivaFilters({"bool not_equal((float) col1, (const float) 3 raw(40400000))"}));
 }
@@ -493,37 +424,31 @@ TEST_F(FilterComparisonOperatorTest, Float48) {
   PrepareData({column1}, {GreenplumColumnInfo{.name = "col1", .type = "float4"}});
   ProcessWithFilter("col1", "col1 < 3",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"lt\",\"term\":\"col1\",\"value\":3.0}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"2.99"}}))
                         .SetGandivaFilters({"bool less_than(double castFLOAT8((float) col1), "
                                             "(const double) 3 raw(4008000000000000))"}));
   ProcessWithFilter("col1", "col1 <= 3",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"lt-eq\",\"term\":\"col1\",\"value\":3.0}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"2.99"}, {"3"}}))
                         .SetGandivaFilters({"bool less_than_or_equal_to(double castFLOAT8((float) col1), "
                                             "(const double) 3 raw(4008000000000000))"}));
   ProcessWithFilter("col1", "col1 > 3",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"gt\",\"term\":\"col1\",\"value\":3.0}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"3.01"}}))
                         .SetGandivaFilters({"bool greater_than(double castFLOAT8((float) col1), "
                                             "(const double) 3 raw(4008000000000000))"}));
   ProcessWithFilter("col1", "col1 >= 3",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"gt-eq\",\"term\":\"col1\",\"value\":3.0}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"3"}, {"3.01"}}))
                         .SetGandivaFilters({"bool greater_than_or_equal_to(double castFLOAT8((float) col1), "
                                             "(const double) 3 raw(4008000000000000))"}));
   ProcessWithFilter("col1", "col1 = 3",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"eq\",\"term\":\"col1\",\"value\":3.0}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"3"}}))
                         .SetGandivaFilters({"bool equal(double castFLOAT8((float) col1), "
                                             "(const double) 3 raw(4008000000000000))"}));
   ProcessWithFilter("col1", "col1 != 3",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"not-eq\",\"term\":\"col1\",\"value\":3.0}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"2.99"}, {"3.01"}}))
                         .SetGandivaFilters({"bool not_equal(double castFLOAT8((float) col1), "
                                             "(const double) 3 raw(4008000000000000))"}));
@@ -534,37 +459,31 @@ TEST_F(FilterComparisonOperatorTest, Float84) {
   PrepareData({column1}, {GreenplumColumnInfo{.name = "col1", .type = "float8"}});
   ProcessWithFilter("col1", "col1 < 3::float4",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"lt\",\"term\":\"col1\",\"value\":3.0}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"2.99"}}))
                         .SetGandivaFilters({"bool less_than((double) col1, double "
                                             "castFLOAT8((const float) 3 raw(40400000)))"}));
   ProcessWithFilter("col1", "col1 <= 3::float4",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"lt-eq\",\"term\":\"col1\",\"value\":3.0}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"2.99"}, {"3"}}))
                         .SetGandivaFilters({"bool less_than_or_equal_to((double) col1, double "
                                             "castFLOAT8((const float) 3 raw(40400000)))"}));
   ProcessWithFilter("col1", "col1 > 3::float4",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"gt\",\"term\":\"col1\",\"value\":3.0}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"3.01"}}))
                         .SetGandivaFilters({"bool greater_than((double) col1, double "
                                             "castFLOAT8((const float) 3 raw(40400000)))"}));
   ProcessWithFilter("col1", "col1 >= 3::float4",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"gt-eq\",\"term\":\"col1\",\"value\":3.0}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"3"}, {"3.01"}}))
                         .SetGandivaFilters({"bool greater_than_or_equal_to((double) col1, double "
                                             "castFLOAT8((const float) 3 raw(40400000)))"}));
   ProcessWithFilter("col1", "col1 = 3::float4",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"eq\",\"term\":\"col1\",\"value\":3.0}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"3"}}))
                         .SetGandivaFilters({"bool equal((double) col1, double "
                                             "castFLOAT8((const float) 3 raw(40400000)))"}));
   ProcessWithFilter("col1", "col1 != 3::float4",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"not-eq\",\"term\":\"col1\",\"value\":3.0}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"2.99"}, {"3.01"}}))
                         .SetGandivaFilters({"bool not_equal((double) col1, double "
                                             "castFLOAT8((const float) 3 raw(40400000)))"}));
@@ -575,37 +494,31 @@ TEST_F(FilterComparisonOperatorTest, Float8) {
   PrepareData({column1}, {GreenplumColumnInfo{.name = "col1", .type = "float8"}});
   ProcessWithFilter("col1", "col1 < 3",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"lt\",\"term\":\"col1\",\"value\":3.0}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"2.99"}}))
                         .SetGandivaFilters({"bool less_than((double) col1, (const double) 3 "
                                             "raw(4008000000000000))"}));
   ProcessWithFilter("col1", "col1 <= 3",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"lt-eq\",\"term\":\"col1\",\"value\":3.0}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"2.99"}, {"3"}}))
                         .SetGandivaFilters({"bool less_than_or_equal_to((double) col1, (const double) 3 "
                                             "raw(4008000000000000))"}));
   ProcessWithFilter("col1", "col1 > 3",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"gt\",\"term\":\"col1\",\"value\":3.0}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"3.01"}}))
                         .SetGandivaFilters({"bool greater_than((double) col1, (const double) 3 "
                                             "raw(4008000000000000))"}));
   ProcessWithFilter("col1", "col1 >= 3",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"gt-eq\",\"term\":\"col1\",\"value\":3.0}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"3"}, {"3.01"}}))
                         .SetGandivaFilters({"bool greater_than_or_equal_to((double) col1, (const double) 3 "
                                             "raw(4008000000000000))"}));
   ProcessWithFilter("col1", "col1 = 3",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"eq\",\"term\":\"col1\",\"value\":3.0}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"3"}}))
                         .SetGandivaFilters({"bool equal((double) col1, (const double) 3 "
                                             "raw(4008000000000000))"}));
   ProcessWithFilter("col1", "col1 != 3",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"not-eq\",\"term\":\"col1\",\"value\":3.0}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{"2.99"}, {"3.01"}}))
                         .SetGandivaFilters({"bool not_equal((double) col1, (const double) 3 "
                                             "raw(4008000000000000))"}));
@@ -621,37 +534,31 @@ TEST_F(FilterComparisonOperatorTest, Date) {
   ASSERT_OK(pq::SetTimeZone(*conn_, 7));
   ProcessWithFilter("col1", "col1 < '1970-01-02'::date",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"lt\",\"term\":\"col1\",\"value\":1}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{day0}}))
                         .SetGandivaFilters({"bool less_than((date32[day]) col1, date32[day] "
                                             "castDate((const int32) 1))"}));
   ProcessWithFilter("col1", "col1 <= '1970-01-02'::date",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"lt-eq\",\"term\":\"col1\",\"value\":1}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{day0}, {day1}}))
                         .SetGandivaFilters({"bool less_than_or_equal_to((date32[day]) col1, date32[day] "
                                             "castDate((const int32) 1))"}));
   ProcessWithFilter("col1", "col1 > '1970-01-02'::date",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"gt\",\"term\":\"col1\",\"value\":1}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{day2}}))
                         .SetGandivaFilters({"bool greater_than((date32[day]) col1, date32[day] "
                                             "castDate((const int32) 1))"}));
   ProcessWithFilter("col1", "col1 >= '1970-01-02'::date",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"gt-eq\",\"term\":\"col1\",\"value\":1}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{day1}, {day2}}))
                         .SetGandivaFilters({"bool greater_than_or_equal_to((date32[day]) col1, date32[day] "
                                             "castDate((const int32) 1))"}));
   ProcessWithFilter("col1", "col1 = '1970-01-02'::date",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"eq\",\"term\":\"col1\",\"value\":1}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{day1}}))
                         .SetGandivaFilters({"bool equal((date32[day]) col1, date32[day] "
                                             "castDate((const int32) 1))"}));
   ProcessWithFilter("col1", "col1 != '1970-01-02'::date",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"not-eq\",\"term\":\"col1\",\"value\":1}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{day0}, {day2}}))
                         .SetGandivaFilters({"bool not_equal((date32[day]) col1, date32[day] "
                                             "castDate((const int32) 1))"}));
@@ -666,37 +573,31 @@ TEST_F(FilterComparisonOperatorTest, TimestampToDate) {
   ASSERT_OK(pq::SetTimeZone(*conn_, 7));
   ProcessWithFilter("col1", "col1 < '1970-01-02'::timestamp",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"lt\",\"term\":\"col1\",\"value\":1}"})
                         .SetGandivaFilters({"bool less_than((date32[day]) col1, timestamp[us] "
                                             "castTIMESTAMP((const int64) 86400000000))"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{day0}})));
   ProcessWithFilter("col1", "col1 <= '1970-01-02'::timestamp",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"lt-eq\",\"term\":\"col1\",\"value\":1}"})
                         .SetGandivaFilters({"bool less_than_or_equal_to((date32[day]) col1, timestamp[us] "
                                             "castTIMESTAMP((const int64) 86400000000))"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{day0}, {day1}})));
   ProcessWithFilter("col1", "col1 > '1970-01-02'::timestamp",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"gt\",\"term\":\"col1\",\"value\":1}"})
                         .SetGandivaFilters({"bool greater_than((date32[day]) col1, timestamp[us] "
                                             "castTIMESTAMP((const int64) 86400000000))"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{day2}})));
   ProcessWithFilter("col1", "col1 >= '1970-01-02'::timestamp",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"gt-eq\",\"term\":\"col1\",\"value\":1}"})
                         .SetGandivaFilters({"bool greater_than_or_equal_to((date32[day]) col1, "
                                             "timestamp[us] castTIMESTAMP((const int64) 86400000000))"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{day1}, {day2}})));
   ProcessWithFilter("col1", "col1 = '1970-01-02'::timestamp",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"eq\",\"term\":\"col1\",\"value\":1}"})
                         .SetGandivaFilters({"bool equal((date32[day]) col1, timestamp[us] "
                                             "castTIMESTAMP((const int64) 86400000000))"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{day1}})));
   ProcessWithFilter("col1", "col1 != '1970-01-02'::timestamp",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"not-eq\",\"term\":\"col1\",\"value\":1}"})
                         .SetGandivaFilters({"bool not_equal((date32[day]) col1, timestamp[us] "
                                             "castTIMESTAMP((const int64) 86400000000))"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{day0}, {day2}})));
@@ -712,14 +613,12 @@ TEST_F(FilterComparisonOperatorTest, TimestamptzToDate) {
   ProcessWithFilter(
       "col1", "col1 < '1970-01-02 04:00:00+11'::timestamptz",
       ExpectedValues()
-          .SetIcebergFilters({"{\"type\":\"lt\",\"term\":\"col1\",\"value\":1}"})
           .SetGandivaFilters({"bool less_than((date32[day]) col1, timestamp[us] castTIMESTAMP(timestamp[us, tz=UTC] "
                               "castTIMESTAMPTZ((const int64) 61200000000), (const int64) 25200000000))"})
           .SetSelectResult(pq::ScanResult({"col1"}, {{day0}})));
   ProcessWithFilter(
       "col1", "col1 <= '1970-01-02 04:00:00+11'::timestamptz",
       ExpectedValues()
-          .SetIcebergFilters({"{\"type\":\"lt-eq\",\"term\":\"col1\",\"value\":1}"})
           .SetGandivaFilters(
               {"bool less_than_or_equal_to((date32[day]) col1, timestamp[us] castTIMESTAMP(timestamp[us, tz=UTC] "
                "castTIMESTAMPTZ((const int64) 61200000000), (const int64) 25200000000))"})
@@ -727,14 +626,12 @@ TEST_F(FilterComparisonOperatorTest, TimestamptzToDate) {
   ProcessWithFilter(
       "col1", "col1 > '1970-01-02 04:00:00+11'::timestamptz",
       ExpectedValues()
-          .SetIcebergFilters({"{\"type\":\"gt\",\"term\":\"col1\",\"value\":1}"})
           .SetGandivaFilters({"bool greater_than((date32[day]) col1, timestamp[us] castTIMESTAMP(timestamp[us, tz=UTC] "
                               "castTIMESTAMPTZ((const int64) 61200000000), (const int64) 25200000000))"})
           .SetSelectResult(pq::ScanResult({"col1"}, {{day2}})));
   ProcessWithFilter(
       "col1", "col1 >= '1970-01-02 04:00:00+11'::timestamptz",
       ExpectedValues()
-          .SetIcebergFilters({"{\"type\":\"gt-eq\",\"term\":\"col1\",\"value\":1}"})
           .SetGandivaFilters(
               {"bool greater_than_or_equal_to((date32[day]) col1, timestamp[us] castTIMESTAMP(timestamp[us, tz=UTC] "
                "castTIMESTAMPTZ((const int64) 61200000000), (const int64) 25200000000))"})
@@ -742,14 +639,12 @@ TEST_F(FilterComparisonOperatorTest, TimestamptzToDate) {
   ProcessWithFilter(
       "col1", "col1 = '1970-01-02 04:00:00+11'::timestamptz",
       ExpectedValues()
-          .SetIcebergFilters({"{\"type\":\"eq\",\"term\":\"col1\",\"value\":1}"})
           .SetGandivaFilters({"bool equal((date32[day]) col1, timestamp[us] castTIMESTAMP(timestamp[us, tz=UTC] "
                               "castTIMESTAMPTZ((const int64) 61200000000), (const int64) 25200000000))"})
           .SetSelectResult(pq::ScanResult({"col1"}, {{day1}})));
   ProcessWithFilter(
       "col1", "col1 != '1970-01-02 04:00:00+11'::timestamptz",
       ExpectedValues()
-          .SetIcebergFilters({"{\"type\":\"not-eq\",\"term\":\"col1\",\"value\":1}"})
           .SetGandivaFilters({"bool not_equal((date32[day]) col1, timestamp[us] castTIMESTAMP(timestamp[us, tz=UTC] "
                               "castTIMESTAMPTZ((const int64) 61200000000), (const int64) 25200000000))"})
           .SetSelectResult(pq::ScanResult({"col1"}, {{day0}, {day2}})));
@@ -762,29 +657,17 @@ TEST_F(FilterComparisonOperatorTest, Time) {
   auto column1 = MakeTimeColumn("col1", 1, OptionalVector<int64_t>{std::nullopt, 122, 123, 124});
   PrepareData({column1}, {GreenplumColumnInfo{.name = "col1", .type = "time"}});
   ProcessWithFilter("col1", "col1 < '00:00:00.000123'",
-                    ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"lt\",\"term\":\"col1\",\"value\":123}"})
-                        .SetSelectResult(pq::ScanResult({"col1"}, {{time122}})));
+                    ExpectedValues().SetSelectResult(pq::ScanResult({"col1"}, {{time122}})));
   ProcessWithFilter("col1", "col1 <= '00:00:00.000123'",
-                    ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"lt-eq\",\"term\":\"col1\",\"value\":123}"})
-                        .SetSelectResult(pq::ScanResult({"col1"}, {{time122}, {time123}})));
+                    ExpectedValues().SetSelectResult(pq::ScanResult({"col1"}, {{time122}, {time123}})));
   ProcessWithFilter("col1", "col1 > '00:00:00.000123'",
-                    ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"gt\",\"term\":\"col1\",\"value\":123}"})
-                        .SetSelectResult(pq::ScanResult({"col1"}, {{time124}})));
+                    ExpectedValues().SetSelectResult(pq::ScanResult({"col1"}, {{time124}})));
   ProcessWithFilter("col1", "col1 >= '00:00:00.000123'",
-                    ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"gt-eq\",\"term\":\"col1\",\"value\":123}"})
-                        .SetSelectResult(pq::ScanResult({"col1"}, {{time123}, {time124}})));
+                    ExpectedValues().SetSelectResult(pq::ScanResult({"col1"}, {{time123}, {time124}})));
   ProcessWithFilter("col1", "col1 = '00:00:00.000123'",
-                    ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"eq\",\"term\":\"col1\",\"value\":123}"})
-                        .SetSelectResult(pq::ScanResult({"col1"}, {{time123}})));
+                    ExpectedValues().SetSelectResult(pq::ScanResult({"col1"}, {{time123}})));
   ProcessWithFilter("col1", "col1 != '00:00:00.000123'",
-                    ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"not-eq\",\"term\":\"col1\",\"value\":123}"})
-                        .SetSelectResult(pq::ScanResult({"col1"}, {{time122}, {time124}})));
+                    ExpectedValues().SetSelectResult(pq::ScanResult({"col1"}, {{time122}, {time124}})));
 }
 
 TEST_F(FilterComparisonOperatorTest, DateToTimestamp) {
@@ -796,37 +679,31 @@ TEST_F(FilterComparisonOperatorTest, DateToTimestamp) {
   ASSERT_OK(pq::SetTimeZone(*conn_, 7));
   ProcessWithFilter("col1", "col1 < '1970-01-02'::date",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"lt\",\"term\":\"col1\",\"value\":86400000000}"})
                         .SetGandivaFilters({"bool less_than((timestamp[us]) col1, "
                                             "date32[day] castDate((const int32) 1))"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{timestamp0}})));
   ProcessWithFilter("col1", "col1 <= '1970-01-02'::date",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"lt-eq\",\"term\":\"col1\",\"value\":86400000000}"})
                         .SetGandivaFilters({"bool less_than_or_equal_to((timestamp[us]) "
                                             "col1, date32[day] castDate((const int32) 1))"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{timestamp0}, {timestamp1}})));
   ProcessWithFilter("col1", "col1 > '1970-01-02'::date",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"gt\",\"term\":\"col1\",\"value\":86400000000}"})
                         .SetGandivaFilters({"bool greater_than((timestamp[us]) col1, "
                                             "date32[day] castDate((const int32) 1))"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{timestamp2}})));
   ProcessWithFilter("col1", "col1 >= '1970-01-02'::date",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"gt-eq\",\"term\":\"col1\",\"value\":86400000000}"})
                         .SetGandivaFilters({"bool greater_than_or_equal_to((timestamp[us]) "
                                             "col1, date32[day] castDate((const int32) 1))"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{timestamp1}, {timestamp2}})));
   ProcessWithFilter("col1", "col1 = '1970-01-02'::date",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"eq\",\"term\":\"col1\",\"value\":86400000000}"})
                         .SetGandivaFilters({"bool equal((timestamp[us]) col1, date32[day] "
                                             "castDate((const int32) 1))"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{timestamp1}})));
   ProcessWithFilter("col1", "col1 != '1970-01-02'::date",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"not-eq\",\"term\":\"col1\",\"value\":86400000000}"})
                         .SetGandivaFilters({"bool not_equal((timestamp[us]) col1, "
                                             "date32[day] castDate((const int32) 1))"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{timestamp0}, {timestamp2}})));
@@ -841,37 +718,31 @@ TEST_F(FilterComparisonOperatorTest, Timestamp) {
   ASSERT_OK(pq::SetTimeZone(*conn_, 7));
   ProcessWithFilter("col1", "col1 < '1970-01-02'::timestamp",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"lt\",\"term\":\"col1\",\"value\":86400000000}"})
                         .SetGandivaFilters({"bool less_than((timestamp[us]) col1, timestamp[us] "
                                             "castTIMESTAMP((const int64) 86400000000))"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{timestamp0}})));
   ProcessWithFilter("col1", "col1 <= '1970-01-02'::timestamp",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"lt-eq\",\"term\":\"col1\",\"value\":86400000000}"})
                         .SetGandivaFilters({"bool less_than_or_equal_to((timestamp[us]) col1, timestamp[us] "
                                             "castTIMESTAMP((const int64) 86400000000))"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{timestamp0}, {timestamp1}})));
   ProcessWithFilter("col1", "col1 > '1970-01-02'::timestamp",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"gt\",\"term\":\"col1\",\"value\":86400000000}"})
                         .SetGandivaFilters({"bool greater_than((timestamp[us]) col1, timestamp[us] "
                                             "castTIMESTAMP((const int64) 86400000000))"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{timestamp2}})));
   ProcessWithFilter("col1", "col1 >= '1970-01-02'::timestamp",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"gt-eq\",\"term\":\"col1\",\"value\":86400000000}"})
                         .SetGandivaFilters({"bool greater_than_or_equal_to((timestamp[us]) col1, "
                                             "timestamp[us] castTIMESTAMP((const int64) 86400000000))"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{timestamp1}, {timestamp2}})));
   ProcessWithFilter("col1", "col1 = '1970-01-02'::timestamp",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"eq\",\"term\":\"col1\",\"value\":86400000000}"})
                         .SetGandivaFilters({"bool equal((timestamp[us]) col1, timestamp[us] "
                                             "castTIMESTAMP((const int64) 86400000000))"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{timestamp1}})));
   ProcessWithFilter("col1", "col1 != '1970-01-02'::timestamp",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"not-eq\",\"term\":\"col1\",\"value\":86400000000}"})
                         .SetGandivaFilters({"bool not_equal((timestamp[us]) col1, timestamp[us] "
                                             "castTIMESTAMP((const int64) 86400000000))"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{timestamp0}, {timestamp2}})));
@@ -887,14 +758,12 @@ TEST_F(FilterComparisonOperatorTest, TimestamptzToTimestamp) {
   ProcessWithFilter(
       "col1", "col1 < '1970-01-02 04:00:00+11'::timestamptz",
       ExpectedValues()
-          .SetIcebergFilters({"{\"type\":\"lt\",\"term\":\"col1\",\"value\":86400000000}"})
           .SetGandivaFilters({"bool less_than((timestamp[us]) col1, timestamp[us] castTIMESTAMP(timestamp[us, tz=UTC] "
                               "castTIMESTAMPTZ((const int64) 61200000000), (const int64) 25200000000))"})
           .SetSelectResult(pq::ScanResult({"col1"}, {{timestamp0}})));
   ProcessWithFilter(
       "col1", "col1 <= '1970-01-02 04:00:00+11'::timestamptz",
       ExpectedValues()
-          .SetIcebergFilters({"{\"type\":\"lt-eq\",\"term\":\"col1\",\"value\":86400000000}"})
           .SetGandivaFilters(
               {"bool less_than_or_equal_to((timestamp[us]) col1, timestamp[us] castTIMESTAMP(timestamp[us, tz=UTC] "
                "castTIMESTAMPTZ((const int64) 61200000000), (const int64) 25200000000))"})
@@ -902,7 +771,6 @@ TEST_F(FilterComparisonOperatorTest, TimestamptzToTimestamp) {
   ProcessWithFilter(
       "col1", "col1 >'1970-01-02 04:00:00+11'::timestamptz",
       ExpectedValues()
-          .SetIcebergFilters({"{\"type\":\"gt\",\"term\":\"col1\",\"value\":86400000000}"})
           .SetGandivaFilters(
               {"bool greater_than((timestamp[us]) col1, timestamp[us] castTIMESTAMP(timestamp[us, tz=UTC] "
                "castTIMESTAMPTZ((const int64) 61200000000), (const int64) 25200000000))"})
@@ -910,7 +778,6 @@ TEST_F(FilterComparisonOperatorTest, TimestamptzToTimestamp) {
   ProcessWithFilter(
       "col1", "col1 >= '1970-01-02 04:00:00+11'::timestamptz",
       ExpectedValues()
-          .SetIcebergFilters({"{\"type\":\"gt-eq\",\"term\":\"col1\",\"value\":86400000000}"})
           .SetGandivaFilters(
               {"bool greater_than_or_equal_to((timestamp[us]) col1, timestamp[us] castTIMESTAMP(timestamp[us, tz=UTC] "
                "castTIMESTAMPTZ((const int64) 61200000000), (const int64) 25200000000))"})
@@ -918,14 +785,12 @@ TEST_F(FilterComparisonOperatorTest, TimestamptzToTimestamp) {
   ProcessWithFilter(
       "col1", "col1 = '1970-01-02 04:00:00+11'::timestamptz",
       ExpectedValues()
-          .SetIcebergFilters({"{\"type\":\"eq\",\"term\":\"col1\",\"value\":86400000000}"})
           .SetGandivaFilters({"bool equal((timestamp[us]) col1, timestamp[us] castTIMESTAMP(timestamp[us, tz=UTC] "
                               "castTIMESTAMPTZ((const int64) 61200000000), (const int64) 25200000000))"})
           .SetSelectResult(pq::ScanResult({"col1"}, {{timestamp1}})));
   ProcessWithFilter(
       "col1", "col1 != '1970-01-02 04:00:00+11'::timestamptz",
       ExpectedValues()
-          .SetIcebergFilters({"{\"type\":\"not-eq\",\"term\":\"col1\",\"value\":86400000000}"})
           .SetGandivaFilters({"bool not_equal((timestamp[us]) col1, timestamp[us] castTIMESTAMP(timestamp[us, tz=UTC] "
                               "castTIMESTAMPTZ((const int64) 61200000000), (const int64) 25200000000))"})
           .SetSelectResult(pq::ScanResult({"col1"}, {{timestamp0}, {timestamp2}})));
@@ -942,39 +807,33 @@ TEST_F(FilterComparisonOperatorTest, Timestamptz) {
   ASSERT_OK(pq::SetTimeZone(*conn_, 7));
   ProcessWithFilter("col1", "col1 < '1970-01-02 04:00:00+11'::timestamptz",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"lt\",\"term\":\"col1\",\"value\":61200000000}"})
                         .SetGandivaFilters({"bool less_than((timestamp[us, tz=UTC]) col1, timestamp[us, tz=UTC] "
                                             "castTIMESTAMPTZ((const int64) 61200000000))"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{timestamptz0}})));
   ProcessWithFilter(
       "col1", "col1 <= '1970-01-02 04:00:00+11'::timestamptz",
       ExpectedValues()
-          .SetIcebergFilters({"{\"type\":\"lt-eq\",\"term\":\"col1\",\"value\":61200000000}"})
           .SetGandivaFilters({"bool less_than_or_equal_to((timestamp[us, tz=UTC]) col1, timestamp[us, tz=UTC] "
                               "castTIMESTAMPTZ((const int64) 61200000000))"})
           .SetSelectResult(pq::ScanResult({"col1"}, {{timestamptz0}, {timestamptz1}})));
   ProcessWithFilter("col1", "col1 > '1970-01-02 04:00:00+11'::timestamptz",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"gt\",\"term\":\"col1\",\"value\":61200000000}"})
                         .SetGandivaFilters({"bool greater_than((timestamp[us, tz=UTC]) col1, timestamp[us, tz=UTC] "
                                             "castTIMESTAMPTZ((const int64) 61200000000))"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{timestamptz2}})));
   ProcessWithFilter(
       "col1", "col1 >= '1970-01-02 04:00:00+11'::timestamptz",
       ExpectedValues()
-          .SetIcebergFilters({"{\"type\":\"gt-eq\",\"term\":\"col1\",\"value\":61200000000}"})
           .SetGandivaFilters({"bool greater_than_or_equal_to((timestamp[us, tz=UTC]) col1, timestamp[us, tz=UTC] "
                               "castTIMESTAMPTZ((const int64) 61200000000))"})
           .SetSelectResult(pq::ScanResult({"col1"}, {{timestamptz1}, {timestamptz2}})));
   ProcessWithFilter("col1", "col1 = '1970-01-02 04:00:00+11'::timestamptz",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"eq\",\"term\":\"col1\",\"value\":61200000000}"})
                         .SetGandivaFilters({"bool equal((timestamp[us, tz=UTC]) col1, timestamp[us, tz=UTC] "
                                             "castTIMESTAMPTZ((const int64) 61200000000))"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{timestamptz1}})));
   ProcessWithFilter("col1", "col1 != '1970-01-02 04:00:00+11'::timestamptz",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"not-eq\",\"term\":\"col1\",\"value\":61200000000}"})
                         .SetGandivaFilters({"bool not_equal((timestamp[us, tz=UTC]) col1, timestamp[us, tz=UTC] "
                                             "castTIMESTAMPTZ((const int64) 61200000000))"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{timestamptz0}, {timestamptz2}})));
@@ -991,40 +850,34 @@ TEST_F(FilterComparisonOperatorTest, DateToTimestamptz) {
   ASSERT_OK(pq::SetTimeZone(*conn_, 7));
   ProcessWithFilter("col1", "col1 < '1970-01-02'::date",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"lt\",\"term\":\"col1\",\"value\":61200000000}"})
                         .SetGandivaFilters({"bool less_than(timestamp[us] castTIMESTAMP((timestamp[us, tz=UTC]) col1, "
                                             "(const int64) 25200000000), date32[day] castDate((const int32) 1))"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{timestamptz0}})));
   ProcessWithFilter(
       "col1", "col1 <= '1970-01-02'::date",
       ExpectedValues()
-          .SetIcebergFilters({"{\"type\":\"lt-eq\",\"term\":\"col1\",\"value\":61200000000}"})
           .SetGandivaFilters({"bool less_than_or_equal_to(timestamp[us] castTIMESTAMP((timestamp[us, tz=UTC]) col1, "
                               "(const int64) 25200000000), date32[day] castDate((const int32) 1))"})
           .SetSelectResult(pq::ScanResult({"col1"}, {{timestamptz0}, {timestamptz1}})));
   ProcessWithFilter(
       "col1", "col1 > '1970-01-02'::date",
       ExpectedValues()
-          .SetIcebergFilters({"{\"type\":\"gt\",\"term\":\"col1\",\"value\":61200000000}"})
           .SetGandivaFilters({"bool greater_than(timestamp[us] castTIMESTAMP((timestamp[us, tz=UTC]) col1, "
                               "(const int64) 25200000000), date32[day] castDate((const int32) 1))"})
           .SetSelectResult(pq::ScanResult({"col1"}, {{timestamptz2}})));
   ProcessWithFilter(
       "col1", "col1 >= '1970-01-02'::date",
       ExpectedValues()
-          .SetIcebergFilters({"{\"type\":\"gt-eq\",\"term\":\"col1\",\"value\":61200000000}"})
           .SetGandivaFilters({"bool greater_than_or_equal_to(timestamp[us] castTIMESTAMP((timestamp[us, tz=UTC]) col1, "
                               "(const int64) 25200000000), date32[day] castDate((const int32) 1))"})
           .SetSelectResult(pq::ScanResult({"col1"}, {{timestamptz1}, {timestamptz2}})));
   ProcessWithFilter("col1", "col1 = '1970-01-02'::date",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"eq\",\"term\":\"col1\",\"value\":61200000000}"})
                         .SetGandivaFilters({"bool equal(timestamp[us] castTIMESTAMP((timestamp[us, tz=UTC]) col1, "
                                             "(const int64) 25200000000), date32[day] castDate((const int32) 1))"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{timestamptz1}})));
   ProcessWithFilter("col1", "col1 != '1970-01-02'::date",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"not-eq\",\"term\":\"col1\",\"value\":61200000000}"})
                         .SetGandivaFilters({"bool not_equal(timestamp[us] castTIMESTAMP((timestamp[us, tz=UTC]) col1, "
                                             "(const int64) 25200000000), date32[day] castDate((const int32) 1))"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{timestamptz0}, {timestamptz2}})));
@@ -1042,14 +895,12 @@ TEST_F(FilterComparisonOperatorTest, TimestampToTimestamptz) {
   ProcessWithFilter(
       "col1", "col1 < '1970-01-02 00:00:00+05'::timestamp",
       ExpectedValues()
-          .SetIcebergFilters({"{\"type\":\"lt\",\"term\":\"col1\",\"value\":61200000000}"})
           .SetGandivaFilters({"bool less_than(timestamp[us] castTIMESTAMP((timestamp[us, tz=UTC]) col1, (const int64) "
                               "25200000000), timestamp[us] castTIMESTAMP((const int64) 86400000000))"})
           .SetSelectResult(pq::ScanResult({"col1"}, {{timestamptz0}})));
   ProcessWithFilter(
       "col1", "col1 <= '1970-01-02 00:00:00+05'::timestamp",
       ExpectedValues()
-          .SetIcebergFilters({"{\"type\":\"lt-eq\",\"term\":\"col1\",\"value\":61200000000}"})
           .SetGandivaFilters(
               {"bool less_than_or_equal_to(timestamp[us] castTIMESTAMP((timestamp[us, tz=UTC]) col1, (const int64) "
                "25200000000), timestamp[us] castTIMESTAMP((const int64) 86400000000))"})
@@ -1057,7 +908,6 @@ TEST_F(FilterComparisonOperatorTest, TimestampToTimestamptz) {
   ProcessWithFilter(
       "col1", "col1 > '1970-01-02 00:00:00+05'::timestamp",
       ExpectedValues()
-          .SetIcebergFilters({"{\"type\":\"gt\",\"term\":\"col1\",\"value\":61200000000}"})
           .SetGandivaFilters(
               {"bool greater_than(timestamp[us] castTIMESTAMP((timestamp[us, tz=UTC]) col1, (const int64) "
                "25200000000), timestamp[us] castTIMESTAMP((const int64) 86400000000))"})
@@ -1065,7 +915,6 @@ TEST_F(FilterComparisonOperatorTest, TimestampToTimestamptz) {
   ProcessWithFilter(
       "col1", "col1 >= '1970-01-02 00:00:00+05'::timestamp",
       ExpectedValues()
-          .SetIcebergFilters({"{\"type\":\"gt-eq\",\"term\":\"col1\",\"value\":61200000000}"})
           .SetGandivaFilters(
               {"bool greater_than_or_equal_to(timestamp[us] castTIMESTAMP((timestamp[us, tz=UTC]) col1, (const int64) "
                "25200000000), timestamp[us] castTIMESTAMP((const int64) 86400000000))"})
@@ -1073,14 +922,12 @@ TEST_F(FilterComparisonOperatorTest, TimestampToTimestamptz) {
   ProcessWithFilter(
       "col1", "col1 = '1970-01-02 00:00:00+05'::timestamp",
       ExpectedValues()
-          .SetIcebergFilters({"{\"type\":\"eq\",\"term\":\"col1\",\"value\":61200000000}"})
           .SetGandivaFilters({"bool equal(timestamp[us] castTIMESTAMP((timestamp[us, tz=UTC]) col1, (const int64) "
                               "25200000000), timestamp[us] castTIMESTAMP((const int64) 86400000000))"})
           .SetSelectResult(pq::ScanResult({"col1"}, {{timestamptz1}})));
   ProcessWithFilter(
       "col1", "col1 != '1970-01-02 00:00:00+05'::timestamp",
       ExpectedValues()
-          .SetIcebergFilters({"{\"type\":\"not-eq\",\"term\":\"col1\",\"value\":61200000000}"})
           .SetGandivaFilters({"bool not_equal(timestamp[us] castTIMESTAMP((timestamp[us, tz=UTC]) col1, (const int64) "
                               "25200000000), timestamp[us] castTIMESTAMP((const int64) 86400000000))"})
           .SetSelectResult(pq::ScanResult({"col1"}, {{timestamptz0}, {timestamptz2}})));
@@ -1094,37 +941,31 @@ TEST_F(FilterComparisonOperatorTest, Numeric) {
   PrepareData({column1}, {GreenplumColumnInfo{.name = "col1", .type = "numeric (7, 2)"}});
   ProcessWithFilter("col1", "col1 < 1.23",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"lt\",\"term\":\"col1\",\"value\":\"1.23\"}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{num122}}))
                         .SetGandivaFilters({"bool less_than((decimal128(7, 2)) col1, (const "
                                             "decimal128(3, 2)) 123,3,2)"}));
   ProcessWithFilter("col1", "col1 <= 1.23",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"lt-eq\",\"term\":\"col1\",\"value\":\"1.23\"}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{num122}, {num123}}))
                         .SetGandivaFilters({"bool less_than_or_equal_to((decimal128(7, 2)) col1, (const "
                                             "decimal128(3, 2)) 123,3,2)"}));
   ProcessWithFilter("col1", "col1 > 1.23",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"gt\",\"term\":\"col1\",\"value\":\"1.23\"}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{num124}}))
                         .SetGandivaFilters({"bool greater_than((decimal128(7, 2)) col1, (const "
                                             "decimal128(3, 2)) 123,3,2)"}));
   ProcessWithFilter("col1", "col1 >= 1.23",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"gt-eq\",\"term\":\"col1\",\"value\":\"1.23\"}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{num123}, {num124}}))
                         .SetGandivaFilters({"bool greater_than_or_equal_to((decimal128(7, 2)) col1, (const "
                                             "decimal128(3, 2)) 123,3,2)"}));
   ProcessWithFilter("col1", "col1 = 1.23",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"eq\",\"term\":\"col1\",\"value\":\"1.23\"}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{num123}}))
                         .SetGandivaFilters({"bool equal((decimal128(7, 2)) col1, (const "
                                             "decimal128(3, 2)) 123,3,2)"}));
   ProcessWithFilter("col1", "col1 != 1.23",
                     ExpectedValues()
-                        .SetIcebergFilters({"{\"type\":\"not-eq\",\"term\":\"col1\",\"value\":\"1.23\"}"})
                         .SetSelectResult(pq::ScanResult({"col1"}, {{num122}, {num124}}))
                         .SetGandivaFilters({"bool not_equal((decimal128(7, 2)) col1, (const "
                                             "decimal128(3, 2)) 123,3,2)"}));
@@ -1139,7 +980,6 @@ TEST_F(FilterComparisonOperatorTest, NumericZero) {
   ProcessWithFilter(
       "col1", "col1 <= 0",
       ExpectedValues()
-          .SetIcebergFilters({"{\"type\":\"lt-eq\",\"term\":\"col1\",\"value\":\"0\"}"})
           .SetSelectResult(pq::ScanResult({"col1"}, {{num122}}))
           .SetGandivaFilters({"bool less_than_or_equal_to((decimal128(7, 2)) col1, (const decimal128(1, 0)) 0,1,0)"}));
 }

@@ -7,7 +7,6 @@
 #include "tea/smoke_test/environment.h"
 #include "tea/smoke_test/pq.h"
 
-ABSL_FLAG(std::string, metadata_type, "", "Table type to test (teapot or iceberg)");
 ABSL_FLAG(std::string, table_type, "", "Table type to test (external or foreign)");
 ABSL_FLAG(std::string, profile, "", "Profiles to test");
 ABSL_FLAG(bool, verbose, false, "Print logs to stderr");
@@ -26,15 +25,6 @@ int main(int argc, char** argv) {
 
   if (FLAGS_profile.IsSpecifiedOnCommandLine()) {
     tea::Environment::SetProfile(FLAGS_profile.CurrentValue());
-  }
-
-  if (FLAGS_metadata_type.IsSpecifiedOnCommandLine()) {
-    auto type = tea::MetadataTypeFromString(FLAGS_metadata_type.CurrentValue());
-    if (type == std::nullopt) {
-      std::cerr << "Unknown metadata_type" << std::endl;
-      return 1;
-    }
-    tea::Environment::SetMetadataType(type.value());
   }
 
   const bool verbose = absl::GetFlag(FLAGS_verbose);

@@ -7,7 +7,6 @@
 #include "tea/smoke_test/environment.h"
 #include "tea/smoke_test/pq.h"
 #include "tea/smoke_test/stats_state.h"
-#include "tea/smoke_test/teapot_test_base.h"
 #include "tea/smoke_test/test_base.h"
 #include "tea/test_utils/metadata.h"
 
@@ -17,10 +16,10 @@ namespace {
 class RealParquetTest : public TeaTest {};
 
 TEST_F(RealParquetTest, FileOffsetInRowGroupIsNotSet) {
-  if (Environment::GetMetadataType() != MetadataType::kTeapot) {
-    GTEST_SKIP() << "Skip test for teapot";
-  }
-  ASSERT_OK(state_->AddDataFiles({"s3://warehouse/parquet/no_row_group_file_offset.parquet"}));
+  char path[PATH_MAX];
+  EXPECT_NE(getcwd(path, sizeof(path)), nullptr);
+  ASSERT_OK(state_->AddDataFiles(
+      {std::string("file://") + path + "/test/iceberg/warehouse/parquet/no_row_group_file_offset.parquet"}));
 
   ASSIGN_OR_FAIL(auto defer, state_->CreateTable({GreenplumColumnInfo{.name = "value", .type = "int4"},
                                                   GreenplumColumnInfo{.name = "processed_dttm", .type = "timestamp"}}));

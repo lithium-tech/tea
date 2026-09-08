@@ -8,7 +8,6 @@
 
 #include "tea/smoke_test/fragment_info.h"
 #include "tea/smoke_test/pq.h"
-#include "tea/smoke_test/teapot_test_base.h"
 #include "tea/smoke_test/test_base.h"
 #include "tea/test_utils/column.h"
 #include "tea/test_utils/metadata.h"
@@ -253,121 +252,6 @@ TEST_F(EqualityDeleteTest, OneFragmentMultipleDeletesDifferentFields) {
   ASSIGN_OR_FAIL(pq::ScanResult result, pq::TableScanQuery(kDefaultTableName, "col1").Run(*conn_));
   auto expected = pq::ScanResult({"col1"}, {{"5"}, {"6"}, {"8"}, {"9"}});
   EXPECT_EQ(result, expected);
-}
-
-class EqualityDeleteTeapotTest : public TeapotTest {};
-
-TEST_F(EqualityDeleteTeapotTest, DifferentDeletesSameData) {
-  auto column1 = MakeInt64Column("col1", 1, OptionalVector<int64_t>{1, 2, 3, 4, 5, 6, 7, 8, 9});
-  auto column2 = MakeInt64Column("col2", 2, OptionalVector<int64_t>{1, 2, 3, 1, 2, 3, 1, 2, 3});
-  ASSIGN_OR_FAIL(auto data_path, state_->WriteFile({column1, column2}, FromRgSizes({3, 3, 3})));
-
-  auto column3 = MakeInt64Column("col3", 2, OptionalVector<int64_t>{1});
-  ASSIGN_OR_FAIL(auto del1_path, state_->WriteFile({column3}));
-
-  auto column4 = MakeInt64Column("col4", 2, OptionalVector<int64_t>{2});
-  ASSIGN_OR_FAIL(auto del2_path, state_->WriteFile({column4}));
-
-  auto column5 = MakeInt64Column("col5", 2, OptionalVector<int64_t>{3});
-  ASSIGN_OR_FAIL(auto del3_path, state_->WriteFile({column5}));
-
-  auto offsets = GetParquetRowGroupOffsets(data_path);
-  SetTeapotResponse({FragmentInfo(data_path).AddEqualityDelete(del1_path, {2}).SetPosition(offsets[0]),
-                     FragmentInfo(data_path).AddEqualityDelete(del2_path, {2}).SetPosition(offsets[1]),
-                     FragmentInfo(data_path).AddEqualityDelete(del3_path, {2}).SetPosition(offsets[2])});
-
-  EXPECT_NE(pq::TableScanQuery(kDefaultTableName, "col1").Run(*conn_).status(), arrow::Status::OK());
-}
-
-TEST_F(EqualityDeleteTeapotTest, MultipleDataSameDeletes) {
-  constexpr int kDataFiles = 100;
-  constexpr int kDeleteFiles = 5;
-
-  std::string str_a = "a";
-  std::string str_b = "b";
-  std::string str_c = "c";
-  std::vector<FilePath> data_paths;
-  for (int i = 0; i < kDataFiles; ++i) {
-    auto column1 = MakeInt64Column("col1", 1, OptionalVector<int64_t>{1, 2, 3, 4, 5, 6, 7, 8, 9});
-    auto column2 = MakeInt64Column("col2", 2, OptionalVector<int64_t>{1, 2, 3, 1, 2, 3, 1, 2, 3});
-    auto column3 = MakeStringColumn(
-        "col3", 42, std::vector<std::string*>{&str_a, &str_a, &str_a, &str_b, &str_b, &str_b, &str_c, &str_c, &str_c});
-    ASSIGN_OR_FAIL(auto data_path, state_->WriteFile({column1, column2, column3}));
-    data_paths.emplace_back(data_path);
-  }
-  std::vector<std::string> delete_paths;
-  for (int i = 0; i < kDeleteFiles; ++i) {
-    auto column4 = MakeInt64Column("col3", 2, OptionalVector<int64_t>{2});
-    ASSIGN_OR_FAIL(auto delete_path, state_->WriteFile({column4}));
-    ASSERT_OK(WriteToFile({column4}, delete_path));
-    delete_paths.emplace_back(delete_path);
-  }
-
-  std::vector<FragmentInfo> infos;
-  for (size_t i = 0; i < kDataFiles; ++i) {
-    const std::string& data_path = data_paths[i];
-    auto offsets = GetParquetRowGroupOffsets(data_path);
-    auto frag = FragmentInfo(data_path);
-    for (size_t j = 0; j < i % kDeleteFiles; ++j) {
-      frag = std::move(frag).AddEqualityDelete(delete_paths[i % kDeleteFiles], {2});
-    }
-    infos.emplace_back(std::move(frag));
-  }
-  ASSIGN_OR_FAIL(auto defer, state_->CreateTable({GreenplumColumnInfo{.name = "col1", .type = "int8"},
-                                                  GreenplumColumnInfo{.name = "col2", .type = "int8"}}))
-
-  SetTeapotResponse(std::move(infos));
-
-  ASSIGN_OR_FAIL(pq::ScanResult result, pq::TableScanQuery(kDefaultTableName, "col1").Run(*conn_));
-}
-
-TEST_F(EqualityDeleteTeapotTest, RandomTests) {
-  for (const uint32_t kDataFiles : {5, 10, 50}) {
-    for (const uint32_t kDeleteFiles : {5, 10, 50}) {
-      std::mt19937 rnd(42);
-
-      std::string str_a = "a";
-      std::string str_b = "b";
-      std::string str_c = "c";
-      std::vector<std::string> data_paths;
-      for (uint32_t i = 0; i < kDataFiles; ++i) {
-        auto column1 = MakeInt64Column("col1", 1, OptionalVector<int64_t>{1, 2, 3, 4, 5, 6, 7, 8, 9});
-        auto column2 = MakeInt64Column("col2", 2, OptionalVector<int64_t>{1, 2, 3, 1, 2, 3, 1, 2, 3});
-        auto column3 = MakeStringColumn(
-            "col3", 42,
-            std::vector<std::string*>{&str_a, &str_a, &str_a, &str_b, &str_b, &str_b, &str_c, &str_c, &str_c});
-
-        ASSIGN_OR_FAIL(auto data_path, state_->WriteFile({column1, column2, column3}));
-        data_paths.emplace_back(data_path);
-      }
-
-      std::vector<std::string> delete_paths;
-      for (uint32_t i = 0; i < kDeleteFiles; ++i) {
-        auto column4 = MakeInt64Column("col3", 2, OptionalVector<int64_t>{2});
-        ASSIGN_OR_FAIL(auto delete_path, state_->WriteFile({column4}));
-        delete_paths.emplace_back(delete_path);
-      }
-
-      ASSIGN_OR_FAIL(auto defer, state_->CreateTable({GreenplumColumnInfo{.name = "col1", .type = "int8"},
-                                                      GreenplumColumnInfo{.name = "col2", .type = "int8"},
-                                                      GreenplumColumnInfo{.name = "col3", .type = "text"}}));
-
-      std::vector<FragmentInfo> infos;
-      for (size_t i = 0; i < kDataFiles; ++i) {
-        const std::string& data_path = data_paths[i];
-        auto offsets = GetParquetRowGroupOffsets(data_path);
-        auto frag = FragmentInfo(data_path);
-        uint32_t deletes_to_append = rnd() % kDeleteFiles;
-        for (size_t j = 0; j < deletes_to_append; ++j) {
-          frag = std::move(frag).AddEqualityDelete(delete_paths[rnd() % kDeleteFiles], {2});
-        }
-        infos.emplace_back(std::move(frag));
-      }
-      SetTeapotResponse(std::move(infos));
-
-      ASSIGN_OR_FAIL(pq::ScanResult result, pq::TableScanQuery(kDefaultTableName, "col1").Run(*conn_));
-    }
-  }
 }
 
 }  // namespace
