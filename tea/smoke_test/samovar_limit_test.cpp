@@ -18,7 +18,7 @@ class SamovarLimitTest : public TeaTest {
  protected:
   void SetUp() override {
     if (Environment::GetProfile() != "samovar") {
-      GTEST_SKIP() << "Skip test only for iceberg with Samovar profile";
+      GTEST_SKIP() << "Skip test only for Samovar profile";
     }
     TeaTest::SetUp();
   }
