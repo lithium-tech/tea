@@ -23,7 +23,7 @@ inline int64_t MeasureTicks() {
   clock_gettime(CLOCK_MONOTONIC, &ts);
   return (int64_t)ts.tv_sec * 1000000000LL + (int64_t)ts.tv_nsec;
 #else
-  static_assert(false, "MeasureTicks not implemented for this architecture");
+  static_assert(false, "MeasureTicks is not implemented for this architecture");
 #endif
 }
 
