@@ -13,7 +13,7 @@
     },
     "common_config": {
         "limits": {
-            "equality_delete_max_rows": 100
+            "max_total_s3_bytes_read": 1000000000
         }
     },
     "profile-to-username": {
@@ -23,7 +23,7 @@
     "profiles": {
         "someprofile1": {
             "limits": {
-                "equality_delete_max_rows": 1000000
+                "max_total_s3_bytes_read": 10000
             }
         }
     }

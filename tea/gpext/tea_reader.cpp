@@ -454,7 +454,11 @@ void UpdateConfig(const std::string& profile_to_tables_path, std::shared_ptr<ice
     if (!maybe_username_to_profile.ok()) {
       TEA_LOG(maybe_username_to_profile.status().message());
     } else if (auto username_to_profile = maybe_username_to_profile.MoveValueUnsafe(); !username_to_profile.empty()) {
+#ifdef OPENGPDB
+      std::string session_user = GetUserNameFromId(GetSessionUserId(), false);
+#else
       std::string session_user = GetUserNameFromId(GetSessionUserId());
+#endif
       if (auto it = username_to_profile.find(session_user); it != username_to_profile.end()) {
         TEA_LOG("Profile for user '" + session_user + "' is overrided as " + it->second);
         if (auto status = tea::ApplyUserProfileOverride(file_content, it->second, &config.config); !status.ok()) {
