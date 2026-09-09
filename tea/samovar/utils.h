@@ -48,6 +48,7 @@ std::string MakeSessionIdentifier(const TableSource& source, const std::string& 
                                   const std::string& session_id, const std::string& uuid, int slice_id,
                                   int scan_identifier, bool fdw_mode);
 std::string MakeQueryScansIdentifier(const std::string& cluster_id, const std::string& session_id);
+std::string MakeQueryTotalBytesReadIdentifier(const std::string& cluster_id, const std::string& session_id);
 
 bool ContainsPositionalDeletes(const samovar::ScanMetadata& scan_metadata);
 

@@ -23,7 +23,9 @@ int GetCoordinator(const std::string& session_id, const TableSource& table_sourc
 std::shared_ptr<SingleQueueClient> MakeSamovarDataClient(const SamovarConfig& config, const std::string& queue_name,
                                                          const std::string& query_scans_count_key, int segment_id,
                                                          int segment_count, SamovarRole role,
-                                                         const CancelToken& cancel_token);
+                                                         const CancelToken& cancel_token,
+                                                         const std::string& query_total_bytes_read_key,
+                                                         uint64_t max_total_s3_bytes_read);
 
 arrow::Result<PlannerStats> FillSamovar(const Config& config, iceberg::ice_tea::ScanMetadata&& meta, int segment_count,
                                         std::shared_ptr<SingleQueueClient> samovar_client);

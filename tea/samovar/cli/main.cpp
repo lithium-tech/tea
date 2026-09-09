@@ -160,9 +160,12 @@ int main(int argc, char** argv) {
 
       std::cerr << "Filling samovar" << std::endl;
       const std::string query_scans_count_key = tea::samovar::MakeQueryScansIdentifier("cluster_id", "session_id");
+      const std::string query_total_bytes_read_key =
+          tea::samovar::MakeQueryTotalBytesReadIdentifier("cluster_id", "session_id");
       auto samovar_data_client = MakeSamovarDataClient(
           config.samovar_config, queue_name, query_scans_count_key, absl::GetFlag(FLAGS_segment_id),
-          absl::GetFlag(FLAGS_segment_count), tea::samovar::SamovarRole::kCoordinator, cancel_token);
+          absl::GetFlag(FLAGS_segment_count), tea::samovar::SamovarRole::kCoordinator, cancel_token,
+          query_total_bytes_read_key, config.limits.max_total_s3_bytes_read);
 
       auto maybe_stats = tea::samovar::FillSamovar(config, std::move(iceberg_meta), absl::GetFlag(FLAGS_segment_count),
                                                    samovar_data_client);
