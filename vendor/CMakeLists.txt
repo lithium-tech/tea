@@ -30,7 +30,7 @@ FetchContent_Declare(
   iceberg-cxx
   EXCLUDE_FROM_ALL
   GIT_REPOSITORY ${GITHUB}/lithium-tech/iceberg-cxx.git
-  GIT_TAG 3e148ac96d07e9bd3a07dbe9a6ae2efdc6559f2a
+  GIT_TAG fix-unsupported-schemas
   PATCH_COMMAND git reset --hard HEAD
     && git apply ${CMAKE_CURRENT_SOURCE_DIR}/iceberg-cxx/0001-scan-metadata-schema-name-mapping.patch
 )

@@ -328,5 +328,50 @@ TEST_F(OtherEngineGeneratedTable, SnapshotSelectionNonExistent) {
   }
 }
 
+TEST_F(OtherEngineGeneratedTable, UnsupportedHistoricalSchemaLatestWorks) {
+  std::vector<GreenplumColumnInfo> columns = {GreenplumColumnInfo{.name = "c1", .type = "int4"},
+                                              GreenplumColumnInfo{.name = "c2", .type = "int4"}};
+
+  auto ice_loc = IcebergLocation("test", "unsupported_historical_schema",
+                                 Options{.profile = Environment::GetProfile()});
+  auto loc = Location(std::move(ice_loc));
+  std::optional<pq::DropTableDefer> defer;
+  if (Environment::GetTableType() == TestTableType::kForeign) {
+    ASSIGN_OR_FAIL(auto d, pq::CreateForeignTableQuery(columns, kDefaultTableName, loc).Run(*conn_));
+    defer.emplace(std::move(d));
+  } else {
+    ASSIGN_OR_FAIL(auto d, pq::CreateExternalTableQuery(columns, kDefaultTableName, loc).Run(*conn_));
+    defer.emplace(std::move(d));
+  }
+
+  ASSIGN_OR_FAIL(auto result, pq::TableScanQuery(kDefaultTableName).Run(*conn_));
+  EXPECT_EQ(result.values.size(), 8);
+}
+
+TEST_F(OtherEngineGeneratedTable, UnsupportedHistoricalSchemaOldSnapshotFails) {
+  std::vector<GreenplumColumnInfo> columns = {GreenplumColumnInfo{.name = "c1", .type = "int4"},
+                                              GreenplumColumnInfo{.name = "c2", .type = "int4"}};
+
+  auto ice_loc = IcebergLocation("test", "unsupported_historical_schema",
+                                 Options{.profile = Environment::GetProfile(), .snapshot_id = 2425900280988415891LL});
+  auto loc = Location(std::move(ice_loc));
+  std::optional<pq::DropTableDefer> defer;
+  if (Environment::GetTableType() == TestTableType::kForeign) {
+    ASSIGN_OR_FAIL(auto d, pq::CreateForeignTableQuery(columns, kDefaultTableName, loc).Run(*conn_));
+    defer.emplace(std::move(d));
+  } else {
+    ASSIGN_OR_FAIL(auto d, pq::CreateExternalTableQuery(columns, kDefaultTableName, loc).Run(*conn_));
+    defer.emplace(std::move(d));
+  }
+
+  auto scan_res = pq::TableScanQuery(kDefaultTableName).Run(*conn_);
+  ASSERT_FALSE(scan_res.ok()) << "Expected scan to fail due to unsupported historical schema";
+  EXPECT_NE(scan_res.status().message().find("Unsupported type 'unsupported_or_unknown_type' for field 'c1'"),
+            std::string::npos)
+      << "Actual error message was: " << scan_res.status().message();
+}
+
+
 }  // namespace
 }  // namespace tea
+

@@ -122,13 +122,7 @@ std::shared_ptr<iceberg::Schema> GetSchemaForSnapshot(std::shared_ptr<iceberg::T
 
   int32_t schema_id = target_snapshot->schema_id.value_or(table_metadata->current_schema_id);
 
-  for (const auto& schema : table_metadata->schemas) {
-    if (schema->SchemaId() == schema_id) {
-      return schema;
-    }
-  }
-
-  throw std::runtime_error("Schema with ID " + std::to_string(schema_id) + " not found in table metadata");
+  return table_metadata->GetSchema(schema_id);
 }
 
 std::optional<std::string> GetManifestListPathForSnapshot(std::shared_ptr<iceberg::TableMetadataV2> table_metadata,
