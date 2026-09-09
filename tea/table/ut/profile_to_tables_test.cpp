@@ -207,9 +207,9 @@ TEST(UsernameToProfile, UsernameClaimedByMultipleProfiles) {
 
   ASSIGN_OR_FAIL(auto result, GetUsernameToProfileMapping(std::string(kTestJsonConfig)));
 
-  std::unordered_map<std::string, std::string> expected = {{"name7", "someprofile1"},  {"name4", "someprofile3"},
-                                                            {"name6", "someprofile2"},  {"shared1", "someprofile1"},
-                                                            {"shared2", "someprofile2"}, {"shared3", "someprofile3"}};
+  std::unordered_map<std::string, std::string> expected = {{"name7", "someprofile1"},   {"name4", "someprofile3"},
+                                                           {"name6", "someprofile2"},   {"shared1", "someprofile1"},
+                                                           {"shared2", "someprofile2"}, {"shared3", "someprofile3"}};
   EXPECT_EQ(result, expected);
 }
 
