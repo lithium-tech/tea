@@ -332,8 +332,8 @@ TEST_F(OtherEngineGeneratedTable, UnsupportedHistoricalSchemaLatestWorks) {
   std::vector<GreenplumColumnInfo> columns = {GreenplumColumnInfo{.name = "c1", .type = "int4"},
                                               GreenplumColumnInfo{.name = "c2", .type = "int4"}};
 
-  auto ice_loc = IcebergLocation("test", "unsupported_historical_schema",
-                                 Options{.profile = Environment::GetProfile()});
+  auto ice_loc =
+      IcebergLocation("test", "unsupported_historical_schema", Options{.profile = Environment::GetProfile()});
   auto loc = Location(std::move(ice_loc));
   std::optional<pq::DropTableDefer> defer;
   if (Environment::GetTableType() == TestTableType::kForeign) {
@@ -371,7 +371,5 @@ TEST_F(OtherEngineGeneratedTable, UnsupportedHistoricalSchemaOldSnapshotFails) {
       << "Actual error message was: " << scan_res.status().message();
 }
 
-
 }  // namespace
 }  // namespace tea
-
