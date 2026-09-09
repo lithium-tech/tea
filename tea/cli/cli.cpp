@@ -39,7 +39,10 @@ arrow::Status ValidateProfileToTablesMapping(const std::string& mapping_path) {
   }
 
   std::string s = ReadFile(input_config);
-  return tea::GetTableToProfileMapping(s).status();
+  ARROW_RETURN_NOT_OK(tea::GetTableToProfileMapping(s).status());
+  ARROW_RETURN_NOT_OK(tea::GetUsernameToProfileMapping(s).status());
+  tea::Config dummy_config;
+  return tea::ApplyCommonConfigOverride(s, &dummy_config);
 }
 
 #if 0

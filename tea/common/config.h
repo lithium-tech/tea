@@ -295,4 +295,12 @@ class ConfigSource {
 
 arrow::Result<std::unordered_map<std::string, std::string>> GetTableToProfileMapping(const std::string& file_content);
 
+arrow::Result<std::unordered_map<std::string, std::string>> GetUsernameToProfileMapping(
+    const std::string& file_content);
+
+arrow::Status ApplyUserProfileOverride(const std::string& file_content, const std::string& profile_name,
+                                       Config* config);
+
+arrow::Status ApplyCommonConfigOverride(const std::string& file_content, Config* config);
+
 }  // namespace tea
