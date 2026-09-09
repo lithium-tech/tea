@@ -101,6 +101,7 @@ arrow::Status MatchIcebergSchema(const iceberg::Schema& schema, const std::vecto
 // TODO(gmusya): unify code
 using FilesystemStats = Reader::FilesystemStats;
 
+// TODO(gmusya): make it possible to pass custom handler
 class LoggingInputFile : public iceberg::InputFileWrapper {
  public:
   LoggingInputFile(std::shared_ptr<arrow::io::RandomAccessFile> file, std::shared_ptr<FilesystemStats> metrics,
@@ -145,6 +146,9 @@ class LoggingInputFile : public iceberg::InputFileWrapper {
     std::lock_guard lock(metrics_->s3_read_stats_lock_);
     ++metrics_->s3_stats.requests;
     metrics_->s3_stats.bytes_read += bytes;
+    if (metrics_->metadata_scheduler) {
+      metrics_->metadata_scheduler->AddBytesRead(bytes);
+    }
   }
 
   std::shared_ptr<FilesystemStats> metrics_;
@@ -592,6 +596,7 @@ arrow::Status Reader::Plan(meta::PlannedMeta meta, const Reader::SerializedFilte
   // used only for samovar logging purposes. This class has method UpdateMetrics, which updates metrics in samovar case
   // TODO(gmusya): handle samovar metrics outside of reader.cpp
   entries_stream_ = meta.GetStream();
+  fs_stats_->metadata_scheduler = entries_stream_->GetMeta();
 
   iceberg::AnnotatedDataPathStreamPtr meta_stream = std::make_shared<LoggingAnnotatedDataPathStream>(
       entries_stream_, [&](std::shared_ptr<iceberg::AnnotatedDataPath> value) {

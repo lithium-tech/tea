@@ -70,6 +70,7 @@ class Reader {
     S3Stats s3_stats;
     std::shared_ptr<OneThreadMultishotTimer> wait_read_stats;
     mutable std::mutex s3_read_stats_lock_;
+    std::shared_ptr<meta::IMetadataScheduler> metadata_scheduler;
   };
 
  private:

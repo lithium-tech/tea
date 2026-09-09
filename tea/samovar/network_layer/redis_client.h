@@ -73,6 +73,7 @@ class SamovarRedisClient : public ISamovarClient {
   std::optional<int> GetNumericCell(const std::string& cell_name) override;
   int DecreaseNumericCell(const std::string& cell_name) override;
   int IncreaseNumericCell(const std::string& cell_name) override;
+  int64_t IncreaseNumericCellBy(const std::string& cell_name, int64_t amount) override;
 
   void UpdateTTL(const std::string& object, std::chrono::seconds ttl) override;
   void DeleteCell(const std::string& object) override;

@@ -47,6 +47,7 @@ class ISamovarClient {
   virtual std::optional<int> GetNumericCell(const std::string& cell_name) = 0;
   virtual int DecreaseNumericCell(const std::string& cell_name) = 0;
   virtual int IncreaseNumericCell(const std::string& cell_name) = 0;
+  virtual int64_t IncreaseNumericCellBy(const std::string& cell_name, int64_t amount) = 0;
 
   virtual void UpdateTTL(const std::string& object, std::chrono::seconds ttl) = 0;
   virtual void UpdateTTL(const std::vector<std::string>& object, std::chrono::seconds ttl);

@@ -208,6 +208,16 @@ int SamovarRedisClient::IncreaseNumericCell(const std::string& cell_name) {
   return reply_repr->integer;
 }
 
+int64_t SamovarRedisClient::IncreaseNumericCellBy(const std::string& cell_name, int64_t amount) {
+  auto reply = underground_client_->SendRequest({"INCRBY", cell_name, std::to_string(amount)});
+  auto reply_repr = reply.Get();
+  if (ErrorOnMessage(reply_repr)) {
+    throw std::runtime_error("Can not increase numeric cell " + cell_name + " by " + std::to_string(amount) + ": " +
+                             underground_client_->GetErrorMessage());
+  }
+  return reply_repr->integer;
+}
+
 int SamovarRedisClient::DecreaseNumericCell(const std::string& cell_name) {
   auto reply = underground_client_->SendRequest({"DECR", cell_name});
   auto reply_repr = reply.Get();

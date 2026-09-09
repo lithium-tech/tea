@@ -25,7 +25,8 @@ const char* const kTestJsonConfig = R"__(
         "limits": {
             "max_cpu_threads": 1,
             "max_io_threads": 2,
-            "parquet_buffer_size": 1024
+            "parquet_buffer_size": 1024,
+            "max_total_s3_bytes_read": 123456789
         },
         "experimental_features": {
             "filter_ignored_op_exprs": [7,1,412,5124,19292],
@@ -70,11 +71,13 @@ TEST(JsonConfigTest, Limits) {
 
   EXPECT_EQ(config.limits.max_cpu_threads, 1u);
   EXPECT_EQ(config.limits.max_io_threads, 1u);
+  EXPECT_EQ(config.limits.max_total_s3_bytes_read, 0u);
 
   ASSERT_OK(config.FromJsonString(kTestJsonConfig, std::nullopt));
   EXPECT_EQ(config.limits.max_cpu_threads, 1u);
   EXPECT_EQ(config.limits.max_io_threads, 2u);
   EXPECT_EQ(config.limits.parquet_buffer_size, 1024u);
+  EXPECT_EQ(config.limits.max_total_s3_bytes_read, 123456789u);
 }
 
 TEST(JsonConfigTest, ProfileOverride) {
