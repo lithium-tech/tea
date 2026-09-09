@@ -10,5 +10,21 @@
             "w",
             "e"
         ]
+    },
+    "common_config": {
+        "limits": {
+            "equality_delete_max_rows": 100
+        }
+    },
+    "profile-to-username": {
+        "someprofile1": ["name1"],
+        "someprofile2": ["name2", "name3"]
+    },
+    "profiles": {
+        "someprofile1": {
+            "limits": {
+                "equality_delete_max_rows": 1000000
+            }
+        }
     }
 }
