@@ -55,16 +55,15 @@ TEST(ProfileToTables, RootIsNotAnObject) {
   EXPECT_EQ(maybe_result.status().message(), "Profile-to-table parsing error: root is not an object");
 }
 
-TEST(ProfileToTables, MissingRootField) {
+TEST(ProfileToTables, MissingRootFieldIsNotAnError) {
   const std::string_view kTestJsonConfig = R"__({
     "a": "b"
 })__";
 
-  auto maybe_result = GetTableToProfileMapping(std::string(kTestJsonConfig));
-  ASSERT_NE(maybe_result.status(), arrow::Status::OK());
+  ASSIGN_OR_FAIL(auto result, GetTableToProfileMapping(std::string(kTestJsonConfig)));
 
-  EXPECT_EQ(maybe_result.status().message(),
-            "Profile-to-table parsing error: field 'profile-to-tables' is expected but not found");
+  std::unordered_map<std::string, std::string> expected;
+  EXPECT_EQ(result, expected);
 }
 
 TEST(ProfileToTables, ValueIsNotAnArray) {
