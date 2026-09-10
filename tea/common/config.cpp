@@ -726,15 +726,10 @@ namespace {
 
 arrow::Result<std::unordered_map<std::string, std::string>> InvertProfileMapping(const rapidjson::Document& doc,
                                                                                  const char* field_name,
-                                                                                 const std::string& error_prefix,
-                                                                                 bool field_required) {
+                                                                                 const std::string& error_prefix) {
   std::unordered_map<std::string, std::string> result;
 
   if (!doc.HasMember(field_name)) {
-    if (field_required) {
-      return arrow::Status::ExecutionError(error_prefix, " parsing error: field '", field_name,
-                                           "' is expected but not found");
-    }
     return result;
   }
   const auto& profile_to_items = doc[field_name];
@@ -801,13 +796,13 @@ arrow::Result<rapidjson::Document> ParseProfileToTablesDocument(const std::strin
 
 arrow::Result<std::unordered_map<std::string, std::string>> GetTableToProfileMapping(const std::string& file_content) {
   ARROW_ASSIGN_OR_RAISE(rapidjson::Document doc, ParseProfileToTablesDocument(file_content, "Profile-to-table"));
-  return InvertProfileMapping(doc, "profile-to-tables", "Profile-to-table", /*field_required=*/true);
+  return InvertProfileMapping(doc, "profile-to-tables", "Profile-to-table");
 }
 
 arrow::Result<std::unordered_map<std::string, std::string>> GetUsernameToProfileMapping(
     const std::string& file_content) {
   ARROW_ASSIGN_OR_RAISE(rapidjson::Document doc, ParseProfileToTablesDocument(file_content, "Profile-to-username"));
-  return InvertProfileMapping(doc, "profile-to-username", "Profile-to-username", /*field_required=*/false);
+  return InvertProfileMapping(doc, "profile-to-username", "Profile-to-username");
 }
 
 arrow::Status ApplyUserProfileOverride(const std::string& file_content, const std::string& profile_name,

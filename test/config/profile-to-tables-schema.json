@@ -1,0 +1,41 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "additionalProperties": false,
+    "definitions": {
+        "profile_override": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "limits": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                        "max_total_s3_bytes_read": { "type": "integer", "minimum": 0 }
+                    }
+                }
+            }
+        }
+    },
+    "properties": {
+        "profile-to-tables": {
+            "type": "object",
+            "additionalProperties": {
+                "type": "array",
+                "items": { "type": "string" }
+            }
+        },
+        "profile-to-username": {
+            "type": "object",
+            "additionalProperties": {
+                "type": "array",
+                "items": { "type": "string" }
+            }
+        },
+        "common_config": { "$ref": "#/definitions/profile_override" },
+        "profiles": {
+            "type": "object",
+            "additionalProperties": { "$ref": "#/definitions/profile_override" }
+        }
+    }
+}
