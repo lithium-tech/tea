@@ -25,7 +25,7 @@ add_executable(
   cli_validators_test
   ut/validate_test.cpp
 )
-target_link_libraries(cli_validators_test PRIVATE gtest_main gmock cli_validators tea_test_utils_static)
+target_link_libraries(cli_validators_test PRIVATE gtest_main gmock cli_validators tea_test_utils_static tea_log)
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   target_link_options(cli_validators_test PRIVATE "-Wl,--allow-multiple-definition")
