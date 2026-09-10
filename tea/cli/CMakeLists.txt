@@ -3,7 +3,7 @@ add_library(cli_validators STATIC
   validate.h
 )
 target_include_directories(cli_validators PUBLIC ${CMAKE_SOURCE_DIR})
-target_link_libraries(cli_validators PUBLIC table_public)
+target_link_libraries(cli_validators PUBLIC table)
 
 add_executable(tea_cli cli.cpp)
 target_link_libraries(tea_cli cli_validators iceberg_common_fs table iceberg-cpp absl::flags absl::flags_parse)
@@ -25,7 +25,7 @@ add_executable(
   cli_validators_test
   ut/validate_test.cpp
 )
-target_link_libraries(cli_validators_test PRIVATE gtest_main gmock cli_validators tea_test_utils_static tea_log)
+target_link_libraries(cli_validators_test PRIVATE gtest_main gmock cli_validators tea_test_utils_static)
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   target_link_options(cli_validators_test PRIVATE "-Wl,--allow-multiple-definition")
