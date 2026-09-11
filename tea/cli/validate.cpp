@@ -2,6 +2,8 @@
 
 #include <fstream>
 #include <sstream>
+#include <string>
+#include <unordered_map>
 
 #include "rapidjson/document.h"
 #include "rapidjson/schema.h"
@@ -84,6 +86,37 @@ arrow::Status ValidateAgainstJsonSchema(const rapidjson::Document& doc, const st
   }
   return arrow::Status::OK();
 }
+
+// Unlike tea::GetTableToProfileMapping/GetUsernameToProfileMapping (which silently drop an item claimed by
+// multiple profiles, so Tea itself keeps ignoring the ambiguity at runtime), the validator treats this as a
+// config mistake worth failing on: it's almost certainly not what the config author intended.
+arrow::Status ValidateNoItemClaimedByMultipleProfiles(const rapidjson::Value& doc, const char* field_name) {
+  if (!doc.HasMember(field_name) || !doc[field_name].IsObject()) {
+    return arrow::Status::OK();
+  }
+  const auto& profile_to_items = doc[field_name];
+
+  std::unordered_map<std::string, std::string> item_to_profile;
+  for (auto iter = profile_to_items.MemberBegin(); iter != profile_to_items.MemberEnd(); ++iter) {
+    if (!iter->name.IsString() || !iter->value.IsArray()) {
+      continue;
+    }
+    const std::string profile = iter->name.GetString();
+    for (const auto& elem : iter->value.GetArray()) {
+      if (!elem.IsString()) {
+        continue;
+      }
+      const std::string item = elem.GetString();
+      auto [it, inserted] = item_to_profile.try_emplace(item, profile);
+      if (!inserted && it->second != profile) {
+        return arrow::Status::ExecutionError("Field '", field_name, "': '", item,
+                                             "' is listed under multiple profiles ('", it->second, "' and '", profile,
+                                             "')");
+      }
+    }
+  }
+  return arrow::Status::OK();
+}
 }  // namespace
 
 arrow::Status ValidateJsonConfig(const std::string& config_path, const std::optional<std::string>& schema_path,
@@ -112,7 +145,9 @@ arrow::Status ValidateProfileToTablesMapping(const std::string& mapping_path) {
     return arrow::Status::ExecutionError("Profile-to-table parsing error: not a valid JSON");
   }
 
-  return ValidateAgainstJsonSchema(doc, kProfileToTablesSchema);
+  ARROW_RETURN_NOT_OK(ValidateAgainstJsonSchema(doc, kProfileToTablesSchema));
+  ARROW_RETURN_NOT_OK(ValidateNoItemClaimedByMultipleProfiles(doc, "profile-to-tables"));
+  return ValidateNoItemClaimedByMultipleProfiles(doc, "profile-to-username");
 }
 
 }  // namespace tea::cli

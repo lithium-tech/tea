@@ -113,5 +113,30 @@ TEST_F(ValidateTest, SchemaRejectsDisallowedOverrideField) {
   EXPECT_FALSE(ValidateProfileToTablesMapping(path.string()).ok());
 }
 
+TEST_F(ValidateTest, TableClaimedByMultipleProfilesIsAnError) {
+  auto path = dir_.path() / "profile-to-tables.json";
+  WriteFile(path, R"__({
+    "profile-to-tables": {
+        "profile_a": ["some.table"],
+        "profile_b": ["some.table"]
+    }
+})__");
+
+  EXPECT_FALSE(ValidateProfileToTablesMapping(path.string()).ok());
+}
+
+TEST_F(ValidateTest, UsernameClaimedByMultipleProfilesIsAnError) {
+  auto path = dir_.path() / "profile-to-tables.json";
+  WriteFile(path, R"__({
+    "profile-to-tables": { "table_profile": ["some.table"] },
+    "profile-to-username": {
+        "profile_a": ["name1"],
+        "profile_b": ["name1"]
+    }
+})__");
+
+  EXPECT_FALSE(ValidateProfileToTablesMapping(path.string()).ok());
+}
+
 }  // namespace
 }  // namespace tea::cli
