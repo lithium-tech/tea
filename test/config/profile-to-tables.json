@@ -10,5 +10,21 @@
             "w",
             "e"
         ]
+    },
+    "common_config": {
+        "limits": {
+            "max_total_s3_bytes_read": 1000000000
+        }
+    },
+    "user-profiles-to-username": {
+        "someprofile1": ["name1"],
+        "someprofile2": ["name2", "name3"]
+    },
+    "user-profiles": {
+        "someprofile1": {
+            "limits": {
+                "max_total_s3_bytes_read": 10000
+            }
+        }
     }
 }
