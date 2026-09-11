@@ -366,7 +366,7 @@ TEST_F(OtherEngineGeneratedTable, UnsupportedHistoricalSchemaOldSnapshotFails) {
 
   auto scan_res = pq::TableScanQuery(kDefaultTableName).Run(*conn_);
   ASSERT_FALSE(scan_res.ok()) << "Expected scan to fail due to unsupported historical schema";
-  EXPECT_NE(scan_res.status().message().find("Unsupported type 'unsupported_or_unknown_type' for field 'c1'"),
+  EXPECT_NE(scan_res.status().message().find("Unsupported type 'struct' for field 'c1'"),
             std::string::npos)
       << "Actual error message was: " << scan_res.status().message();
 }
