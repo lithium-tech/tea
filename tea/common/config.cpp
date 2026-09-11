@@ -801,13 +801,15 @@ arrow::Result<std::unordered_map<std::string, std::string>> GetTableToProfileMap
 
 arrow::Result<std::unordered_map<std::string, std::string>> GetUsernameToProfileMapping(
     const std::string& file_content) {
-  ARROW_ASSIGN_OR_RAISE(rapidjson::Document doc, ParseProfileToTablesDocument(file_content, "User-profiles-to-username"));
+  ARROW_ASSIGN_OR_RAISE(rapidjson::Document doc,
+                        ParseProfileToTablesDocument(file_content, "User-profiles-to-username"));
   return InvertProfileMapping(doc, "user-profiles-to-username", "User-profiles-to-username");
 }
 
 arrow::Status ApplyUserProfileOverride(const std::string& file_content, const std::string& profile_name,
                                        Config* config) {
-  ARROW_ASSIGN_OR_RAISE(rapidjson::Document doc, ParseProfileToTablesDocument(file_content, "User-profiles-to-username"));
+  ARROW_ASSIGN_OR_RAISE(rapidjson::Document doc,
+                        ParseProfileToTablesDocument(file_content, "User-profiles-to-username"));
 
   if (!doc.HasMember("user-profiles") || !doc["user-profiles"].IsObject()) {
     return arrow::Status::OK();
