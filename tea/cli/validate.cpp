@@ -28,7 +28,7 @@ const char* const kProfileToTablesSchema = R"__({
     "type": "object",
     "additionalProperties": false,
     "definitions": {
-        "profile_override": {
+        "user-profile-override": {
             "type": "object",
             "additionalProperties": false,
             "properties": {
@@ -50,17 +50,17 @@ const char* const kProfileToTablesSchema = R"__({
                 "items": { "type": "string" }
             }
         },
-        "profile-to-username": {
+        "user-profiles-to-username": {
             "type": "object",
             "additionalProperties": {
                 "type": "array",
                 "items": { "type": "string" }
             }
         },
-        "common_config": { "$ref": "#/definitions/profile_override" },
-        "profiles": {
+        "common_config": { "$ref": "#/definitions/user-profile-override" },
+        "user-profiles": {
             "type": "object",
-            "additionalProperties": { "$ref": "#/definitions/profile_override" }
+            "additionalProperties": { "$ref": "#/definitions/user-profile-override" }
         }
     }
 })__";
@@ -147,7 +147,7 @@ arrow::Status ValidateProfileToTablesMapping(const std::string& mapping_path) {
 
   ARROW_RETURN_NOT_OK(ValidateAgainstJsonSchema(doc, kProfileToTablesSchema));
   ARROW_RETURN_NOT_OK(ValidateNoItemClaimedByMultipleProfiles(doc, "profile-to-tables"));
-  return ValidateNoItemClaimedByMultipleProfiles(doc, "profile-to-username");
+  return ValidateNoItemClaimedByMultipleProfiles(doc, "user-profiles-to-username");
 }
 
 }  // namespace tea::cli
