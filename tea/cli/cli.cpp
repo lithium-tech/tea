@@ -15,7 +15,6 @@ ABSL_FLAG(bool, version, false, "print version if set");
 ABSL_FLAG(std::string, json_config_path, "", "path to json-config");
 ABSL_FLAG(std::string, json_schema_config_path, "", "path to json-schema-config");
 ABSL_FLAG(std::string, profile_to_tables_mapping_path, "", "path to profile to tables mapping");
-ABSL_FLAG(std::string, profile_to_tables_mapping_schema_path, "", "path to profile-to-tables mapping json-schema");
 ABSL_FLAG(std::string, profile, "", "profile");
 
 #if 0
@@ -75,15 +74,7 @@ int main(int argc, char** argv) {
       std::cerr << "profile_to_tables_mapping_path is not set" << std::endl;
       return 1;
     }
-    const std::string profile_to_tables_mapping_schema_path =
-        absl::GetFlag(FLAGS_profile_to_tables_mapping_schema_path);
-
-    return Invoke([&]() {
-      return tea::cli::ValidateProfileToTablesMapping(profile_to_tables_mapping_path,
-                                                      !profile_to_tables_mapping_schema_path.empty()
-                                                          ? std::optional(profile_to_tables_mapping_schema_path)
-                                                          : std::nullopt);
-    });
+    return Invoke([&]() { return tea::cli::ValidateProfileToTablesMapping(profile_to_tables_mapping_path); });
   }
 
   std::cerr << "Unknown mode" << std::endl;
