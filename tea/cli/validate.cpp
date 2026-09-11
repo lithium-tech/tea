@@ -18,6 +18,51 @@ inline std::string ReadFile(std::istream& is) {
   return ss.str();
 }
 
+// TODO(anyone): we don't yet have infra to deploy a schema file for profile-to-tables.json the way
+// ci/deploy-tea-config.sh does for tea-config-schema.json, so the schema is hardcoded here for now.
+// Keep this in sync with test/config/profile-to-tables-schema.json; switch to reading that file once deployable.
+const char* const kProfileToTablesSchema = R"__({
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "type": "object",
+    "additionalProperties": false,
+    "definitions": {
+        "profile_override": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "limits": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                        "max_total_s3_bytes_read": { "type": "integer", "minimum": 0 }
+                    }
+                }
+            }
+        }
+    },
+    "properties": {
+        "profile-to-tables": {
+            "type": "object",
+            "additionalProperties": {
+                "type": "array",
+                "items": { "type": "string" }
+            }
+        },
+        "profile-to-username": {
+            "type": "object",
+            "additionalProperties": {
+                "type": "array",
+                "items": { "type": "string" }
+            }
+        },
+        "common_config": { "$ref": "#/definitions/profile_override" },
+        "profiles": {
+            "type": "object",
+            "additionalProperties": { "$ref": "#/definitions/profile_override" }
+        }
+    }
+})__";
+
 arrow::Status ValidateAgainstJsonSchema(const rapidjson::Document& doc, const std::string& schema_content) {
   rapidjson::Document schema_doc;
   schema_doc.Parse(schema_content.data(), schema_content.size());
@@ -49,8 +94,7 @@ arrow::Status ValidateJsonConfig(const std::string& config_path, const std::opti
   return arrow::Status::OK();
 }
 
-arrow::Status ValidateProfileToTablesMapping(const std::string& mapping_path,
-                                             const std::optional<std::string>& schema_path) {
+arrow::Status ValidateProfileToTablesMapping(const std::string& mapping_path) {
   std::ifstream input_config(mapping_path);
   if (!input_config.is_open()) {
     return arrow::Status::ExecutionError("Could not open file ", mapping_path, " for reading");
@@ -62,23 +106,13 @@ arrow::Status ValidateProfileToTablesMapping(const std::string& mapping_path,
   tea::Config dummy_config;
   ARROW_RETURN_NOT_OK(tea::ApplyCommonConfigOverride(s, &dummy_config));
 
-  if (schema_path.has_value()) {
-    std::ifstream input_schema(*schema_path);
-    if (!input_schema.is_open()) {
-      return arrow::Status::ExecutionError("Could not open file ", *schema_path, " for reading");
-    }
-    std::string schema_content = ReadFile(input_schema);
-
-    rapidjson::Document doc;
-    doc.Parse(s.data(), s.size());
-    if (doc.HasParseError()) {
-      return arrow::Status::ExecutionError("Profile-to-table parsing error: not a valid JSON");
-    }
-
-    ARROW_RETURN_NOT_OK(ValidateAgainstJsonSchema(doc, schema_content));
+  rapidjson::Document doc;
+  doc.Parse(s.data(), s.size());
+  if (doc.HasParseError()) {
+    return arrow::Status::ExecutionError("Profile-to-table parsing error: not a valid JSON");
   }
 
-  return arrow::Status::OK();
+  return ValidateAgainstJsonSchema(doc, kProfileToTablesSchema);
 }
 
 }  // namespace tea::cli

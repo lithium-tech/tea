@@ -12,48 +12,6 @@
 namespace tea::cli {
 namespace {
 
-const char* const kSchemaContent = R"__({
-    "$schema": "http://json-schema.org/draft-07/schema#",
-    "type": "object",
-    "additionalProperties": false,
-    "definitions": {
-        "profile_override": {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {
-                "limits": {
-                    "type": "object",
-                    "additionalProperties": false,
-                    "properties": {
-                        "max_total_s3_bytes_read": { "type": "integer", "minimum": 0 }
-                    }
-                }
-            }
-        }
-    },
-    "properties": {
-        "profile-to-tables": {
-            "type": "object",
-            "additionalProperties": {
-                "type": "array",
-                "items": { "type": "string" }
-            }
-        },
-        "profile-to-username": {
-            "type": "object",
-            "additionalProperties": {
-                "type": "array",
-                "items": { "type": "string" }
-            }
-        },
-        "common_config": { "$ref": "#/definitions/profile_override" },
-        "profiles": {
-            "type": "object",
-            "additionalProperties": { "$ref": "#/definitions/profile_override" }
-        }
-    }
-})__";
-
 const char* const kValidMapping = R"__({
     "profile-to-tables": {
         "table_profile": ["some.table"]
@@ -109,71 +67,50 @@ TEST_F(ValidateTest, JsonConfigValid) {
 }
 
 TEST_F(ValidateTest, MappingFileNotFound) {
-  EXPECT_FALSE(ValidateProfileToTablesMapping((dir_.path() / "no-such-file.json").string(), std::nullopt).ok());
+  EXPECT_FALSE(ValidateProfileToTablesMapping((dir_.path() / "no-such-file.json").string()).ok());
 }
 
-TEST_F(ValidateTest, MappingValidWithoutSchema) {
+TEST_F(ValidateTest, MappingValid) {
   auto path = dir_.path() / "profile-to-tables.json";
   WriteFile(path, kValidMapping);
 
-  ASSERT_OK(ValidateProfileToTablesMapping(path.string(), std::nullopt));
+  ASSERT_OK(ValidateProfileToTablesMapping(path.string()));
 }
 
 TEST_F(ValidateTest, MappingMissingProfileToTablesIsNotAnError) {
   auto path = dir_.path() / "profile-to-tables.json";
-  WriteFile(path, R"__({ "a": "b" })__");
+  WriteFile(path, R"__({})__");
 
-  ASSERT_OK(ValidateProfileToTablesMapping(path.string(), std::nullopt));
+  ASSERT_OK(ValidateProfileToTablesMapping(path.string()));
 }
 
 TEST_F(ValidateTest, MappingMalformedProfileToTablesIsAnError) {
   auto path = dir_.path() / "profile-to-tables.json";
   WriteFile(path, R"__({ "profile-to-tables": "not-an-object" })__");
 
-  EXPECT_FALSE(ValidateProfileToTablesMapping(path.string(), std::nullopt).ok());
-}
-
-TEST_F(ValidateTest, MappingValidWithSchema) {
-  auto mapping_path = dir_.path() / "profile-to-tables.json";
-  WriteFile(mapping_path, kValidMapping);
-  auto schema_path = dir_.path() / "profile-to-tables-schema.json";
-  WriteFile(schema_path, kSchemaContent);
-
-  ASSERT_OK(ValidateProfileToTablesMapping(mapping_path.string(), schema_path.string()));
+  EXPECT_FALSE(ValidateProfileToTablesMapping(path.string()).ok());
 }
 
 TEST_F(ValidateTest, SchemaRejectsExtraTopLevelField) {
-  auto mapping_path = dir_.path() / "profile-to-tables.json";
-  WriteFile(mapping_path, R"__({
+  auto path = dir_.path() / "profile-to-tables.json";
+  WriteFile(path, R"__({
     "profile-to-tables": { "table_profile": ["some.table"] },
     "unexpected_field": true
 })__");
-  auto schema_path = dir_.path() / "profile-to-tables-schema.json";
-  WriteFile(schema_path, kSchemaContent);
 
-  EXPECT_FALSE(ValidateProfileToTablesMapping(mapping_path.string(), schema_path.string()).ok());
+  EXPECT_FALSE(ValidateProfileToTablesMapping(path.string()).ok());
 }
 
 TEST_F(ValidateTest, SchemaRejectsDisallowedOverrideField) {
-  auto mapping_path = dir_.path() / "profile-to-tables.json";
-  WriteFile(mapping_path, R"__({
+  auto path = dir_.path() / "profile-to-tables.json";
+  WriteFile(path, R"__({
     "profile-to-tables": { "table_profile": ["some.table"] },
     "common_config": {
         "s3": { "access_key": "not-allowed" }
     }
 })__");
-  auto schema_path = dir_.path() / "profile-to-tables-schema.json";
-  WriteFile(schema_path, kSchemaContent);
 
-  EXPECT_FALSE(ValidateProfileToTablesMapping(mapping_path.string(), schema_path.string()).ok());
-}
-
-TEST_F(ValidateTest, SchemaFileNotFound) {
-  auto mapping_path = dir_.path() / "profile-to-tables.json";
-  WriteFile(mapping_path, kValidMapping);
-
-  EXPECT_FALSE(
-      ValidateProfileToTablesMapping(mapping_path.string(), (dir_.path() / "no-such-schema.json").string()).ok());
+  EXPECT_FALSE(ValidateProfileToTablesMapping(path.string()).ok());
 }
 
 }  // namespace
