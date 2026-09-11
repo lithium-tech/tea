@@ -16,11 +16,11 @@
             "max_total_s3_bytes_read": 1000000000
         }
     },
-    "profile-to-username": {
+    "user-profiles-to-username": {
         "someprofile1": ["name1"],
         "someprofile2": ["name2", "name3"]
     },
-    "profiles": {
+    "user-profiles": {
         "someprofile1": {
             "limits": {
                 "max_total_s3_bytes_read": 10000

@@ -112,7 +112,7 @@ TEST(ProfileToTables, OneTableMultipleProfiles) {
 
 TEST(UsernameToProfile, Trivial) {
   const std::string_view kTestJsonConfig = R"__({
-    "profile-to-username": {
+    "user-profiles-to-username": {
         "someprofile": ["name1"]
     }
 })__";
@@ -125,7 +125,7 @@ TEST(UsernameToProfile, Trivial) {
 
 TEST(UsernameToProfile, Empty) {
   const std::string_view kTestJsonConfig = R"__({
-    "profile-to-username": {}
+    "user-profiles-to-username": {}
 })__";
 
   ASSIGN_OR_FAIL(auto result, GetUsernameToProfileMapping(std::string(kTestJsonConfig)));
@@ -153,7 +153,7 @@ TEST(UsernameToProfile, IncorrectJson) {
   auto maybe_result = GetUsernameToProfileMapping(std::string(kTestJsonConfig));
   ASSERT_NE(maybe_result.status(), arrow::Status::OK());
 
-  EXPECT_EQ(maybe_result.status().message(), "Profile-to-username parsing error: not a valid JSON");
+  EXPECT_EQ(maybe_result.status().message(), "User-profiles-to-username parsing error: not a valid JSON");
 }
 
 TEST(UsernameToProfile, RootIsNotAnObject) {
@@ -164,12 +164,12 @@ TEST(UsernameToProfile, RootIsNotAnObject) {
   auto maybe_result = GetUsernameToProfileMapping(std::string(kTestJsonConfig));
   ASSERT_NE(maybe_result.status(), arrow::Status::OK());
 
-  EXPECT_EQ(maybe_result.status().message(), "Profile-to-username parsing error: root is not an object");
+  EXPECT_EQ(maybe_result.status().message(), "User-profiles-to-username parsing error: root is not an object");
 }
 
 TEST(UsernameToProfile, ValueIsNotAnArray) {
   const std::string_view kTestJsonConfig = R"__({
-    "profile-to-username": {
+    "user-profiles-to-username": {
       "someprofile": "name1,name2"
     }
 })__";
@@ -178,12 +178,12 @@ TEST(UsernameToProfile, ValueIsNotAnArray) {
   ASSERT_NE(maybe_result.status(), arrow::Status::OK());
 
   EXPECT_EQ(maybe_result.status().message(),
-            "Profile-to-username parsing error: value for profile 'someprofile' is not an array");
+            "User-profiles-to-username parsing error: value for profile 'someprofile' is not an array");
 }
 
 TEST(UsernameToProfile, ElementIsNotAString) {
   const std::string_view kTestJsonConfig = R"__({
-    "profile-to-username": {
+    "user-profiles-to-username": {
       "someprofile": ["name1", "name2", 123]
     }
 })__";
@@ -192,12 +192,12 @@ TEST(UsernameToProfile, ElementIsNotAString) {
   ASSERT_NE(maybe_result.status(), arrow::Status::OK());
 
   EXPECT_EQ(maybe_result.status().message(),
-            "Profile-to-username parsing error: element for key 'someprofile' is not a string");
+            "User-profiles-to-username parsing error: element for key 'someprofile' is not a string");
 }
 
 TEST(UsernameToProfile, UsernameClaimedByMultipleProfiles) {
   const std::string_view kTestJsonConfig = R"__({
-    "profile-to-username": {
+    "user-profiles-to-username": {
       "someprofile1": ["name1", "name3", "name5", "name7", "shared1"],
       "someprofile2": ["name1", "name2", "name5", "name6", "shared2"],
       "someprofile3": ["name1", "name2", "name3", "name4", "shared3"]

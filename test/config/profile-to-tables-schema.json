@@ -3,7 +3,7 @@
     "type": "object",
     "additionalProperties": false,
     "definitions": {
-        "profile_override": {
+        "user-profile-override": {
             "type": "object",
             "additionalProperties": false,
             "properties": {
@@ -25,17 +25,17 @@
                 "items": { "type": "string" }
             }
         },
-        "profile-to-username": {
+        "user-profiles-to-username": {
             "type": "object",
             "additionalProperties": {
                 "type": "array",
                 "items": { "type": "string" }
             }
         },
-        "common_config": { "$ref": "#/definitions/profile_override" },
-        "profiles": {
+        "common_config": { "$ref": "#/definitions/user-profile-override" },
+        "user-profiles": {
             "type": "object",
-            "additionalProperties": { "$ref": "#/definitions/profile_override" }
+            "additionalProperties": { "$ref": "#/definitions/user-profile-override" }
         }
     }
 }

@@ -100,10 +100,10 @@ const char* const kTestProfileToTablesConfig = R"__(
     "profile-to-tables": {
         "table_profile": ["some.table"]
     },
-    "profile-to-username": {
+    "user-profiles-to-username": {
         "someprofile1": ["name1"]
     },
-    "profiles": {
+    "user-profiles": {
         "someprofile1": {
             "limits": {
                 "equality_delete_max_rows": 1000000
@@ -247,15 +247,15 @@ TEST_F(ConfigSourceTest, InvalidUrl) {
 
 TEST(ConfigSourceTestWithoutConfig, ServerOptions) {
   std::unordered_map<std::string, std::string> m_server_options = {
-    {"read_config_file", "false"},
-    {"s3_access_key", "ak"},
-    {"s3_secret_key", "sk"},
-    {"s3_endpoint_override", "storage.yandexcloud.net"},
-    {"s3_scheme", "http"},
-    {"catalog_type", "nessie"},
+      {"read_config_file", "false"},
+      {"s3_access_key", "ak"},
+      {"s3_secret_key", "sk"},
+      {"s3_endpoint_override", "storage.yandexcloud.net"},
+      {"s3_scheme", "http"},
+      {"catalog_type", "nessie"},
 #if USE_REST
-    {"catalog_rest_url", "http://127.0.0.1:8181/catalog"},
-    {"catalog_rest_warehouse_id", "91dc12d2-534d-11f1-9109-73b91866a831"}
+      {"catalog_rest_url", "http://127.0.0.1:8181/catalog"},
+      {"catalog_rest_warehouse_id", "91dc12d2-534d-11f1-9109-73b91866a831"}
 #endif
   };
 

@@ -16,7 +16,7 @@ const char* const kValidMapping = R"__({
     "profile-to-tables": {
         "table_profile": ["some.table"]
     },
-    "profile-to-username": {
+    "user-profiles-to-username": {
         "someprofile1": ["name1"]
     },
     "common_config": {
@@ -24,7 +24,7 @@ const char* const kValidMapping = R"__({
             "max_total_s3_bytes_read": 1000000000
         }
     },
-    "profiles": {
+    "user-profiles": {
         "someprofile1": {
             "limits": {
                 "max_total_s3_bytes_read": 10000
@@ -129,7 +129,7 @@ TEST_F(ValidateTest, UsernameClaimedByMultipleProfilesIsAnError) {
   auto path = dir_.path() / "profile-to-tables.json";
   WriteFile(path, R"__({
     "profile-to-tables": { "table_profile": ["some.table"] },
-    "profile-to-username": {
+    "user-profiles-to-username": {
         "profile_a": ["name1"],
         "profile_b": ["name1"]
     }
