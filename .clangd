@@ -1,0 +1,17 @@
+CompileFlags:
+  CompilationDatabase: build
+  Remove: [-Werror]
+  Add:
+    - -Wno-error
+    - -ferror-limit=0
+    - -Wall
+    - -Wextra
+    - -Wpedantic
+    - -Wconversion
+    - -Wshadow
+    - -Wformat=2
+Index:
+  Background: Build
+Diagnostics:
+  UnusedIncludes: Strict
+  Suppress: [invalid_consteval_call]
