@@ -52,6 +52,7 @@ class ISamovarClient {
   virtual void UpdateTTL(const std::string& object, std::chrono::seconds ttl) = 0;
   virtual void UpdateTTL(const std::vector<std::string>& object, std::chrono::seconds ttl);
   virtual void DeleteCell(const std::string& object) = 0;
+  virtual void DeleteCells(const std::vector<std::string>& objects);
 
   virtual DurationTicks GetTotalResponseDurationTicks() const = 0;
   virtual int64_t GetRequestCount() const = 0;

@@ -572,6 +572,39 @@ TEST(RedisClient, FailServer) {
   KillRedis();
 }
 
+TEST(RedisClient, DeleteCells) {
+  StartRedis();
+  FlushServer();
+
+  auto redis_client =
+      std::make_shared<SamovarRedisClient>(std::vector<Endpoint>{Endpoint{.host = "0.0.0.0", .port = kDefaultPort}},
+                                           std::chrono::milliseconds(30000), std::chrono::milliseconds(3000));
+
+  redis_client->SetCell("key1", "val1", std::chrono::seconds(60));
+  redis_client->SetCell("key2", "val2", std::chrono::seconds(60));
+  redis_client->SetCell("key3", "val3", std::chrono::seconds(60));
+
+  EXPECT_EQ(redis_client->GetCell("key1"), "val1");
+  EXPECT_EQ(redis_client->GetCell("key2"), "val2");
+  EXPECT_EQ(redis_client->GetCell("key3"), "val3");
+
+  int64_t req_count_before = redis_client->GetRequestCount();
+
+  redis_client->DeleteCells({"key1", "key2", "key3"});
+
+  EXPECT_EQ(redis_client->GetRequestCount(), req_count_before + 1);
+
+  EXPECT_FALSE(redis_client->GetCell("key1").has_value());
+  EXPECT_FALSE(redis_client->GetCell("key2").has_value());
+  EXPECT_FALSE(redis_client->GetCell("key3").has_value());
+
+  req_count_before = redis_client->GetRequestCount();
+  redis_client->DeleteCells({});
+  EXPECT_EQ(redis_client->GetRequestCount(), req_count_before);
+
+  KillRedis();
+}
+
 }  // namespace
 
 }  // namespace tea::samovar

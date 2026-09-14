@@ -249,6 +249,17 @@ void SamovarRedisClient::UpdateTTL(const std::string& object, std::chrono::secon
 
 void SamovarRedisClient::DeleteCell(const std::string& object) { underground_client_->SendRequest({"DEL", object}); }
 
+void SamovarRedisClient::DeleteCells(const std::vector<std::string>& objects) {
+  if (objects.empty()) {
+    return;
+  }
+  std::vector<std::string> cmd;
+  cmd.reserve(1 + objects.size());
+  cmd.push_back("DEL");
+  cmd.insert(cmd.end(), objects.begin(), objects.end());
+  underground_client_->SendRequest(cmd);
+}
+
 bool SamovarRedisClient::ErrorOnMessage(std::shared_ptr<redisReply> reply) const {
   return !reply || underground_client_->ErrorOnContext();
 }

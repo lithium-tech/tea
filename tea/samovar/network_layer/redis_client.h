@@ -77,6 +77,7 @@ class SamovarRedisClient : public ISamovarClient {
 
   void UpdateTTL(const std::string& object, std::chrono::seconds ttl) override;
   void DeleteCell(const std::string& object) override;
+  void DeleteCells(const std::vector<std::string>& objects) override;
 
   DurationTicks GetTotalResponseDurationTicks() const override;
   int64_t GetRequestCount() const override;
