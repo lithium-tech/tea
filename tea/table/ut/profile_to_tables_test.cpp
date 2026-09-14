@@ -9,6 +9,28 @@
 
 namespace tea {
 
+TEST(ProfileToTablesFile, IncorrectJson) {
+  const std::string_view kTestJsonConfig = R"__({
+   qwe{{}{}{}{}ad}
+})__";
+
+  auto maybe_file = ProfileToTablesFile::Parse(std::string(kTestJsonConfig));
+  ASSERT_NE(maybe_file.status(), arrow::Status::OK());
+
+  EXPECT_EQ(maybe_file.status().message(), "Profile-to-tables file parsing error: not a valid JSON");
+}
+
+TEST(ProfileToTablesFile, RootIsNotAnObject) {
+  const std::string_view kTestJsonConfig = R"__(
+   "q"
+)__";
+
+  auto maybe_file = ProfileToTablesFile::Parse(std::string(kTestJsonConfig));
+  ASSERT_NE(maybe_file.status(), arrow::Status::OK());
+
+  EXPECT_EQ(maybe_file.status().message(), "Profile-to-tables file parsing error: root is not an object");
+}
+
 TEST(ProfileToTables, Trivial) {
   const std::string_view kTestJsonConfig = R"__({
     "profile-to-tables": {
@@ -16,7 +38,8 @@ TEST(ProfileToTables, Trivial) {
     }
 })__";
 
-  ASSIGN_OR_FAIL(auto result, GetTableToProfileMapping(std::string(kTestJsonConfig)));
+  ASSIGN_OR_FAIL(auto file, ProfileToTablesFile::Parse(std::string(kTestJsonConfig)));
+  ASSIGN_OR_FAIL(auto result, file.GetTableToProfileMapping());
 
   std::unordered_map<std::string, std::string> expected = {{"a", "samovar"}};
   EXPECT_EQ(result, expected);
@@ -27,32 +50,11 @@ TEST(ProfileToTables, Empty) {
     "profile-to-tables": {}
 })__";
 
-  ASSIGN_OR_FAIL(auto result, GetTableToProfileMapping(std::string(kTestJsonConfig)));
+  ASSIGN_OR_FAIL(auto file, ProfileToTablesFile::Parse(std::string(kTestJsonConfig)));
+  ASSIGN_OR_FAIL(auto result, file.GetTableToProfileMapping());
 
   std::unordered_map<std::string, std::string> expected;
   EXPECT_EQ(result, expected);
-}
-
-TEST(ProfileToTables, IncorrectJson) {
-  const std::string_view kTestJsonConfig = R"__({
-   qwe{{}{}{}{}ad}
-})__";
-
-  auto maybe_result = GetTableToProfileMapping(std::string(kTestJsonConfig));
-  ASSERT_NE(maybe_result.status(), arrow::Status::OK());
-
-  EXPECT_EQ(maybe_result.status().message(), "Profile-to-table parsing error: not a valid JSON");
-}
-
-TEST(ProfileToTables, RootIsNotAnObject) {
-  const std::string_view kTestJsonConfig = R"__(
-   "q"
-)__";
-
-  auto maybe_result = GetTableToProfileMapping(std::string(kTestJsonConfig));
-  ASSERT_NE(maybe_result.status(), arrow::Status::OK());
-
-  EXPECT_EQ(maybe_result.status().message(), "Profile-to-table parsing error: root is not an object");
 }
 
 TEST(ProfileToTables, MissingRootFieldIsNotAnError) {
@@ -60,7 +62,8 @@ TEST(ProfileToTables, MissingRootFieldIsNotAnError) {
     "a": "b"
 })__";
 
-  ASSIGN_OR_FAIL(auto result, GetTableToProfileMapping(std::string(kTestJsonConfig)));
+  ASSIGN_OR_FAIL(auto file, ProfileToTablesFile::Parse(std::string(kTestJsonConfig)));
+  ASSIGN_OR_FAIL(auto result, file.GetTableToProfileMapping());
 
   std::unordered_map<std::string, std::string> expected;
   EXPECT_EQ(result, expected);
@@ -73,7 +76,8 @@ TEST(ProfileToTables, ValueIsNotAnArray) {
     }
 })__";
 
-  auto maybe_result = GetTableToProfileMapping(std::string(kTestJsonConfig));
+  ASSIGN_OR_FAIL(auto file, ProfileToTablesFile::Parse(std::string(kTestJsonConfig)));
+  auto maybe_result = file.GetTableToProfileMapping();
   ASSERT_NE(maybe_result.status(), arrow::Status::OK());
 
   EXPECT_EQ(maybe_result.status().message(),
@@ -87,7 +91,8 @@ TEST(ProfileToTables, ElementIsNotAString) {
     }
 })__";
 
-  auto maybe_result = GetTableToProfileMapping(std::string(kTestJsonConfig));
+  ASSIGN_OR_FAIL(auto file, ProfileToTablesFile::Parse(std::string(kTestJsonConfig)));
+  auto maybe_result = file.GetTableToProfileMapping();
   ASSERT_NE(maybe_result.status(), arrow::Status::OK());
 
   EXPECT_EQ(maybe_result.status().message(),
@@ -103,7 +108,8 @@ TEST(ProfileToTables, OneTableMultipleProfiles) {
     }
 })__";
 
-  ASSIGN_OR_FAIL(auto result, GetTableToProfileMapping(std::string(kTestJsonConfig)));
+  ASSIGN_OR_FAIL(auto file, ProfileToTablesFile::Parse(std::string(kTestJsonConfig)));
+  ASSIGN_OR_FAIL(auto result, file.GetTableToProfileMapping());
 
   std::unordered_map<std::string, std::string> expected = {{"g", "samovar"},  {"d", "other"},   {"f", "teapot"},
                                                            {"h1", "samovar"}, {"h2", "teapot"}, {"h3", "other"}};
@@ -117,7 +123,8 @@ TEST(UsernameToProfile, Trivial) {
     }
 })__";
 
-  ASSIGN_OR_FAIL(auto result, GetUsernameToProfileMapping(std::string(kTestJsonConfig)));
+  ASSIGN_OR_FAIL(auto file, ProfileToTablesFile::Parse(std::string(kTestJsonConfig)));
+  ASSIGN_OR_FAIL(auto result, file.GetUsernameToProfileMapping());
 
   std::unordered_map<std::string, std::string> expected = {{"name1", "someprofile"}};
   EXPECT_EQ(result, expected);
@@ -128,7 +135,8 @@ TEST(UsernameToProfile, Empty) {
     "user-profiles-to-username": {}
 })__";
 
-  ASSIGN_OR_FAIL(auto result, GetUsernameToProfileMapping(std::string(kTestJsonConfig)));
+  ASSIGN_OR_FAIL(auto file, ProfileToTablesFile::Parse(std::string(kTestJsonConfig)));
+  ASSIGN_OR_FAIL(auto result, file.GetUsernameToProfileMapping());
 
   std::unordered_map<std::string, std::string> expected;
   EXPECT_EQ(result, expected);
@@ -139,32 +147,11 @@ TEST(UsernameToProfile, MissingRootFieldIsNotAnError) {
     "a": "b"
 })__";
 
-  ASSIGN_OR_FAIL(auto result, GetUsernameToProfileMapping(std::string(kTestJsonConfig)));
+  ASSIGN_OR_FAIL(auto file, ProfileToTablesFile::Parse(std::string(kTestJsonConfig)));
+  ASSIGN_OR_FAIL(auto result, file.GetUsernameToProfileMapping());
 
   std::unordered_map<std::string, std::string> expected;
   EXPECT_EQ(result, expected);
-}
-
-TEST(UsernameToProfile, IncorrectJson) {
-  const std::string_view kTestJsonConfig = R"__({
-   qwe{{}{}{}{}ad}
-})__";
-
-  auto maybe_result = GetUsernameToProfileMapping(std::string(kTestJsonConfig));
-  ASSERT_NE(maybe_result.status(), arrow::Status::OK());
-
-  EXPECT_EQ(maybe_result.status().message(), "User-profiles-to-username parsing error: not a valid JSON");
-}
-
-TEST(UsernameToProfile, RootIsNotAnObject) {
-  const std::string_view kTestJsonConfig = R"__(
-   "q"
-)__";
-
-  auto maybe_result = GetUsernameToProfileMapping(std::string(kTestJsonConfig));
-  ASSERT_NE(maybe_result.status(), arrow::Status::OK());
-
-  EXPECT_EQ(maybe_result.status().message(), "User-profiles-to-username parsing error: root is not an object");
 }
 
 TEST(UsernameToProfile, ValueIsNotAnArray) {
@@ -174,7 +161,8 @@ TEST(UsernameToProfile, ValueIsNotAnArray) {
     }
 })__";
 
-  auto maybe_result = GetUsernameToProfileMapping(std::string(kTestJsonConfig));
+  ASSIGN_OR_FAIL(auto file, ProfileToTablesFile::Parse(std::string(kTestJsonConfig)));
+  auto maybe_result = file.GetUsernameToProfileMapping();
   ASSERT_NE(maybe_result.status(), arrow::Status::OK());
 
   EXPECT_EQ(maybe_result.status().message(),
@@ -188,7 +176,8 @@ TEST(UsernameToProfile, ElementIsNotAString) {
     }
 })__";
 
-  auto maybe_result = GetUsernameToProfileMapping(std::string(kTestJsonConfig));
+  ASSIGN_OR_FAIL(auto file, ProfileToTablesFile::Parse(std::string(kTestJsonConfig)));
+  auto maybe_result = file.GetUsernameToProfileMapping();
   ASSERT_NE(maybe_result.status(), arrow::Status::OK());
 
   EXPECT_EQ(maybe_result.status().message(),
@@ -204,7 +193,8 @@ TEST(UsernameToProfile, UsernameClaimedByMultipleProfiles) {
     }
 })__";
 
-  ASSIGN_OR_FAIL(auto result, GetUsernameToProfileMapping(std::string(kTestJsonConfig)));
+  ASSIGN_OR_FAIL(auto file, ProfileToTablesFile::Parse(std::string(kTestJsonConfig)));
+  ASSIGN_OR_FAIL(auto result, file.GetUsernameToProfileMapping());
 
   std::unordered_map<std::string, std::string> expected = {{"name7", "someprofile1"},   {"name4", "someprofile3"},
                                                            {"name6", "someprofile2"},   {"shared1", "someprofile1"},

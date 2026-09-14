@@ -117,7 +117,8 @@ TEST(UserProfileOverrideTest, AppliesMatchingProfile) {
   Config config{};
   config.limits.max_cpu_threads = 42;
 
-  ASSERT_OK(ApplyUserProfileOverride(kTestProfileToTablesConfig, "someprofile1", &config));
+  ASSIGN_OR_FAIL(auto file, ProfileToTablesFile::Parse(kTestProfileToTablesConfig));
+  ASSERT_OK(file.ApplyUserProfileOverride("someprofile1", &config));
   EXPECT_EQ(config.limits.equality_delete_max_rows, 1000000u);
   EXPECT_EQ(config.limits.max_cpu_threads, 42u);
 }
@@ -125,7 +126,8 @@ TEST(UserProfileOverrideTest, AppliesMatchingProfile) {
 TEST(UserProfileOverrideTest, UnknownProfileIsNoOp) {
   Config config{};
 
-  ASSERT_OK(ApplyUserProfileOverride(kTestProfileToTablesConfig, "no_such_profile", &config));
+  ASSIGN_OR_FAIL(auto file, ProfileToTablesFile::Parse(kTestProfileToTablesConfig));
+  ASSERT_OK(file.ApplyUserProfileOverride("no_such_profile", &config));
   EXPECT_EQ(config, Config{});
 }
 
@@ -139,7 +141,8 @@ TEST(UserProfileOverrideTest, MissingProfilesSectionIsNoOp) {
 )__";
   Config config{};
 
-  ASSERT_OK(ApplyUserProfileOverride(kNoProfilesConfig, "someprofile1", &config));
+  ASSIGN_OR_FAIL(auto file, ProfileToTablesFile::Parse(kNoProfilesConfig));
+  ASSERT_OK(file.ApplyUserProfileOverride("someprofile1", &config));
   EXPECT_EQ(config, Config{});
 }
 
@@ -159,7 +162,8 @@ TEST(CommonConfigOverrideTest, AppliesWhenPresent) {
   Config config{};
   config.limits.max_cpu_threads = 42;
 
-  ASSERT_OK(ApplyCommonConfigOverride(kConfig, &config));
+  ASSIGN_OR_FAIL(auto file, ProfileToTablesFile::Parse(kConfig));
+  ASSERT_OK(file.ApplyCommonConfigOverride(&config));
   EXPECT_EQ(config.limits.equality_delete_max_rows, 100u);
   EXPECT_EQ(config.limits.max_cpu_threads, 42u);
 }
@@ -174,7 +178,8 @@ TEST(CommonConfigOverrideTest, MissingSectionIsNoOp) {
 )__";
   Config config{};
 
-  ASSERT_OK(ApplyCommonConfigOverride(kConfig, &config));
+  ASSIGN_OR_FAIL(auto file, ProfileToTablesFile::Parse(kConfig));
+  ASSERT_OK(file.ApplyCommonConfigOverride(&config));
   EXPECT_EQ(config, Config{});
 }
 
@@ -189,7 +194,8 @@ TEST(CommonConfigOverrideTest, NotAnObjectIsAnError) {
 )__";
   Config config{};
 
-  auto status = ApplyCommonConfigOverride(kConfig, &config);
+  ASSIGN_OR_FAIL(auto file, ProfileToTablesFile::Parse(kConfig));
+  auto status = file.ApplyCommonConfigOverride(&config);
   ASSERT_NE(status, arrow::Status::OK());
   EXPECT_EQ(status.message(), "Profile-to-table parsing error: field 'common_config' is not an object");
 }

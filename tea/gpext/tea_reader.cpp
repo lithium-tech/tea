@@ -427,11 +427,18 @@ void UpdateConfig(const std::string& profile_to_tables_path, std::shared_ptr<ice
   } else {
     std::string file_content = maybe_file_content.MoveValueUnsafe();
 
-    if (auto status = tea::ApplyCommonConfigOverride(file_content, &config.config); !status.ok()) {
+    auto maybe_profile_file = tea::ProfileToTablesFile::Parse(file_content);
+    if (!maybe_profile_file.ok()) {
+      TEA_LOG(maybe_profile_file.status().message());
+      return;
+    }
+    tea::ProfileToTablesFile profile_file = maybe_profile_file.MoveValueUnsafe();
+
+    if (auto status = profile_file.ApplyCommonConfigOverride(&config.config); !status.ok()) {
       TEA_LOG(status.message());
     }
 
-    auto maybe_table_to_profile = tea::GetTableToProfileMapping(file_content);
+    auto maybe_table_to_profile = profile_file.GetTableToProfileMapping();
     if (!maybe_table_to_profile.ok()) {
       TEA_LOG(maybe_table_to_profile.status().message());
     } else {
@@ -450,7 +457,7 @@ void UpdateConfig(const std::string& profile_to_tables_path, std::shared_ptr<ice
       }
     }
 
-    auto maybe_username_to_profile = tea::GetUsernameToProfileMapping(file_content);
+    auto maybe_username_to_profile = profile_file.GetUsernameToProfileMapping();
     if (!maybe_username_to_profile.ok()) {
       TEA_LOG(maybe_username_to_profile.status().message());
     } else if (auto username_to_profile = maybe_username_to_profile.MoveValueUnsafe(); !username_to_profile.empty()) {
@@ -461,7 +468,7 @@ void UpdateConfig(const std::string& profile_to_tables_path, std::shared_ptr<ice
 #endif
       if (auto it = username_to_profile.find(session_user); it != username_to_profile.end()) {
         TEA_LOG("Profile for user '" + session_user + "' is overrided as " + it->second);
-        if (auto status = tea::ApplyUserProfileOverride(file_content, it->second, &config.config); !status.ok()) {
+        if (auto status = profile_file.ApplyUserProfileOverride(it->second, &config.config); !status.ok()) {
           TEA_LOG(status.message());
         }
       }

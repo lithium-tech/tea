@@ -778,58 +778,47 @@ arrow::Result<std::unordered_map<std::string, std::string>> InvertProfileMapping
   return result;
 }
 
-arrow::Result<rapidjson::Document> ParseProfileToTablesDocument(const std::string& file_content,
-                                                                const std::string& error_prefix) {
-  rapidjson::Document doc;
-  doc.Parse(file_content.data(), file_content.size());
-
-  if (doc.HasParseError()) {
-    return arrow::Status::ExecutionError(error_prefix, " parsing error: not a valid JSON");
-  }
-  if (!doc.IsObject()) {
-    return arrow::Status::ExecutionError(error_prefix, " parsing error: root is not an object");
-  }
-  return doc;
-}
-
 }  // namespace
 
-arrow::Result<std::unordered_map<std::string, std::string>> GetTableToProfileMapping(const std::string& file_content) {
-  ARROW_ASSIGN_OR_RAISE(rapidjson::Document doc, ParseProfileToTablesDocument(file_content, "Profile-to-table"));
-  return InvertProfileMapping(doc, "profile-to-tables", "Profile-to-table");
+arrow::Result<ProfileToTablesFile> ProfileToTablesFile::Parse(const std::string& file_content) {
+  ProfileToTablesFile file;
+  file.doc_.Parse(file_content.data(), file_content.size());
+
+  if (file.doc_.HasParseError()) {
+    return arrow::Status::ExecutionError("Profile-to-tables file parsing error: not a valid JSON");
+  }
+  if (!file.doc_.IsObject()) {
+    return arrow::Status::ExecutionError("Profile-to-tables file parsing error: root is not an object");
+  }
+  return file;
 }
 
-arrow::Result<std::unordered_map<std::string, std::string>> GetUsernameToProfileMapping(
-    const std::string& file_content) {
-  ARROW_ASSIGN_OR_RAISE(rapidjson::Document doc,
-                        ParseProfileToTablesDocument(file_content, "User-profiles-to-username"));
-  return InvertProfileMapping(doc, "user-profiles-to-username", "User-profiles-to-username");
+arrow::Result<std::unordered_map<std::string, std::string>> ProfileToTablesFile::GetTableToProfileMapping() const {
+  return InvertProfileMapping(doc_, "profile-to-tables", "Profile-to-table");
 }
 
-arrow::Status ApplyUserProfileOverride(const std::string& file_content, const std::string& profile_name,
-                                       Config* config) {
-  ARROW_ASSIGN_OR_RAISE(rapidjson::Document doc,
-                        ParseProfileToTablesDocument(file_content, "User-profiles-to-username"));
-
-  if (!doc.HasMember("user-profiles") || !doc["user-profiles"].IsObject()) {
-    return arrow::Status::OK();
-  }
-  if (!doc["user-profiles"].HasMember(profile_name.c_str())) {
-    return arrow::Status::OK();
-  }
-  return ReadValues(&doc["user-profiles"][profile_name.c_str()], config, "");
+arrow::Result<std::unordered_map<std::string, std::string>> ProfileToTablesFile::GetUsernameToProfileMapping() const {
+  return InvertProfileMapping(doc_, "user-profiles-to-username", "User-profiles-to-username");
 }
 
-arrow::Status ApplyCommonConfigOverride(const std::string& file_content, Config* config) {
-  ARROW_ASSIGN_OR_RAISE(rapidjson::Document doc, ParseProfileToTablesDocument(file_content, "Profile-to-table"));
-
-  if (!doc.HasMember("common_config")) {
+arrow::Status ProfileToTablesFile::ApplyCommonConfigOverride(Config* config) const {
+  if (!doc_.HasMember("common_config")) {
     return arrow::Status::OK();
   }
-  if (!doc["common_config"].IsObject()) {
+  if (!doc_["common_config"].IsObject()) {
     return arrow::Status::ExecutionError("Profile-to-table parsing error: field 'common_config' is not an object");
   }
-  return ReadValues(&doc["common_config"], config, "");
+  return ReadValues(&doc_["common_config"], config, "");
+}
+
+arrow::Status ProfileToTablesFile::ApplyUserProfileOverride(const std::string& profile_name, Config* config) const {
+  if (!doc_.HasMember("user-profiles") || !doc_["user-profiles"].IsObject()) {
+    return arrow::Status::OK();
+  }
+  if (!doc_["user-profiles"].HasMember(profile_name.c_str())) {
+    return arrow::Status::OK();
+  }
+  return ReadValues(&doc_["user-profiles"][profile_name.c_str()], config, "");
 }
 
 }  // namespace tea

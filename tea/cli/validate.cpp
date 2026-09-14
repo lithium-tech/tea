@@ -134,20 +134,16 @@ arrow::Status ValidateProfileToTablesMapping(const std::string& mapping_path) {
   }
 
   std::string s = ReadFile(input_config);
-  ARROW_RETURN_NOT_OK(tea::GetTableToProfileMapping(s).status());
-  ARROW_RETURN_NOT_OK(tea::GetUsernameToProfileMapping(s).status());
+  ARROW_ASSIGN_OR_RAISE(tea::ProfileToTablesFile file, tea::ProfileToTablesFile::Parse(s));
+
+  ARROW_RETURN_NOT_OK(file.GetTableToProfileMapping().status());
+  ARROW_RETURN_NOT_OK(file.GetUsernameToProfileMapping().status());
   tea::Config dummy_config;
-  ARROW_RETURN_NOT_OK(tea::ApplyCommonConfigOverride(s, &dummy_config));
+  ARROW_RETURN_NOT_OK(file.ApplyCommonConfigOverride(&dummy_config));
 
-  rapidjson::Document doc;
-  doc.Parse(s.data(), s.size());
-  if (doc.HasParseError()) {
-    return arrow::Status::ExecutionError("Profile-to-table parsing error: not a valid JSON");
-  }
-
-  ARROW_RETURN_NOT_OK(ValidateAgainstJsonSchema(doc, kProfileToTablesSchema));
-  ARROW_RETURN_NOT_OK(ValidateNoItemClaimedByMultipleProfiles(doc, "profile-to-tables"));
-  return ValidateNoItemClaimedByMultipleProfiles(doc, "user-profiles-to-username");
+  ARROW_RETURN_NOT_OK(ValidateAgainstJsonSchema(file.document(), kProfileToTablesSchema));
+  ARROW_RETURN_NOT_OK(ValidateNoItemClaimedByMultipleProfiles(file.document(), "profile-to-tables"));
+  return ValidateNoItemClaimedByMultipleProfiles(file.document(), "user-profiles-to-username");
 }
 
 }  // namespace tea::cli
