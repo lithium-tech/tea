@@ -426,7 +426,19 @@ void UpdateConfig(const std::string& profile_to_tables_path, std::shared_ptr<ice
     }
   } else {
     std::string file_content = maybe_file_content.MoveValueUnsafe();
-    auto maybe_table_to_profile = tea::GetTableToProfileMapping(file_content);
+
+    auto maybe_profile_file = tea::ProfileToTablesFile::Parse(file_content);
+    if (!maybe_profile_file.ok()) {
+      TEA_LOG(maybe_profile_file.status().message());
+      return;
+    }
+    tea::ProfileToTablesFile profile_file = maybe_profile_file.MoveValueUnsafe();
+
+    if (auto status = profile_file.ApplyCommonConfigOverride(&config.config); !status.ok()) {
+      TEA_LOG(status.message());
+    }
+
+    auto maybe_table_to_profile = profile_file.GetTableToProfileMapping();
     if (!maybe_table_to_profile.ok()) {
       TEA_LOG(maybe_table_to_profile.status().message());
     } else {
@@ -440,8 +452,25 @@ void UpdateConfig(const std::string& profile_to_tables_path, std::shared_ptr<ice
         return std::nullopt;
       }();
       if (table_id.has_value() && table_to_profile.contains(*table_id)) {
-        TEA_LOG("Profile for table '" + *table_id + "' is overrided as " + table_to_profile.at(*table_id));
+        TEA_LOG("Profile for table '" + *table_id + "' is overridden as " + table_to_profile.at(*table_id));
         config = tea::ConfigSource::GetTableConfig(m_server_options, table_url, table_to_profile.at(*table_id));
+      }
+    }
+
+    auto maybe_username_to_profile = profile_file.GetUsernameToProfileMapping();
+    if (!maybe_username_to_profile.ok()) {
+      TEA_LOG(maybe_username_to_profile.status().message());
+    } else if (auto username_to_profile = maybe_username_to_profile.MoveValueUnsafe(); !username_to_profile.empty()) {
+#ifdef OPENGPDB
+      std::string session_user = GetUserNameFromId(GetSessionUserId(), false);
+#else
+      std::string session_user = GetUserNameFromId(GetSessionUserId());
+#endif
+      if (auto it = username_to_profile.find(session_user); it != username_to_profile.end()) {
+        TEA_LOG("Profile for user '" + session_user + "' is overridden as " + it->second);
+        if (auto status = profile_file.ApplyUserProfileOverride(it->second, &config.config); !status.ok()) {
+          TEA_LOG(status.message());
+        }
       }
     }
   }

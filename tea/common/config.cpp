@@ -452,7 +452,7 @@ arrow::Status ReadValues(Source* src, Config* config, std::string_view section_p
 
   Get(src, section_prefix, "samovar", "use_samovar", &config->samovar_config.turn_on_samovar);
 
-  // SyncBackoff = MetadataBackoff by default, but params can be overrided
+  // SyncBackoff = MetadataBackoff by default, but params can be overridden
   GetBackoffInfo(src, &config->samovar_config.metadata_backoff, section_prefix, "");
   config->samovar_config.sync_backoff = config->samovar_config.metadata_backoff;
   GetBackoffInfo(src, &config->samovar_config.sync_backoff, section_prefix, "sync_");
@@ -680,13 +680,13 @@ Config ConfigSource::GetConfig(const std::unordered_map<std::string, std::string
 }
 
 TableConfig ConfigSource::GetTableConfig(const std::unordered_map<std::string, std::string>& m_server_options,
-                                         std::string_view url, const std::string& overrided_profile) {
+                                         std::string_view url, const std::string& overridden_profile) {
   if (!url.starts_with(kTeaSchema)) {
     throw arrow::Status::ExecutionError("Url must start with ", kTeaSchema, " but ", url, " found");
   }
   const auto nested_url = url.substr(kTeaSchema.size());
   const auto components = iceberg::SplitUrl(nested_url);
-  std::string_view profile = overrided_profile;
+  std::string_view profile = overridden_profile;
   for (auto& [key, value] : components.params) {
     if (key == std::string_view("profile")) {
       profile = value;
@@ -722,63 +722,103 @@ TableConfig ConfigSource::GetTableConfig(const std::unordered_map<std::string, s
   return table_config;
 }
 
-arrow::Result<std::unordered_map<std::string, std::string>> GetTableToProfileMapping(const std::string& file_content) {
+namespace {
+
+arrow::Result<std::unordered_map<std::string, std::string>> InvertProfileMapping(const rapidjson::Document& doc,
+                                                                                 const char* field_name,
+                                                                                 const std::string& error_prefix) {
   std::unordered_map<std::string, std::string> result;
 
-  rapidjson::Document doc;
-  doc.Parse(file_content.data(), file_content.size());
-
-  if (doc.HasParseError()) {
-    return arrow::Status::ExecutionError("Profile-to-table parsing error: not a valid JSON");
+  if (!doc.HasMember(field_name)) {
+    return result;
   }
-  if (!doc.IsObject()) {
-    return arrow::Status::ExecutionError("Profile-to-table parsing error: root is not an object");
+  const auto& profile_to_items = doc[field_name];
+  if (!profile_to_items.IsObject()) {
+    return arrow::Status::ExecutionError(error_prefix, " parsing error: field '", field_name, "' is not an object");
   }
-  if (!doc.HasMember("profile-to-tables")) {
-    return arrow::Status::ExecutionError(
-        "Profile-to-table parsing error: field 'profile-to-tables' is expected but not found");
-  }
-  const auto& profile_to_tables = doc["profile-to-tables"];
 
-  std::unordered_set<std::string> bad_tables;
+  std::unordered_set<std::string> bad_items;
 
-  for (auto iter = profile_to_tables.MemberBegin(); iter != profile_to_tables.MemberEnd(); ++iter) {
+  for (auto iter = profile_to_items.MemberBegin(); iter != profile_to_items.MemberEnd(); ++iter) {
     const auto& key = iter->name;
     const auto& value = iter->value;
     if (!key.IsString()) {
-      return arrow::Status::ExecutionError("Profile-to-table parsing error: there is a key that is not a string");
+      return arrow::Status::ExecutionError(error_prefix, " parsing error: there is a key that is not a string");
     }
 
     const std::string profile = key.GetString();
 
     if (!value.IsArray()) {
-      return arrow::Status::ExecutionError("Profile-to-table parsing error: value for profile '", profile,
+      return arrow::Status::ExecutionError(error_prefix, " parsing error: value for profile '", profile,
                                            "' is not an array");
     }
 
-    const auto& tables = value.GetArray();
+    const auto& items = value.GetArray();
 
-    for (const auto& elem : tables) {
+    for (const auto& elem : items) {
       if (!elem.IsString()) {
-        return arrow::Status::ExecutionError("Profile-to-table parsing error: element for key '", profile,
+        return arrow::Status::ExecutionError(error_prefix, " parsing error: element for key '", profile,
                                              "' is not a string");
       }
 
-      std::string table_name = elem.GetString();
+      std::string item_name = elem.GetString();
 
-      if (result.contains(table_name)) {
-        bad_tables.insert(table_name);
+      if (result.contains(item_name)) {
+        bad_items.insert(item_name);
         continue;
       }
-      result[table_name] = profile;
+      result[item_name] = profile;
     }
   }
 
-  for (const auto& bad_table : bad_tables) {
-    result.erase(bad_table);
+  for (const auto& bad_item : bad_items) {
+    result.erase(bad_item);
   }
 
   return result;
+}
+
+}  // namespace
+
+arrow::Result<ProfileToTablesFile> ProfileToTablesFile::Parse(const std::string& file_content) {
+  ProfileToTablesFile file;
+  file.doc_.Parse(file_content.data(), file_content.size());
+
+  if (file.doc_.HasParseError()) {
+    return arrow::Status::ExecutionError("Profile-to-tables file parsing error: not a valid JSON");
+  }
+  if (!file.doc_.IsObject()) {
+    return arrow::Status::ExecutionError("Profile-to-tables file parsing error: root is not an object");
+  }
+  return file;
+}
+
+arrow::Result<std::unordered_map<std::string, std::string>> ProfileToTablesFile::GetTableToProfileMapping() const {
+  return InvertProfileMapping(doc_, "profile-to-tables", "Profile-to-table");
+}
+
+arrow::Result<std::unordered_map<std::string, std::string>> ProfileToTablesFile::GetUsernameToProfileMapping() const {
+  return InvertProfileMapping(doc_, "user-profiles-to-username", "User-profiles-to-username");
+}
+
+arrow::Status ProfileToTablesFile::ApplyCommonConfigOverride(Config* config) const {
+  if (!doc_.HasMember("common_config")) {
+    return arrow::Status::OK();
+  }
+  if (!doc_["common_config"].IsObject()) {
+    return arrow::Status::ExecutionError("Profile-to-table parsing error: field 'common_config' is not an object");
+  }
+  return ReadValues(&doc_["common_config"], config, "");
+}
+
+arrow::Status ProfileToTablesFile::ApplyUserProfileOverride(const std::string& profile_name, Config* config) const {
+  if (!doc_.HasMember("user-profiles") || !doc_["user-profiles"].IsObject()) {
+    return arrow::Status::OK();
+  }
+  if (!doc_["user-profiles"].HasMember(profile_name.c_str())) {
+    return arrow::Status::OK();
+  }
+  return ReadValues(&doc_["user-profiles"][profile_name.c_str()], config, "");
 }
 
 }  // namespace tea

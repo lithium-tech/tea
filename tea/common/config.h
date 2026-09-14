@@ -15,6 +15,7 @@
 #include "arrow/result.h"
 #include "arrow/status.h"
 #include "iceberg/common/fs/filesystem_provider.h"
+#include "rapidjson/document.h"
 
 namespace tea {
 
@@ -290,9 +291,24 @@ class ConfigSource {
   static Config GetConfig(const std::unordered_map<std::string, std::string>& m_server_options,
                           std::string_view profile = std::string_view());
   static TableConfig GetTableConfig(const std::unordered_map<std::string, std::string>& m_server_options,
-                                    std::string_view url, const std::string& overrided_profile = "");
+                                    std::string_view url, const std::string& overridden_profile = "");
 };
 
-arrow::Result<std::unordered_map<std::string, std::string>> GetTableToProfileMapping(const std::string& file_content);
+class ProfileToTablesFile {
+ public:
+  static arrow::Result<ProfileToTablesFile> Parse(const std::string& file_content);
+
+  arrow::Result<std::unordered_map<std::string, std::string>> GetTableToProfileMapping() const;
+  arrow::Result<std::unordered_map<std::string, std::string>> GetUsernameToProfileMapping() const;
+  arrow::Status ApplyCommonConfigOverride(Config* config) const;
+  arrow::Status ApplyUserProfileOverride(const std::string& profile_name, Config* config) const;
+
+  const rapidjson::Document& document() const { return doc_; }
+
+ private:
+  ProfileToTablesFile() = default;
+
+  rapidjson::Document doc_;
+};
 
 }  // namespace tea

@@ -95,6 +95,111 @@ TEST(JsonConfigTest, FilterIgnoredExprs) {
   EXPECT_EQ(config.features.filter_ignored_func_exprs, (std::vector<int>{4}));
 }
 
+const char* const kTestProfileToTablesConfig = R"__(
+{
+    "profile-to-tables": {
+        "table_profile": ["some.table"]
+    },
+    "user-profiles-to-username": {
+        "someprofile1": ["name1"]
+    },
+    "user-profiles": {
+        "someprofile1": {
+            "limits": {
+                "equality_delete_max_rows": 1000000
+            }
+        }
+    }
+}
+)__";
+
+TEST(UserProfileOverrideTest, AppliesMatchingProfile) {
+  Config config{};
+  config.limits.max_cpu_threads = 42;
+
+  ASSIGN_OR_FAIL(auto file, ProfileToTablesFile::Parse(kTestProfileToTablesConfig));
+  ASSERT_OK(file.ApplyUserProfileOverride("someprofile1", &config));
+  EXPECT_EQ(config.limits.equality_delete_max_rows, 1000000u);
+  EXPECT_EQ(config.limits.max_cpu_threads, 42u);
+}
+
+TEST(UserProfileOverrideTest, UnknownProfileIsNoOp) {
+  Config config{};
+
+  ASSIGN_OR_FAIL(auto file, ProfileToTablesFile::Parse(kTestProfileToTablesConfig));
+  ASSERT_OK(file.ApplyUserProfileOverride("no_such_profile", &config));
+  EXPECT_EQ(config, Config{});
+}
+
+TEST(UserProfileOverrideTest, MissingProfilesSectionIsNoOp) {
+  const char* const kNoProfilesConfig = R"__(
+{
+    "profile-to-tables": {
+        "table_profile": ["some.table"]
+    }
+}
+)__";
+  Config config{};
+
+  ASSIGN_OR_FAIL(auto file, ProfileToTablesFile::Parse(kNoProfilesConfig));
+  ASSERT_OK(file.ApplyUserProfileOverride("someprofile1", &config));
+  EXPECT_EQ(config, Config{});
+}
+
+TEST(CommonConfigOverrideTest, AppliesWhenPresent) {
+  const char* const kConfig = R"__(
+{
+    "profile-to-tables": {
+        "table_profile": ["some.table"]
+    },
+    "common_config": {
+        "limits": {
+            "equality_delete_max_rows": 100
+        }
+    }
+}
+)__";
+  Config config{};
+  config.limits.max_cpu_threads = 42;
+
+  ASSIGN_OR_FAIL(auto file, ProfileToTablesFile::Parse(kConfig));
+  ASSERT_OK(file.ApplyCommonConfigOverride(&config));
+  EXPECT_EQ(config.limits.equality_delete_max_rows, 100u);
+  EXPECT_EQ(config.limits.max_cpu_threads, 42u);
+}
+
+TEST(CommonConfigOverrideTest, MissingSectionIsNoOp) {
+  const char* const kConfig = R"__(
+{
+    "profile-to-tables": {
+        "table_profile": ["some.table"]
+    }
+}
+)__";
+  Config config{};
+
+  ASSIGN_OR_FAIL(auto file, ProfileToTablesFile::Parse(kConfig));
+  ASSERT_OK(file.ApplyCommonConfigOverride(&config));
+  EXPECT_EQ(config, Config{});
+}
+
+TEST(CommonConfigOverrideTest, NotAnObjectIsAnError) {
+  const char* const kConfig = R"__(
+{
+    "profile-to-tables": {
+        "table_profile": ["some.table"]
+    },
+    "common_config": "not-an-object"
+}
+)__";
+  Config config{};
+
+  ASSIGN_OR_FAIL(auto file, ProfileToTablesFile::Parse(kConfig));
+  auto status = file.ApplyCommonConfigOverride(&config);
+  ASSERT_NE(status, arrow::Status::OK());
+  EXPECT_EQ(status.message(), "Profile-to-table parsing error: field 'common_config' is not an object");
+}
+
 struct ConfigSourceTest : public testing::Test {
  public:
   void SetUp() override {
