@@ -282,6 +282,9 @@ std::vector<std::string> SingleQueueClient::AllCells() {
 }
 
 void SingleQueueClient::ClearCells() {
+  std::vector<std::string> cells_to_delete;
+  cells_to_delete.reserve(AllCells().size());
+
   for (const auto& cell : AllCells()) {
     if (cell == GetMetadataCell() && !need_sync_on_init_) {
       samovar::ScanMetadata new_metadata;
@@ -289,8 +292,12 @@ void SingleQueueClient::ClearCells() {
 
       client_->SetCell(GetMetadataCell(), new_metadata.SerializeAsString(), ttl_seconds_);
     } else {
-      client_->DeleteCell(cell);
+      cells_to_delete.push_back(cell);
     }
+  }
+
+  if (!cells_to_delete.empty()) {
+    client_->DeleteCells(cells_to_delete);
   }
 }
 

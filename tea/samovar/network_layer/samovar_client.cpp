@@ -8,4 +8,10 @@ void ISamovarClient::UpdateTTL(const std::vector<std::string>& objects, std::chr
   }
 }
 
+void ISamovarClient::DeleteCells(const std::vector<std::string>& objects) {
+  for (const auto& obj : objects) {
+    DeleteCell(obj);
+  }
+}
+
 }  // namespace tea::samovar
