@@ -2,7 +2,7 @@
     "profile-to-tables": {
         "iceberg_samovar": [
             "a",
-            "test-tmp-db.overrided_table",
+            "test-tmp-db.overridden_table",
             "c"
         ],
         "teapot": [

@@ -452,7 +452,7 @@ arrow::Status ReadValues(Source* src, Config* config, std::string_view section_p
 
   Get(src, section_prefix, "samovar", "use_samovar", &config->samovar_config.turn_on_samovar);
 
-  // SyncBackoff = MetadataBackoff by default, but params can be overrided
+  // SyncBackoff = MetadataBackoff by default, but params can be overridden
   GetBackoffInfo(src, &config->samovar_config.metadata_backoff, section_prefix, "");
   config->samovar_config.sync_backoff = config->samovar_config.metadata_backoff;
   GetBackoffInfo(src, &config->samovar_config.sync_backoff, section_prefix, "sync_");
@@ -680,13 +680,13 @@ Config ConfigSource::GetConfig(const std::unordered_map<std::string, std::string
 }
 
 TableConfig ConfigSource::GetTableConfig(const std::unordered_map<std::string, std::string>& m_server_options,
-                                         std::string_view url, const std::string& overrided_profile) {
+                                         std::string_view url, const std::string& overridden_profile) {
   if (!url.starts_with(kTeaSchema)) {
     throw arrow::Status::ExecutionError("Url must start with ", kTeaSchema, " but ", url, " found");
   }
   const auto nested_url = url.substr(kTeaSchema.size());
   const auto components = iceberg::SplitUrl(nested_url);
-  std::string_view profile = overrided_profile;
+  std::string_view profile = overridden_profile;
   for (auto& [key, value] : components.params) {
     if (key == std::string_view("profile")) {
       profile = value;

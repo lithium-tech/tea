@@ -452,7 +452,7 @@ void UpdateConfig(const std::string& profile_to_tables_path, std::shared_ptr<ice
         return std::nullopt;
       }();
       if (table_id.has_value() && table_to_profile.contains(*table_id)) {
-        TEA_LOG("Profile for table '" + *table_id + "' is overrided as " + table_to_profile.at(*table_id));
+        TEA_LOG("Profile for table '" + *table_id + "' is overridden as " + table_to_profile.at(*table_id));
         config = tea::ConfigSource::GetTableConfig(m_server_options, table_url, table_to_profile.at(*table_id));
       }
     }
@@ -467,7 +467,7 @@ void UpdateConfig(const std::string& profile_to_tables_path, std::shared_ptr<ice
       std::string session_user = GetUserNameFromId(GetSessionUserId());
 #endif
       if (auto it = username_to_profile.find(session_user); it != username_to_profile.end()) {
-        TEA_LOG("Profile for user '" + session_user + "' is overrided as " + it->second);
+        TEA_LOG("Profile for user '" + session_user + "' is overridden as " + it->second);
         if (auto status = profile_file.ApplyUserProfileOverride(it->second, &config.config); !status.ok()) {
           TEA_LOG(status.message());
         }

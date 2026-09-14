@@ -291,7 +291,7 @@ class ConfigSource {
   static Config GetConfig(const std::unordered_map<std::string, std::string>& m_server_options,
                           std::string_view profile = std::string_view());
   static TableConfig GetTableConfig(const std::unordered_map<std::string, std::string>& m_server_options,
-                                    std::string_view url, const std::string& overrided_profile = "");
+                                    std::string_view url, const std::string& overridden_profile = "");
 };
 
 class ProfileToTablesFile {
