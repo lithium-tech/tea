@@ -57,9 +57,8 @@ void CheckQueryTotalBytesReadLimit(std::shared_ptr<ISamovarClient> client,
   if (static_cast<uint64_t>(total_bytes_read) <= max_total_s3_bytes_read) {
     return;
   }
-  throw std::runtime_error("Query exceeds Samovar total bytes read from S3 limit: " + std::to_string(total_bytes_read) +
-                           " bytes read (limit is " + std::to_string(max_total_s3_bytes_read) +
-                           "). Consider simplifying the query or splitting it into separate queries");
+  throw std::runtime_error("Query exceeds total bytes read from S3 limit: " + std::to_string(total_bytes_read) +
+                           " bytes read (limit is " + std::to_string(max_total_s3_bytes_read) + ").");
 }
 }  // namespace
 
