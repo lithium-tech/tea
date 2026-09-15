@@ -94,8 +94,6 @@ SingleQueueClient::SingleQueueClient(std::shared_ptr<ISamovarClient> client, std
   if (role == SamovarRole::kFollower) {
     client_->IncreaseNumericCell(GetCheckpointCell());
     client_->UpdateTTL(GetCheckpointCell(), ttl_seconds_);
-    client_->IncreaseNumericCell(GetInitScanCell());
-    client_->UpdateTTL(GetInitScanCell(), ttl_seconds_);
   }
 }
 
@@ -158,7 +156,7 @@ const samovar::ScanMetadata& SingleQueueClient::GetPlannedMetadata() {
   if (role_ == SamovarRole::kFollower && need_sync_on_init_) {
     ScopedTimerTicks timer(total_sync_time_);
 
-    SyncSegments(client_, GetInitScanCell(), segment_count_, sync_backoff_, "sync_segments");
+    SyncSegments(client_, GetCheckpointCell(), segment_count_, sync_backoff_, "sync_segments");
   }
 
   samovar::ScanMetadata result_metadata;
@@ -216,13 +214,6 @@ void SingleQueueClient::FillManifestsQueue(samovar::ScanMetadata&& scan_metadata
   FillCommonInfo(std::move(scan_metadata), samovar::FileList{});
 }
 
-std::string SingleQueueClient::GetInitScanCell() {
-  if (!init_scan_cell_) {
-    init_scan_cell_ = init_scan_prefix + queue_id_;
-  }
-  return *init_scan_cell_;
-}
-
 std::string SingleQueueClient::GetCheckpointCell() {
   if (!checkpoint_cell_) {
     checkpoint_cell_ = checkpoint_prefix + queue_id_;
@@ -277,7 +268,7 @@ SingleQueueClient::~SingleQueueClient() {
 }
 
 std::vector<std::string> SingleQueueClient::AllCells() {
-  return {queue_id_,           GetMetadataCell(), GetInitScanCell(), GetManifestsSyncScanCell(),
+  return {queue_id_,           GetMetadataCell(), GetManifestsSyncScanCell(),
           GetCheckpointCell(), GetFileListCell(), GetManifestCell()};
 }
 
