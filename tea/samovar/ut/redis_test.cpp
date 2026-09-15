@@ -588,9 +588,9 @@ TEST_P(ScanMetadataEmbeddedFileListTest, EmbeddedFileList) {
                                                "s3://bucket/table/part-00002.parquet"};
 
   {
-    auto coordinator = SingleQueueClient(
-        redis_client, batcher, std::chrono::seconds(std::numeric_limits<int32_t>::max()), queue_name, "", 2,
-        compressor_name, SamovarRole::kCoordinator, 0, backoff, backoff, false, 1);
+    auto coordinator =
+        SingleQueueClient(redis_client, batcher, std::chrono::seconds(std::numeric_limits<int32_t>::max()), queue_name,
+                          "", 2, compressor_name, SamovarRole::kCoordinator, 0, backoff, backoff, false, 1);
 
     samovar::ScanMetadata scan_metadata;
     auto* partition = scan_metadata.add_partitions();
@@ -619,9 +619,9 @@ TEST_P(ScanMetadataEmbeddedFileListTest, EmbeddedFileList) {
   }
 
   {
-    auto follower = SingleQueueClient(
-        redis_client, batcher, std::chrono::seconds(std::numeric_limits<int32_t>::max()), queue_name, "", 2,
-        compressor_name, SamovarRole::kFollower, 0, backoff, backoff, false, 1);
+    auto follower =
+        SingleQueueClient(redis_client, batcher, std::chrono::seconds(std::numeric_limits<int32_t>::max()), queue_name,
+                          "", 2, compressor_name, SamovarRole::kFollower, 0, backoff, backoff, false, 1);
 
     const auto& meta = follower.GetPlannedMetadata();
     EXPECT_FALSE(meta.compressed_file_list().empty());
@@ -639,8 +639,7 @@ TEST_P(ScanMetadataEmbeddedFileListTest, EmbeddedFileList) {
 INSTANTIATE_TEST_SUITE_P(IdentityCompressor, ScanMetadataEmbeddedFileListTest,
                          ::testing::Values(std::string(compression::kIdentityCompressorName)));
 
-INSTANTIATE_TEST_SUITE_P(LZ4Compressor, ScanMetadataEmbeddedFileListTest,
-                         ::testing::Values("lz4"));
+INSTANTIATE_TEST_SUITE_P(LZ4Compressor, ScanMetadataEmbeddedFileListTest, ::testing::Values("lz4"));
 
 }  // namespace
 

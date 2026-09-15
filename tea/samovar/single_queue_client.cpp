@@ -251,7 +251,6 @@ std::string SingleQueueClient::GetMetadataCell() {
 std::string SingleQueueClient::GetManifestsSyncScanCell() { return manifest_sync_prefix + queue_id_; }
 std::string SingleQueueClient::GetManifestCell() { return manifest_queue_prefix + queue_id_; }
 
-
 int64_t SingleQueueClient::GetMetricValue(SamovarMetrics metric) const {
   switch (metric) {
     case SamovarMetrics::kResponseTime: {
