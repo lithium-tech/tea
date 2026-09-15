@@ -195,8 +195,6 @@ void SingleQueueClient::FillCommonInfo(samovar::ScanMetadata&& scan_metadata, sa
     auto serialized_file_list = file_list_to_send.SerializeAsString();
     compressor->Compress(serialized_file_list);
     metadata_to_send.set_compressed_file_list(std::move(serialized_file_list));
-  } else if (!scan_metadata.compressed_file_list().empty()) {
-    metadata_to_send.set_compressed_file_list(scan_metadata.compressed_file_list());
   }
   file_list = std::move(file_list_to_send);
 
