@@ -32,7 +32,6 @@ std::string GetQueueName(int test_iter = 0) {
 }
 
 static constexpr const char* metadata_prefix = "/samovar_meta";
-static constexpr const char* file_list_prefix = "/file_list";
 static constexpr const char* checkpoint_prefix = "/checkpoint";
 static constexpr const char* processing_queue_prefix = "/processing";
 static constexpr const char* done_queue_prefix = "/done";
@@ -57,10 +56,6 @@ std::vector<std::string> SplitKey(const std::string& key, char delim = '/') {
 bool CheckRedisKey(const std::string& key) {
   if (key.substr(0, std::strlen(metadata_prefix)) == metadata_prefix) {
     return CheckRedisKey(key.substr(std::strlen(metadata_prefix)));
-  }
-
-  if (key.substr(0, std::strlen(file_list_prefix)) == file_list_prefix) {
-    return CheckRedisKey(key.substr(std::strlen(file_list_prefix)));
   }
 
   if (key.substr(0, std::strlen(checkpoint_prefix)) == checkpoint_prefix) {
@@ -571,6 +566,81 @@ TEST(RedisClient, FailServer) {
   }
   KillRedis();
 }
+
+class ScanMetadataEmbeddedFileListTest : public ::testing::TestWithParam<std::string> {};
+
+TEST_P(ScanMetadataEmbeddedFileListTest, EmbeddedFileList) {
+  StartRedis();
+  FlushServer();
+
+  const std::string compressor_name = GetParam();
+
+  auto backoff = std::make_shared<NoBackoff>(30);
+  auto batch_size_scheduler = std::make_shared<ConstantBatchSizeScheduler>(1);
+  auto redis_client =
+      std::make_shared<SamovarRedisClient>(std::vector<Endpoint>{Endpoint{.host = "0.0.0.0", .port = kDefaultPort}},
+                                           std::chrono::milliseconds(30000), std::chrono::milliseconds(3000));
+  auto batcher = std::make_shared<Batcher>(redis_client, batch_size_scheduler);
+  const std::string queue_name = GetQueueName(99);
+
+  const std::vector<std::string> test_files = {"s3://bucket/table/part-00000.parquet",
+                                               "s3://bucket/table/part-00001.parquet",
+                                               "s3://bucket/table/part-00002.parquet"};
+
+  {
+    auto coordinator = SingleQueueClient(
+        redis_client, batcher, std::chrono::seconds(std::numeric_limits<int32_t>::max()), queue_name, "", 2,
+        compressor_name, SamovarRole::kCoordinator, 0, backoff, backoff, false, 1);
+
+    samovar::ScanMetadata scan_metadata;
+    auto* partition = scan_metadata.add_partitions();
+    partition->add_layers();
+
+    samovar::FileList file_list;
+    for (const auto& file : test_files) {
+      file_list.add_filenames(file);
+    }
+
+    coordinator.FillFilesQueue(std::move(scan_metadata), std::move(file_list), {});
+  }
+
+  {
+    auto simple_client = RedisClient(std::vector<Endpoint>{Endpoint{.host = "0.0.0.0", .port = kDefaultPort}},
+                                     std::chrono::milliseconds(30000), std::chrono::milliseconds(3000));
+    auto all_keys = simple_client.SendRequest({"keys", "*"});
+    bool found_meta = false;
+    for (size_t i = 0; i < all_keys.Get()->elements; ++i) {
+      std::string key = all_keys.Get()->element[i]->str;
+      if (key.find("/samovar_meta") != std::string::npos) {
+        found_meta = true;
+      }
+    }
+    EXPECT_TRUE(found_meta);
+  }
+
+  {
+    auto follower = SingleQueueClient(
+        redis_client, batcher, std::chrono::seconds(std::numeric_limits<int32_t>::max()), queue_name, "", 2,
+        compressor_name, SamovarRole::kFollower, 0, backoff, backoff, false, 1);
+
+    const auto& meta = follower.GetPlannedMetadata();
+    EXPECT_FALSE(meta.compressed_file_list().empty());
+
+    const auto& files = follower.GetFileList();
+    EXPECT_EQ(files.filenames_size(), static_cast<int>(test_files.size()));
+    for (int i = 0; i < static_cast<int>(test_files.size()); ++i) {
+      EXPECT_EQ(files.filenames(i), test_files[i]);
+    }
+  }
+
+  KillRedis();
+}
+
+INSTANTIATE_TEST_SUITE_P(IdentityCompressor, ScanMetadataEmbeddedFileListTest,
+                         ::testing::Values(std::string(compression::kIdentityCompressorName)));
+
+INSTANTIATE_TEST_SUITE_P(LZ4Compressor, ScanMetadataEmbeddedFileListTest,
+                         ::testing::Values("lz4"));
 
 }  // namespace
 

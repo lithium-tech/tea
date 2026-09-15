@@ -75,6 +75,12 @@ def decode_meta(cell : str, host : str, port :str):
     new_scan_metadata = samovar_proto.ScanMetadata()
     new_scan_metadata.ParseFromString(proto_representation)
     print(new_scan_metadata)
+    if new_scan_metadata.compressed_file_list:
+        file_list_str = decompress_arrow_lz4(new_scan_metadata.compressed_file_list)
+        file_list_decoded_proto = samovar_proto.FileList()
+        file_list_decoded_proto.ParseFromString(file_list_str)
+        print("Embedded FileList:")
+        print(file_list_decoded_proto)
 
 def decode_queue(cell : str, host : str, port : str):
     if classify_query(cell) != MetaType.QUEUE:

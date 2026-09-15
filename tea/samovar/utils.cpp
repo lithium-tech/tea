@@ -483,6 +483,9 @@ samovar::ScanMetadata ClearDataEntries(const samovar::ScanMetadata& scan_metadat
     result.set_schema_name_mapping(scan_metadata.schema_name_mapping());
   }
   result.set_use_distributed_metadata_processing(scan_metadata.use_distributed_metadata_processing());
+  if (!scan_metadata.compressed_file_list().empty()) {
+    result.set_compressed_file_list(scan_metadata.compressed_file_list());
+  }
   for (int i = 0; i < scan_metadata.partitions_size(); ++i) {
     const auto& partition = scan_metadata.partitions()[i];
     auto* new_partititon = result.add_partitions();
