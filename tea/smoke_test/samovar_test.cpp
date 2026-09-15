@@ -6,6 +6,7 @@
 
 #include "arrow/status.h"
 #include "gtest/gtest.h"
+#include "iceberg/common/defer.h"
 
 #include "tea/common/config.h"
 #include "tea/samovar/network_layer/backoff.h"
@@ -41,15 +42,7 @@ namespace {
 class SamovarTest : public TeaTest {};
 }  // namespace
 
-class Defer {
- public:
-  explicit Defer(const std::function<void()>& func) : func_(func) {}
-
-  ~Defer() { func_(); }
-
- private:
-  std::function<void()> func_;
-};
+using Defer = iceberg::Defer;
 
 TEST_F(SamovarTest, NoRedis) {
   if (Environment::GetProfile() != "samovar") {
