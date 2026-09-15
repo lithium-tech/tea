@@ -76,6 +76,56 @@ RedisReply RedisClient::SendRequest(const std::vector<std::string>& argv) {
   return rsp;
 }
 
+std::vector<RedisReply> RedisClient::SendPipeline(const std::vector<std::vector<std::string>>& pipeline_argv) {
+  if (pipeline_argv.empty()) {
+    return {};
+  }
+
+  for (const auto& argv : pipeline_argv) {
+    std::vector<size_t> argvlen;
+    argvlen.reserve(argv.size());
+    for (const auto& arg : argv) {
+      argvlen.push_back(arg.size());
+    }
+
+    std::vector<const char*> argv_values;
+    argv_values.reserve(argv.size());
+    for (const auto& arg : argv) {
+      argv_values.push_back(arg.c_str());
+    }
+
+    if (redisAppendCommandArgv(redis_context_.get(), argv.size(), argv_values.data(), argvlen.data()) != REDIS_OK) {
+      ++error_count_;
+      throw std::runtime_error("Can not append command to redis pipeline: " + GetErrorMessage());
+    }
+  }
+
+  std::vector<RedisReply> replies;
+  replies.reserve(pipeline_argv.size());
+  {
+    ScopedTimerTicks timer(sum_time_response_);
+    for (size_t i = 0; i < pipeline_argv.size(); ++i) {
+      void* reply = nullptr;
+      if (redisGetReply(redis_context_.get(), &reply) != REDIS_OK) {
+        ++error_count_;
+        throw std::runtime_error("Can not get reply from redis pipeline: " + GetErrorMessage());
+      }
+      replies.emplace_back(static_cast<redisReply*>(reply));
+    }
+  }
+
+  ++requests_count_;
+
+  for (const auto& rsp : replies) {
+    if (!rsp.Get() || ErrorOnContext()) {
+      ++error_count_;
+      break;
+    }
+  }
+
+  return replies;
+}
+
 SamovarRedisClient::SamovarRedisClient(const std::vector<Endpoint>& endpoints,
                                        std::chrono::milliseconds request_timeout,
                                        std::chrono::milliseconds connection_timeout)
@@ -248,6 +298,107 @@ void SamovarRedisClient::UpdateTTL(const std::string& object, std::chrono::secon
 }
 
 void SamovarRedisClient::DeleteCell(const std::string& object) { underground_client_->SendRequest({"DEL", object}); }
+
+int SamovarRedisClient::RegisterSegment(const std::string& query_scans_count_key,
+                                        const std::vector<std::string>& cells_to_register,
+                                        std::chrono::seconds ttl,
+                                        bool check_query_scans) {
+  std::vector<std::vector<std::string>> pipeline;
+  std::string ttl_str = std::to_string(ttl.count());
+
+  if (check_query_scans) {
+    pipeline.push_back({"INCR", query_scans_count_key});
+    pipeline.push_back({"EXPIRE", query_scans_count_key, ttl_str});
+  }
+  for (const auto& cell : cells_to_register) {
+    pipeline.push_back({"INCR", cell});
+    pipeline.push_back({"EXPIRE", cell, ttl_str});
+  }
+
+  if (pipeline.empty()) {
+    return 0;
+  }
+
+  auto replies = underground_client_->SendPipeline(pipeline);
+  if (replies.size() != pipeline.size()) {
+    throw std::runtime_error("Unexpected replies count from pipeline");
+  }
+
+  for (const auto& reply : replies) {
+    if (ErrorOnMessage(reply.Get())) {
+      throw std::runtime_error("Can not register segment in samovar: " + underground_client_->GetErrorMessage());
+    }
+  }
+
+  int scans_count = 0;
+  if (check_query_scans) {
+    auto reply_repr = replies[0].Get();
+    if (reply_repr->type == REDIS_REPLY_INTEGER) {
+      scans_count = reply_repr->integer;
+    } else {
+      throw std::runtime_error("Unexpected reply type for INCR query_scans_count");
+    }
+  }
+
+  std::chrono::seconds current_ts =
+      std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch());
+  if (check_query_scans) {
+    object_to_last_update_in_seconds_[query_scans_count_key] = current_ts;
+  }
+  for (const auto& cell : cells_to_register) {
+    object_to_last_update_in_seconds_[cell] = current_ts;
+  }
+
+  return scans_count;
+}
+
+void SamovarRedisClient::PublishData(const std::string& queue_name,
+                                     const std::vector<std::string>& queue_elements,
+                                     const std::vector<std::pair<std::string, std::string>>& cells_with_data,
+                                     std::chrono::seconds ttl) {
+  std::vector<std::vector<std::string>> pipeline;
+  std::string ttl_str = std::to_string(ttl.count());
+
+  if (!queue_name.empty() && !queue_elements.empty()) {
+    std::vector<std::string> lpush_cmd = {"LPUSH", queue_name};
+    lpush_cmd.insert(lpush_cmd.end(), queue_elements.begin(), queue_elements.end());
+    pipeline.push_back(std::move(lpush_cmd));
+    pipeline.push_back({"EXPIRE", queue_name, ttl_str});
+  }
+
+  for (const auto& [cell, data] : cells_with_data) {
+    pipeline.push_back({"SET", cell, data, "EX", ttl_str});
+  }
+
+  if (pipeline.empty()) {
+    return;
+  }
+
+  auto replies = underground_client_->SendPipeline(pipeline);
+  if (replies.size() != pipeline.size()) {
+    throw std::runtime_error("Unexpected replies count from PublishData pipeline");
+  }
+
+  for (const auto& reply : replies) {
+    if (ErrorOnMessage(reply.Get())) {
+      throw std::runtime_error("Can not publish data in samovar: " + underground_client_->GetErrorMessage());
+    }
+  }
+
+  std::chrono::seconds current_ts =
+      std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now().time_since_epoch());
+  if (!queue_name.empty() && !queue_elements.empty()) {
+    object_to_last_update_in_seconds_[queue_name] = current_ts;
+  }
+  for (const auto& [cell, _] : cells_with_data) {
+    object_to_last_update_in_seconds_[cell] = current_ts;
+  }
+}
+
+std::vector<RedisReply> SamovarRedisClient::SendPipeline(
+    const std::vector<std::vector<std::string>>& pipeline_argv) {
+  return underground_client_->SendPipeline(pipeline_argv);
+}
 
 bool SamovarRedisClient::ErrorOnMessage(std::shared_ptr<redisReply> reply) const {
   return !reply || underground_client_->ErrorOnContext();

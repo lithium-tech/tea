@@ -26,7 +26,7 @@ class RedisReply {
 
   std::shared_ptr<redisReply> Get() const { return reply_; }
 
-  explicit RedisReply(redisReply* reply) : reply_(std::move(reply)) {}
+  explicit RedisReply(redisReply* reply) : reply_(reply, freeReplyObject) {}
 
  private:
   std::shared_ptr<redisReply> reply_;
@@ -38,6 +38,7 @@ class RedisClient {
                        std::chrono::milliseconds connection_timeout);
 
   RedisReply SendRequest(const std::vector<std::string>& argv);
+  std::vector<RedisReply> SendPipeline(const std::vector<std::vector<std::string>>& pipeline_argv);
 
   bool ErrorOnContext() const;
 
@@ -77,6 +78,17 @@ class SamovarRedisClient : public ISamovarClient {
 
   void UpdateTTL(const std::string& object, std::chrono::seconds ttl) override;
   void DeleteCell(const std::string& object) override;
+
+  int RegisterSegment(const std::string& query_scans_count_key,
+                      const std::vector<std::string>& cells_to_register,
+                      std::chrono::seconds ttl, bool check_query_scans) override;
+
+  void PublishData(const std::string& queue_name,
+                   const std::vector<std::string>& queue_elements,
+                   const std::vector<std::pair<std::string, std::string>>& cells_with_data,
+                   std::chrono::seconds ttl) override;
+
+  std::vector<RedisReply> SendPipeline(const std::vector<std::vector<std::string>>& pipeline_argv);
 
   DurationTicks GetTotalResponseDurationTicks() const override;
   int64_t GetRequestCount() const override;
