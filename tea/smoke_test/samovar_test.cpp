@@ -18,17 +18,13 @@
 namespace tea {
 
 static constexpr const char* metadata_prefix = "/samovar_meta";
-static constexpr const char* file_list_prefix = "/file_list";
 static constexpr const char* checkpoint_prefix = "/checkpoint";
 
-enum class CellType { kMetadataCell, kFileListCell, kCheckPointCell, kQueueCell };
+enum class CellType { kMetadataCell, kCheckPointCell, kQueueCell };
 
 CellType ClassifyCell(const std::string& cell) {
   if (cell.starts_with(metadata_prefix)) {
     return CellType::kMetadataCell;
-  }
-  if (cell.starts_with(file_list_prefix)) {
-    return CellType::kFileListCell;
   }
   if (cell.starts_with(checkpoint_prefix)) {
     return CellType::kCheckPointCell;

@@ -79,7 +79,6 @@ class SingleQueueClient {
   std::string queue_id_;
 
   static constexpr const char* metadata_prefix = "/samovar_meta";
-  static constexpr const char* file_list_prefix = "/file_list";
   static constexpr const char* init_scan_prefix = "/init_scan";
   static constexpr const char* checkpoint_prefix = "/checkpoint";
   static constexpr const char* manifest_queue_prefix = "/manifest";
@@ -88,7 +87,6 @@ class SingleQueueClient {
   std::optional<std::string> init_scan_cell_;
   std::optional<std::string> checkpoint_cell_;
   std::optional<std::string> metadata_cell_;
-  std::optional<std::string> file_list_cell_;
 
   std::optional<samovar::ScanMetadata> cached_result_metadata;
   std::optional<samovar::FileList> file_list;
@@ -96,7 +94,6 @@ class SingleQueueClient {
   std::string GetInitScanCell();
   std::string GetCheckpointCell();
   std::string GetMetadataCell();
-  std::string GetFileListCell();
   std::string GetManifestCell();
   std::string GetManifestsSyncScanCell();
 

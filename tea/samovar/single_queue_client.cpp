@@ -166,34 +166,43 @@ const samovar::ScanMetadata& SingleQueueClient::GetPlannedMetadata() {
                                              "wait_meta_from_coordinator");
   result_metadata.ParseFromString(response);
 
+  if (!file_list.has_value()) {
+    file_list = samovar::FileList{};
+    if (!result_metadata.compressed_file_list().empty()) {
+      auto decompressed = result_metadata.compressed_file_list();
+      compressor->Decompress(decompressed);
+      file_list->ParseFromString(decompressed);
+    }
+  }
+
   cached_result_metadata = std::move(result_metadata);
   return cached_result_metadata.value();
 }
 
 const samovar::FileList& SingleQueueClient::GetFileList() {
   if (!file_list) {
-    file_list = samovar::FileList{};
-    // TODO(gmusya): seems redundant
-    auto response = DoWithRetries<std::string>([&]() { return client_->GetCell(GetFileListCell()); }, metadata_backoff_,
-                                               "wait_file_list_from_coordinator");
-    compressor->Decompress(response);
-    file_list->ParseFromString(response);
+    GetPlannedMetadata();
+    if (!file_list) {
+      file_list = samovar::FileList{};
+    }
   }
   return file_list.value();
 }
 
 void SingleQueueClient::FillCommonInfo(samovar::ScanMetadata&& scan_metadata, samovar::FileList&& file_list_to_send) {
-  auto serialized_metadata = ClearDataEntries(scan_metadata).SerializeAsString();
-  auto serialized_file_list = file_list_to_send.SerializeAsString();
+  auto metadata_to_send = ClearDataEntries(scan_metadata);
+  if (file_list_to_send.filenames_size() > 0) {
+    auto serialized_file_list = file_list_to_send.SerializeAsString();
+    compressor->Compress(serialized_file_list);
+    metadata_to_send.set_compressed_file_list(std::move(serialized_file_list));
+  }
+  file_list = std::move(file_list_to_send);
 
-  compressor->Compress(serialized_file_list);
+  auto serialized_metadata = metadata_to_send.SerializeAsString();
 
   client_->SetCell(GetMetadataCell(), serialized_metadata, ttl_seconds_);
   TEA_LOG("Set serialized data at cell " + GetMetadataCell() + " with data size " +
           std::to_string(serialized_metadata.size()));
-  client_->SetCell(GetFileListCell(), serialized_file_list, ttl_seconds_);
-  TEA_LOG("Set file list at cell " + GetFileListCell() + " with data size " +
-          std::to_string(serialized_file_list.size()));
 }
 
 void SingleQueueClient::AppendToFilesQueue(std::vector<samovar::AnnotatedDataEntry>&& additional_data_entries) {
@@ -240,13 +249,6 @@ std::string SingleQueueClient::GetMetadataCell() {
 std::string SingleQueueClient::GetManifestsSyncScanCell() { return manifest_sync_prefix + queue_id_; }
 std::string SingleQueueClient::GetManifestCell() { return manifest_queue_prefix + queue_id_; }
 
-std::string SingleQueueClient::GetFileListCell() {
-  if (!file_list_cell_) {
-    file_list_cell_ = file_list_prefix + queue_id_;
-  }
-  return *file_list_cell_;
-}
-
 int64_t SingleQueueClient::GetMetricValue(SamovarMetrics metric) const {
   switch (metric) {
     case SamovarMetrics::kResponseTime: {
@@ -278,7 +280,7 @@ SingleQueueClient::~SingleQueueClient() {
 
 std::vector<std::string> SingleQueueClient::AllCells() {
   return {queue_id_,           GetMetadataCell(), GetInitScanCell(), GetManifestsSyncScanCell(),
-          GetCheckpointCell(), GetFileListCell(), GetManifestCell()};
+          GetCheckpointCell(), GetManifestCell()};
 }
 
 void SingleQueueClient::ClearCells() {

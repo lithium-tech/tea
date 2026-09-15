@@ -57,6 +57,8 @@ message ScanMetadata {
   bool scan_already_finished = 4;
 
   optional string schema_name_mapping = 5;
+
+  bytes compressed_file_list = 6;
 }
 
 message AnnotatedDataEntry {
