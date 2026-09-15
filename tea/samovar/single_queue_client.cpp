@@ -30,20 +30,37 @@ void SyncSegments(std::shared_ptr<ISamovarClient> client, const std::string& cel
       backoff, msg);
 }
 
-void CheckQuerySegmentScansLimit(std::shared_ptr<ISamovarClient> client, const std::string& query_scans_count_key,
-                                 std::chrono::seconds ttl_seconds, uint64_t max_query_segment_scans) {
-  if (max_query_segment_scans == 0) {
+template <typename Element>
+void PublishArrayWithCells(const std::shared_ptr<ISamovarClient>& client, const std::vector<Element>& elements,
+                           const std::string& queue_id,
+                           const std::vector<std::pair<std::string, std::string>>& cells_to_publish,
+                           std::chrono::seconds ttl_seconds, uint32_t batch_size) {
+  batch_size = std::max(batch_size, 1u);
+  const size_t total = elements.size();
+
+  if (total == 0) {
+    client->PublishData("", {}, cells_to_publish, ttl_seconds);
     return;
   }
-  const int scans_count = client->IncreaseNumericCell(query_scans_count_key);
-  client->UpdateTTL(query_scans_count_key, ttl_seconds);
-  if (static_cast<uint64_t>(scans_count) <= max_query_segment_scans) {
-    return;
+
+  size_t current_idx = 0;
+  while (current_idx + batch_size < total) {
+    std::vector<std::string> batch;
+    batch.reserve(batch_size);
+    for (size_t i = 0; i < batch_size; ++i, ++current_idx) {
+      batch.push_back(elements[current_idx].SerializeAsString());
+    }
+    client->PushQueue(queue_id, batch);
+    client->UpdateTTL(queue_id, ttl_seconds);
   }
-  throw std::runtime_error("Query exceeds Samovar scan limit: " + std::to_string(scans_count) +
-                           " scans started (limit is " + std::to_string(max_query_segment_scans) +
-                           "). Consider simplifying the query, reducing the number of JOIN/UNION ALL operators, "
-                           "or splitting it into separate queries");
+
+  std::vector<std::string> last_batch;
+  last_batch.reserve(total - current_idx);
+  for (; current_idx < total; ++current_idx) {
+    last_batch.push_back(elements[current_idx].SerializeAsString());
+  }
+
+  client->PublishData(queue_id, last_batch, cells_to_publish, ttl_seconds);
 }
 
 void CheckQueryTotalBytesReadLimit(std::shared_ptr<ISamovarClient> client,
@@ -84,18 +101,28 @@ SingleQueueClient::SingleQueueClient(std::shared_ptr<ISamovarClient> client, std
       queue_push_batch_size_(queue_push_batch_size),
       query_total_bytes_read_key_(query_total_bytes_read_key),
       max_total_s3_bytes_read_(max_total_s3_bytes_read) {
-  CheckQuerySegmentScansLimit(client_, query_scans_count_key, ttl_seconds_, max_query_segment_scans);
+  const bool check_query_scans = (max_query_segment_scans > 0 && !query_scans_count_key.empty());
 
   // role semantics in context of SingleQueueClient class:
   // kCoordinator means that segment will write metadata
   // kFollower means that:
   // * segment will write write and read metadata
   // * or segment will read metadata
+  std::vector<std::string> cells_to_register;
   if (role == SamovarRole::kFollower) {
-    client_->IncreaseNumericCell(GetCheckpointCell());
-    client_->UpdateTTL(GetCheckpointCell(), ttl_seconds_);
-    client_->IncreaseNumericCell(GetInitScanCell());
-    client_->UpdateTTL(GetInitScanCell(), ttl_seconds_);
+    cells_to_register.push_back(GetCheckpointCell());
+    cells_to_register.push_back(GetInitScanCell());
+  }
+
+  if (check_query_scans || !cells_to_register.empty()) {
+    const int scans_count =
+        client_->RegisterSegment(query_scans_count_key, cells_to_register, ttl_seconds_, check_query_scans);
+    if (check_query_scans && static_cast<uint64_t>(scans_count) > max_query_segment_scans) {
+      throw std::runtime_error("Query exceeds Samovar scan limit: " + std::to_string(scans_count) +
+                               " scans started (limit is " + std::to_string(max_query_segment_scans) +
+                               "). Consider simplifying the query, reducing the number of JOIN/UNION ALL operators, "
+                               "or splitting it into separate queries");
+    }
   }
 }
 
@@ -188,10 +215,14 @@ void SingleQueueClient::FillCommonInfo(samovar::ScanMetadata&& scan_metadata, sa
 
   compressor->Compress(serialized_file_list);
 
-  client_->SetCell(GetMetadataCell(), serialized_metadata, ttl_seconds_);
+
+  client_->PublishData("", {},
+                       {{GetMetadataCell(), std::move(serialized_metadata)},
+                        {GetFileListCell(), std::move(serialized_file_list)}},
+                       ttl_seconds_);
+
   TEA_LOG("Set serialized data at cell " + GetMetadataCell() + " with data size " +
           std::to_string(serialized_metadata.size()));
-  client_->SetCell(GetFileListCell(), serialized_file_list, ttl_seconds_);
   TEA_LOG("Set file list at cell " + GetFileListCell() + " with data size " +
           std::to_string(serialized_file_list.size()));
 }
@@ -202,18 +233,46 @@ void SingleQueueClient::AppendToFilesQueue(std::vector<samovar::AnnotatedDataEnt
 
 void SingleQueueClient::FillFilesQueue(samovar::ScanMetadata&& scan_metadata, samovar::FileList&& all_file_list,
                                        std::vector<samovar::AnnotatedDataEntry>&& additional_data_entries) {
-  AppendToFilesQueue(std::move(additional_data_entries));
+  auto serialized_metadata = ClearDataEntries(scan_metadata).SerializeAsString();
+  auto serialized_file_list = all_file_list.SerializeAsString();
 
-  FillCommonInfo(ClearDataEntries(scan_metadata), std::move(all_file_list));
+  compressor->Compress(serialized_file_list);
+
+  TEA_LOG("Set serialized data at cell " + GetMetadataCell() + " with data size " +
+          std::to_string(serialized_metadata.size()));
+  TEA_LOG("Set file list at cell " + GetFileListCell() + " with data size " +
+          std::to_string(serialized_file_list.size()));
+
+  std::vector<std::pair<std::string, std::string>> cells_to_publish = {
+      {GetMetadataCell(), std::move(serialized_metadata)},
+      {GetFileListCell(), std::move(serialized_file_list)},
+  };
+
+  PublishArrayWithCells(client_, additional_data_entries, queue_id_, cells_to_publish, ttl_seconds_,
+                        queue_push_batch_size_);
 }
 
 void SingleQueueClient::FillManifestsQueue(samovar::ScanMetadata&& scan_metadata,
                                            const std::vector<samovar::ManifestList>& manifests) {
-  SendManifestLists(client_, manifests, GetManifestCell(), ttl_seconds_, queue_push_batch_size_);
-
   scan_metadata.set_use_distributed_metadata_processing(true);
 
-  FillCommonInfo(std::move(scan_metadata), samovar::FileList{});
+  auto serialized_metadata = ClearDataEntries(scan_metadata).SerializeAsString();
+  auto serialized_file_list = samovar::FileList{}.SerializeAsString();
+
+  compressor->Compress(serialized_file_list);
+
+  TEA_LOG("Set serialized data at cell " + GetMetadataCell() + " with data size " +
+          std::to_string(serialized_metadata.size()));
+  TEA_LOG("Set file list at cell " + GetFileListCell() + " with data size " +
+          std::to_string(serialized_file_list.size()));
+
+  std::vector<std::pair<std::string, std::string>> cells_to_publish = {
+      {GetMetadataCell(), std::move(serialized_metadata)},
+      {GetFileListCell(), std::move(serialized_file_list)},
+  };
+
+  PublishArrayWithCells(client_, manifests, GetManifestCell(), cells_to_publish, ttl_seconds_,
+                        queue_push_batch_size_);
 }
 
 std::string SingleQueueClient::GetInitScanCell() {
