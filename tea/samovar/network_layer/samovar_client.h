@@ -54,11 +54,10 @@ class ISamovarClient {
   virtual void DeleteCell(const std::string& object) = 0;
 
   virtual int RegisterSegment(const std::string& query_scans_count_key,
-                              const std::vector<std::string>& cells_to_register,
-                              std::chrono::seconds ttl, bool check_query_scans);
+                              const std::vector<std::string>& cells_to_register, std::chrono::seconds ttl,
+                              bool check_query_scans);
 
-  virtual void PublishData(const std::string& queue_name,
-                           const std::vector<std::string>& queue_elements,
+  virtual void PublishData(const std::string& queue_name, const std::vector<std::string>& queue_elements,
                            const std::vector<std::pair<std::string, std::string>>& cells_with_data,
                            std::chrono::seconds ttl);
 

@@ -300,8 +300,7 @@ void SamovarRedisClient::UpdateTTL(const std::string& object, std::chrono::secon
 void SamovarRedisClient::DeleteCell(const std::string& object) { underground_client_->SendRequest({"DEL", object}); }
 
 int SamovarRedisClient::RegisterSegment(const std::string& query_scans_count_key,
-                                        const std::vector<std::string>& cells_to_register,
-                                        std::chrono::seconds ttl,
+                                        const std::vector<std::string>& cells_to_register, std::chrono::seconds ttl,
                                         bool check_query_scans) {
   std::vector<std::vector<std::string>> pipeline;
   std::string ttl_str = std::to_string(ttl.count());
@@ -352,8 +351,7 @@ int SamovarRedisClient::RegisterSegment(const std::string& query_scans_count_key
   return scans_count;
 }
 
-void SamovarRedisClient::PublishData(const std::string& queue_name,
-                                     const std::vector<std::string>& queue_elements,
+void SamovarRedisClient::PublishData(const std::string& queue_name, const std::vector<std::string>& queue_elements,
                                      const std::vector<std::pair<std::string, std::string>>& cells_with_data,
                                      std::chrono::seconds ttl) {
   std::vector<std::vector<std::string>> pipeline;
@@ -395,8 +393,7 @@ void SamovarRedisClient::PublishData(const std::string& queue_name,
   }
 }
 
-std::vector<RedisReply> SamovarRedisClient::SendPipeline(
-    const std::vector<std::vector<std::string>>& pipeline_argv) {
+std::vector<RedisReply> SamovarRedisClient::SendPipeline(const std::vector<std::vector<std::string>>& pipeline_argv) {
   return underground_client_->SendPipeline(pipeline_argv);
 }
 

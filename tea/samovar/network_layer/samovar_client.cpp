@@ -9,8 +9,8 @@ void ISamovarClient::UpdateTTL(const std::vector<std::string>& objects, std::chr
 }
 
 int ISamovarClient::RegisterSegment(const std::string& query_scans_count_key,
-                                    const std::vector<std::string>& cells_to_register,
-                                    std::chrono::seconds ttl, bool check_query_scans) {
+                                    const std::vector<std::string>& cells_to_register, std::chrono::seconds ttl,
+                                    bool check_query_scans) {
   int scans_count = 0;
   if (check_query_scans) {
     scans_count = IncreaseNumericCell(query_scans_count_key);
@@ -23,8 +23,7 @@ int ISamovarClient::RegisterSegment(const std::string& query_scans_count_key,
   return scans_count;
 }
 
-void ISamovarClient::PublishData(const std::string& queue_name,
-                                 const std::vector<std::string>& queue_elements,
+void ISamovarClient::PublishData(const std::string& queue_name, const std::vector<std::string>& queue_elements,
                                  const std::vector<std::pair<std::string, std::string>>& cells_with_data,
                                  std::chrono::seconds ttl) {
   if (!queue_name.empty() && !queue_elements.empty()) {

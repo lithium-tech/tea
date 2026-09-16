@@ -308,12 +308,8 @@ TEST(RedisClient, SendPipeline) {
   int64_t reqs_before = redis_client->GetRequestCount();
 
   std::vector<std::vector<std::string>> pipeline = {
-      {"SET", "pipe_k1", "val1"},
-      {"SET", "pipe_k2", "val2"},
-      {"GET", "pipe_k1"},
-      {"GET", "pipe_k2"},
-      {"INCR", "pipe_counter"},
-      {"INCR", "pipe_counter"},
+      {"SET", "pipe_k1", "val1"}, {"SET", "pipe_k2", "val2"}, {"GET", "pipe_k1"},
+      {"GET", "pipe_k2"},         {"INCR", "pipe_counter"},   {"INCR", "pipe_counter"},
   };
 
   auto replies = redis_client->SendPipeline(pipeline);
@@ -354,9 +350,8 @@ TEST(RedisClient, ConstructorPipelining) {
 
   int64_t reqs_before = redis_client->GetRequestCount();
   auto follower_client = std::make_shared<SingleQueueClient>(
-      redis_client, batcher, std::chrono::seconds(60), GetQueueName(1),
-      query_scans_count_key, 1, std::string(compression::kIdentityCompressorName),
-      SamovarRole::kFollower, 100, backoff, backoff, true, 1, "", 0);
+      redis_client, batcher, std::chrono::seconds(60), GetQueueName(1), query_scans_count_key, 1,
+      std::string(compression::kIdentityCompressorName), SamovarRole::kFollower, 100, backoff, backoff, true, 1, "", 0);
   int64_t reqs_after = redis_client->GetRequestCount();
 
   EXPECT_EQ(reqs_after - reqs_before, 1);
@@ -365,20 +360,20 @@ TEST(RedisClient, ConstructorPipelining) {
   EXPECT_EQ(redis_client->GetNumericCell(std::string(init_scan_prefix) + GetQueueName(1)), 1);
 
   reqs_before = redis_client->GetRequestCount();
-  auto coord_client = std::make_shared<SingleQueueClient>(
-      redis_client, batcher, std::chrono::seconds(60), GetQueueName(2),
-      query_scans_count_key, 1, std::string(compression::kIdentityCompressorName),
-      SamovarRole::kCoordinator, 100, backoff, backoff, true, 1, "", 0);
+  auto coord_client =
+      std::make_shared<SingleQueueClient>(redis_client, batcher, std::chrono::seconds(60), GetQueueName(2),
+                                          query_scans_count_key, 1, std::string(compression::kIdentityCompressorName),
+                                          SamovarRole::kCoordinator, 100, backoff, backoff, true, 1, "", 0);
   reqs_after = redis_client->GetRequestCount();
 
   EXPECT_EQ(reqs_after - reqs_before, 1);
   EXPECT_EQ(redis_client->GetNumericCell(query_scans_count_key), 2);
 
   reqs_before = redis_client->GetRequestCount();
-  auto no_check_client = std::make_shared<SingleQueueClient>(
-      redis_client, batcher, std::chrono::seconds(60), GetQueueName(3),
-      query_scans_count_key, 1, std::string(compression::kIdentityCompressorName),
-      SamovarRole::kCoordinator, 0, backoff, backoff, true, 1, "", 0);
+  auto no_check_client =
+      std::make_shared<SingleQueueClient>(redis_client, batcher, std::chrono::seconds(60), GetQueueName(3),
+                                          query_scans_count_key, 1, std::string(compression::kIdentityCompressorName),
+                                          SamovarRole::kCoordinator, 0, backoff, backoff, true, 1, "", 0);
   reqs_after = redis_client->GetRequestCount();
 
   EXPECT_EQ(reqs_after - reqs_before, 0);
@@ -399,8 +394,8 @@ TEST(RedisClient, FillFilesQueuePipelining) {
   const std::string queue_name = GetQueueName(42);
 
   auto client = SingleQueueClient(redis_client, batcher, std::chrono::seconds(60), queue_name, "", 1,
-                                  std::string(compression::kIdentityCompressorName),
-                                  SamovarRole::kCoordinator, 0, backoff, backoff, true, 100, "", 0);
+                                  std::string(compression::kIdentityCompressorName), SamovarRole::kCoordinator, 0,
+                                  backoff, backoff, true, 100, "", 0);
 
   samovar::ScanMetadata metadata;
   samovar::FileList file_list;

@@ -79,12 +79,10 @@ class SamovarRedisClient : public ISamovarClient {
   void UpdateTTL(const std::string& object, std::chrono::seconds ttl) override;
   void DeleteCell(const std::string& object) override;
 
-  int RegisterSegment(const std::string& query_scans_count_key,
-                      const std::vector<std::string>& cells_to_register,
+  int RegisterSegment(const std::string& query_scans_count_key, const std::vector<std::string>& cells_to_register,
                       std::chrono::seconds ttl, bool check_query_scans) override;
 
-  void PublishData(const std::string& queue_name,
-                   const std::vector<std::string>& queue_elements,
+  void PublishData(const std::string& queue_name, const std::vector<std::string>& queue_elements,
                    const std::vector<std::pair<std::string, std::string>>& cells_with_data,
                    std::chrono::seconds ttl) override;
 

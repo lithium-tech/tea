@@ -215,11 +215,10 @@ void SingleQueueClient::FillCommonInfo(samovar::ScanMetadata&& scan_metadata, sa
 
   compressor->Compress(serialized_file_list);
 
-
-  client_->PublishData("", {},
-                       {{GetMetadataCell(), std::move(serialized_metadata)},
-                        {GetFileListCell(), std::move(serialized_file_list)}},
-                       ttl_seconds_);
+  client_->PublishData(
+      "", {},
+      {{GetMetadataCell(), std::move(serialized_metadata)}, {GetFileListCell(), std::move(serialized_file_list)}},
+      ttl_seconds_);
 
   TEA_LOG("Set serialized data at cell " + GetMetadataCell() + " with data size " +
           std::to_string(serialized_metadata.size()));
@@ -271,8 +270,7 @@ void SingleQueueClient::FillManifestsQueue(samovar::ScanMetadata&& scan_metadata
       {GetFileListCell(), std::move(serialized_file_list)},
   };
 
-  PublishArrayWithCells(client_, manifests, GetManifestCell(), cells_to_publish, ttl_seconds_,
-                        queue_push_batch_size_);
+  PublishArrayWithCells(client_, manifests, GetManifestCell(), cells_to_publish, ttl_seconds_, queue_push_batch_size_);
 }
 
 std::string SingleQueueClient::GetInitScanCell() {
