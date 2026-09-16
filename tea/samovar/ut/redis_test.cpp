@@ -297,6 +297,130 @@ TEST(RedisClient, QueryTotalBytesReadLimitExceeded) {
   KillRedis();
 }
 
+TEST(RedisClient, SendPipeline) {
+  StartRedis();
+  FlushServer();
+
+  auto redis_client =
+      std::make_shared<SamovarRedisClient>(std::vector<Endpoint>{Endpoint{.host = "0.0.0.0", .port = kDefaultPort}},
+                                           std::chrono::milliseconds(30000), std::chrono::milliseconds(3000));
+
+  int64_t reqs_before = redis_client->GetRequestCount();
+
+  std::vector<std::vector<std::string>> pipeline = {
+      {"SET", "pipe_k1", "val1"}, {"SET", "pipe_k2", "val2"}, {"GET", "pipe_k1"},
+      {"GET", "pipe_k2"},         {"INCR", "pipe_counter"},   {"INCR", "pipe_counter"},
+  };
+
+  auto replies = redis_client->SendPipeline(pipeline);
+  int64_t reqs_after = redis_client->GetRequestCount();
+
+  EXPECT_EQ(reqs_after - reqs_before, 1);
+  ASSERT_EQ(replies.size(), 6);
+
+  EXPECT_EQ(replies[0].Get()->type, REDIS_REPLY_STATUS);
+  EXPECT_EQ(replies[1].Get()->type, REDIS_REPLY_STATUS);
+
+  EXPECT_EQ(replies[2].Get()->type, REDIS_REPLY_STRING);
+  EXPECT_EQ(std::string(replies[2].Get()->str, replies[2].Get()->len), "val1");
+
+  EXPECT_EQ(replies[3].Get()->type, REDIS_REPLY_STRING);
+  EXPECT_EQ(std::string(replies[3].Get()->str, replies[3].Get()->len), "val2");
+
+  EXPECT_EQ(replies[4].Get()->type, REDIS_REPLY_INTEGER);
+  EXPECT_EQ(replies[4].Get()->integer, 1);
+
+  EXPECT_EQ(replies[5].Get()->type, REDIS_REPLY_INTEGER);
+  EXPECT_EQ(replies[5].Get()->integer, 2);
+
+  KillRedis();
+}
+
+TEST(RedisClient, ConstructorPipelining) {
+  StartRedis();
+  FlushServer();
+
+  auto backoff = std::make_shared<NoBackoff>(30);
+  auto batch_size_scheduler = std::make_shared<ConstantBatchSizeScheduler>(1);
+  auto redis_client =
+      std::make_shared<SamovarRedisClient>(std::vector<Endpoint>{Endpoint{.host = "0.0.0.0", .port = kDefaultPort}},
+                                           std::chrono::milliseconds(30000), std::chrono::milliseconds(3000));
+  auto batcher = std::make_shared<Batcher>(redis_client, batch_size_scheduler);
+  const std::string query_scans_count_key = MakeQueryScansIdentifier("cluster", "session_id");
+
+  int64_t reqs_before = redis_client->GetRequestCount();
+  auto follower_client = std::make_shared<SingleQueueClient>(
+      redis_client, batcher, std::chrono::seconds(60), GetQueueName(1), query_scans_count_key, 1,
+      std::string(compression::kIdentityCompressorName), SamovarRole::kFollower, 100, backoff, backoff, true, 1, "", 0);
+  int64_t reqs_after = redis_client->GetRequestCount();
+
+  EXPECT_EQ(reqs_after - reqs_before, 1);
+  EXPECT_EQ(redis_client->GetNumericCell(query_scans_count_key), 1);
+  EXPECT_EQ(redis_client->GetNumericCell(std::string(checkpoint_prefix) + GetQueueName(1)), 1);
+  EXPECT_EQ(redis_client->GetNumericCell(std::string(init_scan_prefix) + GetQueueName(1)), 1);
+
+  reqs_before = redis_client->GetRequestCount();
+  auto coord_client =
+      std::make_shared<SingleQueueClient>(redis_client, batcher, std::chrono::seconds(60), GetQueueName(2),
+                                          query_scans_count_key, 1, std::string(compression::kIdentityCompressorName),
+                                          SamovarRole::kCoordinator, 100, backoff, backoff, true, 1, "", 0);
+  reqs_after = redis_client->GetRequestCount();
+
+  EXPECT_EQ(reqs_after - reqs_before, 1);
+  EXPECT_EQ(redis_client->GetNumericCell(query_scans_count_key), 2);
+
+  reqs_before = redis_client->GetRequestCount();
+  auto no_check_client =
+      std::make_shared<SingleQueueClient>(redis_client, batcher, std::chrono::seconds(60), GetQueueName(3),
+                                          query_scans_count_key, 1, std::string(compression::kIdentityCompressorName),
+                                          SamovarRole::kCoordinator, 0, backoff, backoff, true, 1, "", 0);
+  reqs_after = redis_client->GetRequestCount();
+
+  EXPECT_EQ(reqs_after - reqs_before, 0);
+
+  KillRedis();
+}
+
+TEST(RedisClient, FillFilesQueuePipelining) {
+  StartRedis();
+  FlushServer();
+
+  auto backoff = std::make_shared<NoBackoff>(30);
+  auto batch_size_scheduler = std::make_shared<ConstantBatchSizeScheduler>(1);
+  auto redis_client =
+      std::make_shared<SamovarRedisClient>(std::vector<Endpoint>{Endpoint{.host = "0.0.0.0", .port = kDefaultPort}},
+                                           std::chrono::milliseconds(30000), std::chrono::milliseconds(3000));
+  auto batcher = std::make_shared<Batcher>(redis_client, batch_size_scheduler);
+  const std::string queue_name = GetQueueName(42);
+
+  auto client = SingleQueueClient(redis_client, batcher, std::chrono::seconds(60), queue_name, "", 1,
+                                  std::string(compression::kIdentityCompressorName), SamovarRole::kCoordinator, 0,
+                                  backoff, backoff, true, 100, "", 0);
+
+  samovar::ScanMetadata metadata;
+  samovar::FileList file_list;
+  file_list.add_filenames("path/to/file1.parquet");
+  file_list.add_filenames("path/to/file2.parquet");
+
+  std::vector<samovar::AnnotatedDataEntry> entries;
+  for (int i = 0; i < 5; ++i) {
+    samovar::AnnotatedDataEntry entry;
+    auto* seg = entry.mutable_data_entry()->add_segments();
+    seg->set_length(i);
+    entries.push_back(entry);
+  }
+
+  int64_t reqs_before = redis_client->GetRequestCount();
+  client.FillFilesQueue(std::move(metadata), std::move(file_list), std::move(entries));
+  int64_t reqs_after = redis_client->GetRequestCount();
+
+  EXPECT_EQ(reqs_after - reqs_before, 1);
+  EXPECT_EQ(redis_client->GetQueueLen(queue_name), 5);
+  EXPECT_TRUE(redis_client->GetCell(std::string(metadata_prefix) + queue_name).has_value());
+  EXPECT_TRUE(redis_client->GetCell(std::string(file_list_prefix) + queue_name).has_value());
+  KillRedis();
+}
+
 TEST(RedisClient, MultiThreading) {
   StartRedis();
   FlushServer();
