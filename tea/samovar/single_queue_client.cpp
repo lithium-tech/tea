@@ -237,11 +237,6 @@ void SingleQueueClient::FillFilesQueue(samovar::ScanMetadata&& scan_metadata, sa
 
   compressor->Compress(serialized_file_list);
 
-  TEA_LOG("Set serialized data at cell " + GetMetadataCell() + " with data size " +
-          std::to_string(serialized_metadata.size()));
-  TEA_LOG("Set file list at cell " + GetFileListCell() + " with data size " +
-          std::to_string(serialized_file_list.size()));
-
   std::vector<std::pair<std::string, std::string>> cells_to_publish = {
       {GetMetadataCell(), std::move(serialized_metadata)},
       {GetFileListCell(), std::move(serialized_file_list)},
@@ -249,6 +244,11 @@ void SingleQueueClient::FillFilesQueue(samovar::ScanMetadata&& scan_metadata, sa
 
   PublishArrayWithCells(client_, additional_data_entries, queue_id_, cells_to_publish, ttl_seconds_,
                         queue_push_batch_size_);
+
+  TEA_LOG("Set serialized data at cell " + GetMetadataCell() + " with data size " +
+          std::to_string(serialized_metadata.size()));
+  TEA_LOG("Set file list at cell " + GetFileListCell() + " with data size " +
+          std::to_string(serialized_file_list.size()));
 }
 
 void SingleQueueClient::FillManifestsQueue(samovar::ScanMetadata&& scan_metadata,
@@ -260,17 +260,17 @@ void SingleQueueClient::FillManifestsQueue(samovar::ScanMetadata&& scan_metadata
 
   compressor->Compress(serialized_file_list);
 
-  TEA_LOG("Set serialized data at cell " + GetMetadataCell() + " with data size " +
-          std::to_string(serialized_metadata.size()));
-  TEA_LOG("Set file list at cell " + GetFileListCell() + " with data size " +
-          std::to_string(serialized_file_list.size()));
-
   std::vector<std::pair<std::string, std::string>> cells_to_publish = {
       {GetMetadataCell(), std::move(serialized_metadata)},
       {GetFileListCell(), std::move(serialized_file_list)},
   };
 
   PublishArrayWithCells(client_, manifests, GetManifestCell(), cells_to_publish, ttl_seconds_, queue_push_batch_size_);
+
+  TEA_LOG("Set serialized data at cell " + GetMetadataCell() + " with data size " +
+          std::to_string(serialized_metadata.size()));
+  TEA_LOG("Set file list at cell " + GetFileListCell() + " with data size " +
+          std::to_string(serialized_file_list.size()));
 }
 
 std::string SingleQueueClient::GetInitScanCell() {
