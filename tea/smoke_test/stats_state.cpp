@@ -112,6 +112,21 @@ std::vector<stats_state::ExecutionStats> StatsState::GetStats(bool include_maste
   return result;
 }
 
+std::vector<stats_state::StatsRequest> StatsState::GetStatsRequests(bool include_master) {
+  std::lock_guard<std::mutex> lock(impl_->mutex_);
+  std::vector<stats_state::StatsRequest> requests = std::move(impl_->stats_);
+  if (include_master) {
+    return requests;
+  }
+  std::vector<stats_state::StatsRequest> result;
+  for (const auto& request : requests) {
+    if (request.scan_id().segment_id() != -1) {
+      result.emplace_back(request);
+    }
+  }
+  return result;
+}
+
 std::string StatsState::GetHostPort() const { return kDefaultHostPort; }
 
 }  // namespace tea
