@@ -65,8 +65,8 @@ std::shared_ptr<SingleQueueClient> MakeSamovarDataClient(const SamovarConfig& co
     case BalancerType::kOneQueue: {
       samovar_data_client_ = std::make_shared<SingleQueueClient>(
           samovar_client, batcher, config.ttl_seconds, queue_name, query_scans_count_key, segment_count,
-          config.compressor_name, role, config.max_query_segment_scans, metadata_backoff,
-          config.queue_push_batch_size, query_total_bytes_read_key, max_total_s3_bytes_read);
+          config.compressor_name, role, config.max_query_segment_scans, metadata_backoff, config.queue_push_batch_size,
+          query_total_bytes_read_key, max_total_s3_bytes_read);
       break;
     }
     default:
