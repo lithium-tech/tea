@@ -66,17 +66,24 @@ for port in 9090 9000; do
 done
 sleep 2
 
-rm -f /tmp/minio /tmp/mc
+rm -f /tmp/minio /tmp/mc /tmp/silo.tar.gz /tmp/mcli.tar.gz
 ARCH=$(uname -m)
 if [ "$ARCH" = "x86_64" ]; then
-  MINIO_ARCH="linux-amd64"
-elif [ "$ARCH" = "aarch64" ]; then
-  MINIO_ARCH="linux-arm64"
+  SILO_ARCH="linux_amd64"
+  MCLI_ARCH="linux_amd64"
+elif [ "$ARCH" = "aarch64" ] || [ "$ARCH" = "arm64" ]; then
+  SILO_ARCH="linux_arm64"
+  MCLI_ARCH="linux_arm64"
 else
-  MINIO_ARCH="linux-amd64"
+  SILO_ARCH="linux_amd64"
+  MCLI_ARCH="linux_amd64"
 fi
-wget -q -c "https://dl.min.io/server/minio/release/${MINIO_ARCH}/minio" -O /tmp/minio
-wget -q -c "https://dl.min.io/client/mc/release/${MINIO_ARCH}/mc" -O /tmp/mc
+wget -q https://github.com/pgsty/silo/releases/download/RELEASE.2026-09-03T13-18-01Z/silo_20260903131801.0.0_${SILO_ARCH}.tar.gz -O /tmp/silo.tar.gz
+wget -q https://github.com/pgsty/mc/releases/download/RELEASE.2026-09-13T00-00-00Z/mcli_20260913000000.0.0_${MCLI_ARCH}.tar.gz -O /tmp/mcli.tar.gz
+tar -xzf /tmp/silo.tar.gz -C /tmp silo
+tar -xzf /tmp/mcli.tar.gz -C /tmp mcli
+mv -f /tmp/silo /tmp/minio
+mv -f /tmp/mcli /tmp/mc
 chmod +x /tmp/minio /tmp/mc
 
 # Copy HMS tools AFTER killing old processes
