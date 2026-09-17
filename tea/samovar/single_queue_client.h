@@ -33,8 +33,7 @@ class SingleQueueClient {
                              std::chrono::seconds ttl_seconds, const std::string& queue_id,
                              const std::string& query_scans_count_key, int segment_count,
                              const std::string& compressor_name, SamovarRole role, uint64_t max_query_segment_scans,
-                             std::shared_ptr<IBackoff> sync_backoff, std::shared_ptr<IBackoff> metadata_backoff,
-                             bool need_sync_on_init, uint32_t queue_push_batch_size,
+                             std::shared_ptr<IBackoff> metadata_backoff, uint32_t queue_push_batch_size,
                              const std::string& query_total_bytes_read_key, uint64_t max_total_s3_bytes_read);
 
   std::optional<samovar::AnnotatedDataEntry> GetNextDataEntry();
@@ -101,9 +100,6 @@ class SingleQueueClient {
   SamovarRole role_;
 
   std::shared_ptr<IBackoff> metadata_backoff_;
-
-  bool need_sync_on_init_ = false;
-  std::shared_ptr<IBackoff> sync_backoff_;
   DurationTicks total_sync_time_ = 0;
 
   bool cleared_ = false;

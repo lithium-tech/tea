@@ -67,8 +67,7 @@ SingleQueueClient::SingleQueueClient(std::shared_ptr<ISamovarClient> client, std
                                      std::chrono::seconds ttl_seconds, const std::string& queue_id,
                                      const std::string& query_scans_count_key, int segment_count,
                                      const std::string& compressor_name, SamovarRole role,
-                                     uint64_t max_query_segment_scans, std::shared_ptr<IBackoff> sync_backoff,
-                                     std::shared_ptr<IBackoff> metadata_backoff, bool need_sync_on_init,
+                                     uint64_t max_query_segment_scans, std::shared_ptr<IBackoff> metadata_backoff,
                                      uint32_t queue_push_batch_size, const std::string& query_total_bytes_read_key,
                                      uint64_t max_total_s3_bytes_read)
     : client_(client),
@@ -78,8 +77,6 @@ SingleQueueClient::SingleQueueClient(std::shared_ptr<ISamovarClient> client, std
       compressor(compression::CompressorFactory().GetCompressor(compressor_name)),
       role_(role),
       metadata_backoff_(metadata_backoff),
-      need_sync_on_init_(need_sync_on_init),
-      sync_backoff_(sync_backoff),
       segment_count_(segment_count),
       queue_push_batch_size_(queue_push_batch_size),
       query_total_bytes_read_key_(query_total_bytes_read_key),
@@ -151,12 +148,6 @@ std::optional<samovar::ManifestList> SingleQueueClient::GetNextManifest() {
 const samovar::ScanMetadata& SingleQueueClient::GetPlannedMetadata() {
   if (cached_result_metadata.has_value()) {
     return cached_result_metadata.value();
-  }
-
-  if (role_ == SamovarRole::kFollower && need_sync_on_init_) {
-    ScopedTimerTicks timer(total_sync_time_);
-
-    SyncSegments(client_, GetCheckpointCell(), segment_count_, sync_backoff_, "sync_segments");
   }
 
   samovar::ScanMetadata result_metadata;
@@ -274,7 +265,7 @@ std::vector<std::string> SingleQueueClient::AllCells() {
 
 void SingleQueueClient::ClearCells() {
   for (const auto& cell : AllCells()) {
-    if (cell == GetMetadataCell() && !need_sync_on_init_) {
+    if (cell == GetMetadataCell()) {
       samovar::ScanMetadata new_metadata;
       new_metadata.set_scan_already_finished(true);
 
@@ -286,10 +277,6 @@ void SingleQueueClient::ClearCells() {
 }
 
 void SingleQueueClient::OnStaticBalancingProcessingEnd() {
-  if (need_sync_on_init_) {
-    OnProcessingEnd();
-    return;
-  }
   if (cleared_) {
     return;
   }

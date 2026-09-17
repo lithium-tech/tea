@@ -86,8 +86,7 @@
                 "exponential_backoff_limit_ms": 5000,
                 "limit_retries": 50,
                 "samovar": "iamincorrecthost:6379,0.0.0.0:6379",
-                "split_type": "offsets",
-                "need_sync_on_init": false
+                "split_type": "offsets"
             }
         },
         "iceberg_samovar": {
@@ -98,8 +97,7 @@
                 "exponential_backoff_limit_ms": 5000,
                 "limit_retries": 50,
                 "samovar": "iamincorrecthost:6379,0.0.0.0:6379",
-                "split_type": "offsets",
-                "need_sync_on_init": false
+                "split_type": "offsets"
             },
             "metadata_access": {
                 "default_schema": "iceberg"
@@ -114,7 +112,6 @@
                 "limit_retries": 50,
                 "samovar": "0.0.0.0:6379",
                 "split_type": "offsets",
-                "need_sync_on_init": false,
                 "max_query_segment_scans": 20
             },
             "metadata_access": {
