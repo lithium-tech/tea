@@ -175,7 +175,6 @@ struct SamovarConfig {
   std::chrono::milliseconds min_time_before_processing_ms = std::chrono::milliseconds(0);
   std::chrono::milliseconds max_time_before_processing_ms = std::chrono::milliseconds(0);
 
-  bool need_sync_on_init = true;
   bool allow_static_balancing = true;
 
   int32_t queue_push_batch_size = 1000;
