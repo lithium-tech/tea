@@ -1,24 +1,25 @@
 #include <arrow/filesystem/s3fs.h>
-#include <iostream>
-#include <iomanip>
-#include <chrono>
-#include <string>
-#include <vector>
-#include <numeric>
+
 #include <algorithm>
+#include <chrono>
+#include <iomanip>
+#include <iostream>
+#include <numeric>
+#include <string>
 #include <thread>
+#include <vector>
 
 #include "absl/flags/flag.h"
 #include "absl/flags/parse.h"
-#include "absl/strings/str_split.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
+#include "absl/strings/str_split.h"
 
 #include "tea/smoke_test/environment.h"
 #include "tea/smoke_test/pq.h"
 #include "tea/smoke_test/stats_state.h"
-#include "tea/test_utils/location.h"
 #include "tea/test_utils/common.h"
+#include "tea/test_utils/location.h"
 #include "tea/test_utils/metadata.h"
 
 ABSL_FLAG(std::string, db, "gperov", "Hive Metastore database name");
@@ -38,9 +39,7 @@ ABSL_FLAG(int32_t, rows_per_file, 1000, "Number of rows per generated data file"
 namespace tea {
 namespace {
 
-double DurationToMs(const ::google::protobuf::Duration& d) {
-  return (d.seconds() * 1000.0) + (d.nanos() / 1e6);
-}
+double DurationToMs(const ::google::protobuf::Duration& d) { return (d.seconds() * 1000.0) + (d.nanos() / 1e6); }
 
 std::vector<GreenplumColumnInfo> ParseColumns(const std::string& cols_str) {
   std::vector<GreenplumColumnInfo> result;
@@ -64,9 +63,7 @@ struct IterationResult {
   int64_t total_files_read = 0;
 };
 
-void PrintSeparator(char ch = '=', int len = 80) {
-  std::cout << std::string(len, ch) << "\n";
-}
+void PrintSeparator(char ch = '=', int len = 80) { std::cout << std::string(len, ch) << "\n"; }
 
 }  // namespace
 }  // namespace tea
@@ -102,11 +99,12 @@ int main(int argc, char** argv) {
     }
     auto hms_client = maybe_hms.ValueUnsafe();
     file_writer = std::make_unique<tea::LocalFileWriter>();
-    const std::string gen_tbl = "bench_gen_" + std::to_string(std::chrono::system_clock::now().time_since_epoch().count() % 1000000);
+    const std::string gen_tbl =
+        "bench_gen_" + std::to_string(std::chrono::system_clock::now().time_since_epoch().count() % 1000000);
     metadata_writer = std::make_unique<tea::IcebergMetadataWriter>(gen_tbl, hms_client, profile);
 
-    std::cout << "[INFO] Dynamically generating " << generate_files << " data file(s) with "
-              << rows_per_file << " rows each...\n";
+    std::cout << "[INFO] Dynamically generating " << generate_files << " data file(s) with " << rows_per_file
+              << " rows each...\n";
 
     for (int32_t i = 0; i < generate_files; ++i) {
       tea::OptionalVector<int64_t> col_a;
@@ -141,8 +139,8 @@ int main(int argc, char** argv) {
   }
 
   tea::Location location = generated_location.has_value()
-      ? *generated_location
-      : tea::Location(tea::IcebergLocation(db, table, tea::Options{.profile = profile}));
+                               ? *generated_location
+                               : tea::Location(tea::IcebergLocation(db, table, tea::Options{.profile = profile}));
 
   tea::PrintSeparator('=');
   std::cout << " TEA SCAN BENCHMARK \n";
@@ -271,8 +269,7 @@ int main(int argc, char** argv) {
       int seg_id = req.scan_id().segment_id();
       const auto& sam = req.stats().samovar();
       double resp_ms = tea::DurationToMs(sam.samovar_total_response_duration_ticks());
-      std::cout << "      - Node/Segment " << seg_id << " : "
-                << sam.samovar_requests_count() << " requests, "
+      std::cout << "      - Node/Segment " << seg_id << " : " << sam.samovar_requests_count() << " requests, "
                 << sam.samovar_errors_count() << " errors, "
                 << "response duration: " << resp_ms << " ms, "
                 << "fetched tasks: " << sam.samovar_fetched_tasks_count() << "\n";
