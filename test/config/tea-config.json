@@ -121,6 +121,25 @@
                 "default_schema": "iceberg"
             }
         },
+        "iceberg_samovar_slow": {
+            "samovar": {
+                "use_samovar": true,
+                "backoff_type": "exp",
+                "exponential_backoff_sleep_coef": 2.5,
+                "exponential_backoff_limit_ms": 5000,
+                "limit_retries": 50,
+                "samovar": "iamincorrecthost:6379,0.0.0.0:6379",
+                "split_type": "offsets",
+                "need_sync_on_init": false
+            },
+            "metadata_access": {
+                "default_schema": "iceberg"
+            },
+            "debug": {
+                "use_slow_filesystem": true,
+                "slow_filesystem_delay_seconds": 0.03
+            }
+        },
         "broken_samovar": {
             "samovar": {
                 "use_samovar": true,

@@ -21,6 +21,7 @@ class StatsState {
   void ClearStats();
   void ClearFilters();
   std::vector<stats_state::ExecutionStats> GetStats(bool include_master);
+  std::vector<stats_state::StatsRequest> GetStatsRequests(bool include_master);
 
   static int64_t DurationToNanos(::google::protobuf::Duration duration) {
     constexpr int64_t kNanosInSecond = 1'000'000'000;

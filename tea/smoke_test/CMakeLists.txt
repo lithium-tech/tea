@@ -83,6 +83,14 @@ if (NOT APPLE)
   target_link_options(smoke_test PRIVATE "-Wl,--allow-multiple-definition")
 endif()
 
+add_executable(scan_benchmark scan_benchmark.cpp)
+target_include_directories(scan_benchmark PUBLIC ${CMAKE_SOURCE_DIR} ${Greenplum_INCLUDE_SERVER})
+target_link_libraries(scan_benchmark tea_test samovar_client absl::flags absl::flags_parse)
+target_compile_definitions(scan_benchmark PUBLIC PG_VERSION_MAJOR=${pg_version_major})
+if (NOT APPLE)
+  target_link_options(scan_benchmark PRIVATE "-Wl,--allow-multiple-definition")
+endif()
+
 if (ICECXX_GENERATOR)
   add_executable(perf_test
     perf_test/main.cpp

@@ -66,7 +66,9 @@
             "properties": {
                 "test_stats": { "type": "boolean" },
                 "test_gandiva_filter": { "type": "boolean" },
-                "intermediate_logs_period_seconds": { "type": "integer", "minimum": 0 }
+                "intermediate_logs_period_seconds": { "type": "integer", "minimum": 0 },
+                "use_slow_filesystem": { "type": "boolean" },
+                "slow_filesystem_delay_seconds": { "type": "number", "minimum": 0 }
             },
             "required": ["test_stats", "test_gandiva_filter", "intermediate_logs_period_seconds"]
         },
