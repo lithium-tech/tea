@@ -72,6 +72,15 @@ TEST_F(MetricsTest, Metrics) {
   EXPECT_EQ(result, expected);
 }
 
+TEST_F(MetricsTest, EmptyTableZeroSnapshots) {
+  ASSIGN_OR_FAIL(auto result, pq::TableScanQuery("tea.iceberg_get_metrics('tea://empty.empty')").Run(*conn_));
+
+  auto expected = pq::ScanResult({"total_records", "total_data_files", "total_files_size", "total_equality_deletes",
+                                  "total_position_deletes", "total_delete_files"},
+                                 {{"0", "0", "0", "0", "0", "0"}});
+  EXPECT_EQ(result, expected);
+}
+
 TEST_F(MetricsTest, ExternalTableUdf) {
   auto ice_loc = SimpleLocation("gperov", "test", Options{});
   auto loc = Location(std::move(ice_loc));
