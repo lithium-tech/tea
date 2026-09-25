@@ -37,7 +37,6 @@ std::shared_ptr<iceberg::Snapshot> FindSnapshot(std::shared_ptr<iceberg::TableMe
                                                 const SnapshotRef& snapshot_ref) {
   auto snapshot_id = ResolveSnapshotId(table_metadata, snapshot_ref);
   if (!snapshot_id.has_value()) {
-    // Empty Iceberg table (no snapshots yet): callers handle this by reporting zero metrics.
     return nullptr;
   }
 
@@ -190,7 +189,6 @@ std::map<std::string, int64_t> Estimator::GetTotalMetricsFromIceberg(
   std::shared_ptr<iceberg::Snapshot> snapshot = FindSnapshot(table_metadata, snapshot_ref);
   if (!snapshot) {
     // Table has no snapshots (e.g. a freshly created, empty Iceberg table): report zero metrics
-    // instead of failing, matching the semantics of scanning an empty table.
     return {{"total-records", 0},          {"total-data-files", 0},         {"total-files-size", 0},
             {"total-equality-deletes", 0}, {"total-position-deletes", 0},   {"total-delete-files", 0}};
   }
