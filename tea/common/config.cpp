@@ -512,12 +512,22 @@ void LoadFDWServerOptions(Config& config, const std::unordered_map<std::string, 
   // s3
   LoadStr(config.s3.access_key, "s3_access_key");
   LoadStr(config.s3.secret_key, "s3_secret_key");
-  LoadStr(config.s3.endpoint_override, "s3_endpoint_override");
-  LoadStr(config.s3.scheme, "s3_scheme");
+
+  if (auto i = m_server_options.find("s3_endpoint_override"); i != m_server_options.end())
+    config.s3.endpoint_override = i->second;
+  else
+    config.s3.endpoint_override = "storage.yandexcloud.net";
+
+  if (auto i = m_server_options.find("s3_scheme"); i != m_server_options.end())
+    config.s3.scheme = i->second;
+  else
+    config.s3.scheme = "https";
 
   // catalog
   if (auto i = m_server_options.find("catalog_type"); i != m_server_options.end())
     config.catalog.type = StrToCatalogType(i->second);
+  else
+    config.catalog.type = CatalogConfig::CatalogType::kHMS;
 
   if (auto i = m_server_options.find("catalog_hms"); i != m_server_options.end())
     config.catalog.hms_endpoints = {{.host = i->second, .port = 9083}};
@@ -615,7 +625,7 @@ arrow::Status Config::FromJsonFile(const std::string& file_path, const std::opti
 Config ConfigSource::GetConfig(const std::unordered_map<std::string, std::string>& m_server_options,
                                std::string_view profile) {
   auto i_read_config_file = m_server_options.find("read_config_file");
-  bool read_config = (i_read_config_file == m_server_options.end() || i_read_config_file->second != "false");
+  bool read_config = (i_read_config_file != m_server_options.end() && i_read_config_file->second == "true");
   std::optional<std::string> result_file_schema_path;
   std::string json_config_path;
   if (read_config) {
