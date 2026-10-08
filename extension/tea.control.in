@@ -5,3 +5,4 @@ module_pathname = '$libdir/tea-@TEA_VERSION@'
 superuser = true
 relocatable = false
 schema = public
+trusted = true

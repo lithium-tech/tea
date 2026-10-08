@@ -4,3 +4,5 @@ CREATE FOREIGN DATA WRAPPER tea_fdw
   OPTIONS (mpp_execute 'all segments');
 
 CREATE SERVER tea_server FOREIGN DATA WRAPPER tea_fdw;
+
+ALTER SERVER tea_server OWNER TO mdb_admin;
